@@ -78,11 +78,11 @@ wVolume    = input.float(6,  "Volume-backed candle",  minval = 0, step = 1, grou
 wMfi       = input.float(4,  "Money Flow Index",      minval = 0, step = 1, group = grpW)
 
 grpE       = "4 · Entry Logic"
-scoreThr   = input.float(55, "Score threshold (0-100)", minval = 1, maxval = 100, step = 1, group = grpE)
+scoreThr   = input.float(45, "Score threshold (0-100)", minval = 1, maxval = 100, step = 1, group = grpE)
 confirmMode= input.string("Breakout", "Price confirmation", options = ["Breakout", "Pullback", "Immediate"], group = grpE)
 confirmBars= input.int(3,    "Confirmation window (bars)", minval = 1, maxval = 20, group = grpE)
 allowLong  = input.bool(true,  "Allow longs",  group = grpE, inline = "side")
-allowShort = input.bool(true,  "Allow shorts", group = grpE, inline = "side")
+allowShort = input.bool(false, "Allow shorts", group = grpE, inline = "side")
 
 grpG       = "5 · Hard Gates (all must pass)"
 adxMin     = input.float(18,  "Min ADX (trend strength)",   minval = 0, step = 1, group = grpG)

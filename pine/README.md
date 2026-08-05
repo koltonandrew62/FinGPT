@@ -1,8 +1,8 @@
 # QQQ 1-Minute Confluence Scalper — TradingView Pine Script v6
 
-A day-trading engine for **QQQ on the 1-minute chart** that takes long and short signals from a
-weighted vote of 12 technical indicators, draws every indicator it decides from, and is fully
-backtestable in TradingView's Strategy Tester.
+A day-trading engine for **QQQ on the 1-minute chart** that takes signals from a weighted vote of
+12 technical indicators, draws every indicator it decides from, and is fully backtestable in
+TradingView's Strategy Tester. It ships **long-only** by default; shorting is a checkbox away.
 
 | File | Type | What it is |
 |---|---|---|
@@ -69,9 +69,14 @@ histogram in the companion pane, and every individual vote is itemised in the da
 
 ### 2. The setup arms
 
-A long **arms** when the score first reaches **+55**, a short at **−55**. Arming lasts
+A long **arms** when the score first reaches **+45**, a short at **−45**. Arming lasts
 `confirmBars` (default 3) bars, then expires. This stops the bot buying a trend that has been
 extended for twenty bars already.
+
+**The bot ships long-only** — *Allow shorts* is off by default, because QQQ has a persistent
+upward drift and shorting an index ETF fights that drift every session. Tick the box in the
+settings to trade both sides. With shorts off, the −45 threshold and the short half of the
+histogram still render in the pane for context; they just never fire an order.
 
 ### 3. Price has to confirm
 
@@ -161,15 +166,25 @@ Open **Strategy Tester → Properties** and check:
 
 | Want | Change |
 |---|---|
-| Fewer, higher-quality trades | Score threshold 55 → 65–70 |
-| More trades | Threshold → 45–50, or confirmation → `Immediate` |
+| Fewer, higher-quality trades | Score threshold 45 → 55–70 |
+| More trades | Threshold → 35–40, or confirmation → `Immediate` |
 | Less chop damage | ADX min 18 → 25 |
 | Trend-following character | `Breakout` confirmation, TP2 3.5R+, wider trail |
 | Mean-reversion character | `Pullback` confirmation, TP1 at 0.8R, tighter trail |
-| Long-only bias (QQQ drifts up) | Uncheck *Allow shorts* |
+| Trade both sides | Tick *Allow shorts* (off by default) |
 
-That last one is worth testing early: QQQ has a strong long-term upward drift, and shorts on an
-index ETF fight that drift every day.
+A threshold of 45 is a **permissive** setting: it needs only a modest majority of the twelve
+indicators to agree, so it produces noticeably more signals than 55 did, and more of them will be
+marginal. Two things absorb that. The daily cap still allows a maximum of 6 trades, so the extra
+signals compete for the same slots rather than multiplying your exposure — the first qualifying
+setups of the day win, which is not automatically the same as the best ones. And the hard gates
+(ADX, relative volume, ATR range, VWAP extension) still veto, so the extra signals that survive
+are the ones arriving in tradable conditions.
+
+Watch two numbers when you compare 45 against 55 in the tester: whether **average trade net
+profit** stays comfortably above your round-trip cost, and whether the extra trades improve or
+dilute the **profit factor**. A lower threshold that raises gross profit while pushing average
+trade toward zero is losing the edge to commission and slippage, not finding more of it.
 
 ---
 
