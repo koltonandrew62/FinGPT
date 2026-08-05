@@ -1,0 +1,504 @@
+//@version=6
+// ============================================================================================
+//  QQQ 1-Minute Confluence Scalper  —  STRATEGY (backtestable)
+//  ------------------------------------------------------------------------------------------
+//  A day-trading engine for QQQ on the 1-minute chart.
+//
+//  HOW IT DECIDES:
+//    12 independent technical indicators each cast a vote (+1 long / -1 short / 0 neutral).
+//    Votes are weighted and summed into a Confluence Score normalised to -100..+100.
+//    A trade is only armed when the score crosses the threshold, then it must be CONFIRMED
+//    by a price trigger (breakout / pullback), and every hard gate must pass.
+//
+//  WHAT IT DRAWS:
+//    Every indicator the decision is made from is plotted on the chart (EMA ribbon, session
+//    VWAP + volatility bands, Supertrend, Bollinger/Keltner), the live stop / TP1 / TP2 levels
+//    are drawn while in a trade, each entry is labelled with the exact indicators that voted
+//    for it, and a dashboard table shows every vote, its weight and the running score.
+//    For the score as an oscillator pane, add the companion script:
+//        QQQ_1m_Confluence_Scalper_Signals.pine
+//
+//  NON-REPAINTING:
+//    - All logic evaluates on closed bars (calc_on_every_tick = false).
+//    - Higher-timeframe data uses the `lookahead_on` + `[1]` idiom, i.e. only the *previous,
+//      fully closed* HTF bar is ever read. No future data on history or in real time.
+//    - Orders fill on the next bar's open (process_orders_on_close = false).
+//
+//  READ THE README (pine/README.md) BEFORE TRADING THIS. Defaults are a starting point,
+//  not a finished edge — they must be validated by walk-forward testing on your own data feed.
+// ============================================================================================
+
+strategy(
+     title                   = "QQQ 1m Confluence Scalper [Strategy]",
+     shorttitle              = "QQQ 1m Scalper",
+     overlay                 = true,
+     initial_capital         = 100000,
+     currency                = currency.USD,
+     default_qty_type        = strategy.fixed,
+     default_qty_value       = 1,
+     commission_type         = strategy.commission.cash_per_contract,
+     commission_value        = 0.005,
+     slippage                = 1,
+     pyramiding              = 0,
+     calc_on_every_tick      = false,
+     process_orders_on_close = false,
+     margin_long             = 25,
+     margin_short            = 25,
+     max_labels_count        = 500,
+     max_lines_count         = 500)
+
+// ============================================================================================
+//  INPUTS
+// ============================================================================================
+
+// ---------- Session / clock ----------
+grpS       = "1 · Session & Clock"
+tz         = input.string("America/New_York", "Exchange timezone",                  group = grpS)
+rthSess    = input.session("0930-1600",       "Regular trading hours",              group = grpS, tooltip = "The only window the bot is allowed to hold risk.")
+entrySess  = input.session("0940-1545",       "New-entry window",                   group = grpS, tooltip = "No new positions outside this window. Default skips the first 10 minutes of chaos and the last 15 minutes.")
+flatSess   = input.session("0930-1555",       "Flatten-by window",                  group = grpS, tooltip = "Any open position is closed at market once this window ends.")
+
+// ---------- Indicator lengths ----------
+grpI       = "2 · Indicator Settings"
+emaFastLen = input.int(9,    "EMA fast",              minval = 2,  group = grpI)
+emaMidLen  = input.int(21,   "EMA mid",               minval = 2,  group = grpI)
+emaSlowLen = input.int(50,   "EMA slow",              minval = 2,  group = grpI)
+emaTrndLen = input.int(200,  "EMA trend",             minval = 2,  group = grpI)
+htfTF      = input.timeframe("5", "Higher timeframe", group = grpI, tooltip = "Trend context. Read with lookahead_on + [1] so only closed HTF bars are used.")
+htfLen     = input.int(20,   "HTF EMA length",        minval = 2,  group = grpI)
+rsiLen     = input.int(14,   "RSI length",            minval = 2,  group = grpI)
+rsiBuf     = input.float(3,  "RSI neutral band (+/- around 50)", minval = 0, step = 0.5, group = grpI)
+macdFast   = input.int(12,   "MACD fast",             minval = 1,  group = grpI)
+macdSlow   = input.int(26,   "MACD slow",             minval = 1,  group = grpI)
+macdSig    = input.int(9,    "MACD signal",           minval = 1,  group = grpI)
+srsiLen    = input.int(14,   "Stoch RSI length",      minval = 2,  group = grpI)
+srsiK      = input.int(3,    "Stoch RSI %K smooth",   minval = 1,  group = grpI)
+srsiD      = input.int(3,    "Stoch RSI %D smooth",   minval = 1,  group = grpI)
+stAtrLen   = input.int(10,   "Supertrend ATR length", minval = 1,  group = grpI)
+stFactor   = input.float(2.5,"Supertrend factor",     minval = 0.5, step = 0.1, group = grpI)
+bbLen      = input.int(20,   "Bollinger/Keltner length", minval = 2, group = grpI)
+bbMult     = input.float(2.0,"Bollinger mult",        minval = 0.1, step = 0.1, group = grpI)
+kcMult     = input.float(1.5,"Keltner mult",          minval = 0.1, step = 0.1, group = grpI)
+mfiLen     = input.int(14,   "MFI length",            minval = 2,  group = grpI)
+volLen     = input.int(20,   "Relative-volume base",  minval = 2,  group = grpI)
+vwapDevMlt = input.float(1.5,"VWAP band deviations",  minval = 0.1, step = 0.1, group = grpI)
+atrLen     = input.int(14,   "ATR length",            minval = 1,  group = grpI)
+adxLen     = input.int(14,   "DMI length",            minval = 1,  group = grpI)
+adxSmooth  = input.int(14,   "ADX smoothing",         minval = 1,  group = grpI)
+
+// ---------- Vote weights ----------
+grpW       = "3 · Confluence Weights"
+wEmaCross  = input.float(12, "EMA fast vs mid",       minval = 0, step = 1, group = grpW)
+wEmaSlow   = input.float(10, "Price vs EMA slow",     minval = 0, step = 1, group = grpW)
+wRegime    = input.float(8,  "EMA slow vs EMA trend", minval = 0, step = 1, group = grpW)
+wHtf       = input.float(14, "Higher-timeframe trend",minval = 0, step = 1, group = grpW)
+wSuper     = input.float(12, "Supertrend",            minval = 0, step = 1, group = grpW)
+wRsi       = input.float(8,  "RSI vs 50",             minval = 0, step = 1, group = grpW)
+wMacd      = input.float(10, "MACD histogram",        minval = 0, step = 1, group = grpW)
+wSrsi      = input.float(6,  "Stoch RSI",             minval = 0, step = 1, group = grpW)
+wVwap      = input.float(12, "Price vs session VWAP", minval = 0, step = 1, group = grpW)
+wSqueeze   = input.float(4,  "Volatility expansion",  minval = 0, step = 1, group = grpW)
+wVolume    = input.float(6,  "Volume-backed candle",  minval = 0, step = 1, group = grpW)
+wMfi       = input.float(4,  "Money Flow Index",      minval = 0, step = 1, group = grpW)
+
+// ---------- Entry logic ----------
+grpE       = "4 · Entry Logic"
+scoreThr   = input.float(55, "Score threshold (0-100)", minval = 1, maxval = 100, step = 1, group = grpE, tooltip = "Long needs score >= +threshold, short needs score <= -threshold.")
+confirmMode= input.string("Breakout", "Price confirmation", options = ["Breakout", "Pullback", "Immediate"], group = grpE, tooltip = "Breakout: close takes out the prior bar's extreme.\nPullback: price tags the fast EMA and closes back in the trend direction.\nImmediate: enter on the score crossing alone.")
+confirmBars= input.int(3,    "Confirmation window (bars)", minval = 1, maxval = 20, group = grpE, tooltip = "How many bars the setup stays armed waiting for the price trigger.")
+allowLong  = input.bool(true,  "Allow longs",  group = grpE, inline = "side")
+allowShort = input.bool(true,  "Allow shorts", group = grpE, inline = "side")
+
+// ---------- Hard gates ----------
+grpG       = "5 · Hard Gates (all must pass)"
+adxMin     = input.float(18,  "Min ADX (trend strength)",   minval = 0, step = 1, group = grpG)
+relVolMin  = input.float(0.9, "Min relative volume",        minval = 0, step = 0.1, group = grpG)
+atrPctMin  = input.float(0.02,"Min ATR as % of price",      minval = 0, step = 0.01, group = grpG, tooltip = "Blocks dead, un-tradable tape.")
+atrPctMax  = input.float(0.60,"Max ATR as % of price",      minval = 0, step = 0.01, group = grpG, tooltip = "Blocks news-spike volatility where stops are meaningless.")
+maxVwapAtr = input.float(3.0, "Max distance from VWAP (ATR)", minval = 0.1, step = 0.1, group = grpG, tooltip = "Stops the bot chasing an extended move.")
+maxBarAtr  = input.float(1.5, "Max signal-bar range (ATR)",   minval = 0.1, step = 0.1, group = grpG, tooltip = "Refuses to enter on an already-exploded candle.")
+cooldown   = input.int(3,     "Cooldown after exit (bars)",   minval = 0, group = grpG)
+
+// ---------- Risk & exits ----------
+grpR       = "6 · Risk & Exits"
+riskPct    = input.float(0.5, "Risk per trade (% of equity)", minval = 0.01, step = 0.05, group = grpR)
+maxLev     = input.float(4.0, "Max notional leverage",        minval = 0.1, step = 0.5, group = grpR, tooltip = "Caps position size regardless of the risk calculation. 4.0 = standard US day-trading buying power.")
+stopMult   = input.float(1.2, "Initial stop (ATR mult)",      minval = 0.1, step = 0.1, group = grpR)
+rr1        = input.float(1.0, "TP1 at R multiple",            minval = 0.1, step = 0.1, group = grpR)
+tp1Pct     = input.float(50,  "TP1 size (% of position)",     minval = 1, maxval = 100, step = 5, group = grpR)
+useTp2     = input.bool(true, "Use hard TP2 on runner",       group = grpR)
+rr2        = input.float(2.5, "TP2 at R multiple",            minval = 0.1, step = 0.1, group = grpR)
+moveBE     = input.bool(true, "Move stop to breakeven after TP1", group = grpR)
+beTicks    = input.int(2,     "Breakeven offset (ticks)",     minval = 0, group = grpR)
+useTrail   = input.bool(true, "Trail the runner (ATR)",       group = grpR)
+trailMult  = input.float(1.5, "Trail distance (ATR mult)",    minval = 0.1, step = 0.1, group = grpR)
+maxBarsIn  = input.int(45,    "Time stop (bars in trade)",    minval = 1, group = grpR, tooltip = "A 1-minute scalp that has not worked in this many bars is dead money.")
+maxTrades  = input.int(6,     "Max trades per day",           minval = 1, group = grpR)
+maxDayLoss = input.float(2.0, "Daily loss limit (% of equity)", minval = 0.1, step = 0.1, group = grpR)
+
+// ---------- Display ----------
+grpD       = "7 · Display"
+showEmas   = input.bool(true, "Draw EMA ribbon",        group = grpD)
+showVwap   = input.bool(true, "Draw VWAP + bands",      group = grpD)
+showSt     = input.bool(true, "Draw Supertrend",        group = grpD)
+showBands  = input.bool(true, "Draw Bollinger/Keltner", group = grpD)
+showLevels = input.bool(true, "Draw live stop / TP levels", group = grpD)
+showLabels = input.bool(true, "Label entries with the voting indicators", group = grpD)
+showPanel  = input.bool(true, "Show dashboard",         group = grpD)
+tblPos     = input.string("Top Right", "Dashboard position", options = ["Top Right", "Middle Right", "Bottom Right", "Top Left", "Bottom Left"], group = grpD)
+
+// ============================================================================================
+//  SESSION STATE
+// ============================================================================================
+inRth      = not na(time(timeframe.period, rthSess,   tz))
+inEntryWin = not na(time(timeframe.period, entrySess, tz))
+inFlatWin  = not na(time(timeframe.period, flatSess,  tz))
+newRthBar  = inRth and not inRth[1]
+
+// ============================================================================================
+//  INDICATORS  (all computed every bar — never inside a conditional block)
+// ============================================================================================
+
+// --- Trend: EMA ribbon ---
+emaFast = ta.ema(close, emaFastLen)
+emaMid  = ta.ema(close, emaMidLen)
+emaSlow = ta.ema(close, emaSlowLen)
+emaTrnd = ta.ema(close, emaTrndLen)
+
+// --- Trend: higher timeframe (non-repainting) ---
+htfBundle() =>
+    e = ta.ema(close, htfLen)
+    s = e - e[3]
+    [e[1], close[1], s[1]]
+[htfEma, htfClose, htfSlope] = request.security(syminfo.tickerid, htfTF, htfBundle(), lookahead = barmerge.lookahead_on)
+
+// --- Trend: Supertrend ---
+[stLine, stDir] = ta.supertrend(stFactor, stAtrLen)   // stDir: -1 = uptrend, +1 = downtrend
+
+// --- Momentum ---
+rsi                      = ta.rsi(close, rsiLen)
+[macdLine, sigLine, hist]= ta.macd(close, macdFast, macdSlow, macdSig)
+rsiSrc                   = ta.rsi(close, srsiLen)
+srsK                     = ta.sma(ta.stoch(rsiSrc, rsiSrc, rsiSrc, srsiLen), srsiK)
+srsD                     = ta.sma(srsK, srsiD)
+
+// --- Volatility ---
+atr    = ta.atr(atrLen)
+atrPct = close > 0 ? atr / close * 100.0 : 0.0
+[bbMid, bbUp, bbLo] = ta.bb(close, bbLen, bbMult)
+[kcMid, kcUp, kcLo] = ta.kc(close, bbLen, kcMult)
+bbWidth   = bbMid > 0 ? (bbUp - bbLo) / bbMid : 0.0
+sqzOn     = bbUp < kcUp and bbLo > kcLo           // Bollinger inside Keltner = coiled
+sqzFired  = sqzOn[1] and not sqzOn                // the bar the coil releases
+expanding = bbWidth > bbWidth[1] or sqzFired
+
+// --- Trend strength ---
+[diPlus, diMinus, adx] = ta.dmi(adxLen, adxSmooth)
+
+// --- Volume ---
+mfi     = ta.mfi(hlc3, mfiLen)
+volAvg  = ta.sma(volume, volLen)
+relVol  = volAvg > 0 ? volume / volAvg : 1.0
+
+// --- Session VWAP with volume-weighted deviation bands (resets at the RTH open) ---
+var float cumPV  = 0.0
+var float cumPV2 = 0.0
+var float cumV   = 0.0
+if newRthBar
+    cumPV  := 0.0
+    cumPV2 := 0.0
+    cumV   := 0.0
+cumPV  := cumPV  + hlc3 * nz(volume)
+cumPV2 := cumPV2 + hlc3 * hlc3 * nz(volume)
+cumV   := cumV   + nz(volume)
+vwap    = cumV > 0 ? cumPV / cumV : close
+vwapVar = cumV > 0 ? math.max(cumPV2 / cumV - vwap * vwap, 0.0) : 0.0
+vwapDev = math.sqrt(vwapVar)
+vwapUp  = vwap + vwapDevMlt * vwapDev
+vwapLo  = vwap - vwapDevMlt * vwapDev
+
+// ============================================================================================
+//  THE 12 VOTES  (+1 bullish, -1 bearish, 0 neutral)
+// ============================================================================================
+v01 = emaFast > emaMid                              ? 1 : emaFast < emaMid                              ? -1 : 0
+v02 = close   > emaSlow                             ? 1 : close   < emaSlow                             ? -1 : 0
+v03 = emaSlow > emaTrnd                             ? 1 : emaSlow < emaTrnd                             ? -1 : 0
+v04 = htfClose > htfEma and htfSlope > 0            ? 1 : htfClose < htfEma and htfSlope < 0            ? -1 : 0
+v05 = stDir < 0                                     ? 1 : stDir > 0                                     ? -1 : 0
+v06 = rsi > 50 + rsiBuf                             ? 1 : rsi < 50 - rsiBuf                             ? -1 : 0
+v07 = hist > 0 and hist > hist[1]                   ? 1 : hist < 0 and hist < hist[1]                   ? -1 : 0
+v08 = srsK > srsD and srsK < 80                     ? 1 : srsK < srsD and srsK > 20                     ? -1 : 0
+v09 = close > vwap                                  ? 1 : close < vwap                                  ? -1 : 0
+v10 = expanding and close > bbMid                   ? 1 : expanding and close < bbMid                   ? -1 : 0
+v11 = relVol >= 1.0 and close > open                ? 1 : relVol >= 1.0 and close < open                ? -1 : 0
+v12 = mfi > 55                                      ? 1 : mfi < 45                                      ? -1 : 0
+
+var array<string> voteNames = array.from("EMA " + str.tostring(emaFastLen) + "/" + str.tostring(emaMidLen), "Price vs EMA " + str.tostring(emaSlowLen), "EMA " + str.tostring(emaSlowLen) + " vs " + str.tostring(emaTrndLen), "HTF " + htfTF + " trend", "Supertrend", "RSI vs 50", "MACD histogram", "Stoch RSI", "Price vs VWAP", "Vol expansion", "Volume candle", "MFI")
+
+voteWeights = array.from(wEmaCross, wEmaSlow, wRegime, wHtf, wSuper, wRsi, wMacd, wSrsi, wVwap, wSqueeze, wVolume, wMfi)
+votes       = array.from(v01, v02, v03, v04, v05, v06, v07, v08, v09, v10, v11, v12)
+
+rawScore = 0.0
+totWeight= 0.0
+for i = 0 to array.size(votes) - 1
+    w = array.get(voteWeights, i)
+    rawScore  := rawScore  + array.get(votes, i) * w
+    totWeight := totWeight + w
+score = totWeight > 0 ? 100.0 * rawScore / totWeight : 0.0
+
+// ============================================================================================
+//  HARD GATES
+// ============================================================================================
+var int   tradesToday   = 0
+var float dayStartEq    = na
+var int   lastExitBar   = na
+
+if newRthBar
+    tradesToday := 0
+    dayStartEq  := strategy.equity
+
+dayPnl     = strategy.equity - nz(dayStartEq, strategy.equity)
+lossLimit  = -nz(dayStartEq, strategy.equity) * maxDayLoss / 100.0
+barRange   = high - low
+
+gTime    = inRth and inEntryWin
+gAdx     = adx >= adxMin
+gVol     = relVol >= relVolMin
+gAtr     = atrPct >= atrPctMin and atrPct <= atrPctMax
+gVwapExt = atr > 0 and math.abs(close - vwap) <= maxVwapAtr * atr
+gBarSize = atr > 0 and barRange <= maxBarAtr * atr
+gCount   = tradesToday < maxTrades
+gLoss    = dayPnl > lossLimit
+gCool    = na(lastExitBar) or (bar_index - lastExitBar) >= cooldown
+gFlat    = strategy.position_size == 0
+
+gatesOk  = gTime and gAdx and gVol and gAtr and gVwapExt and gBarSize and gCount and gLoss and gCool and gFlat
+
+// ============================================================================================
+//  ARM  ->  CONFIRM  ->  ENTER
+// ============================================================================================
+longSetup  = score >=  scoreThr and allowLong
+shortSetup = score <= -scoreThr and allowShort
+
+var int longArm  = 0
+var int shortArm = 0
+longArm  := longSetup  and not longSetup[1]  ? confirmBars : longSetup  ? math.max(longArm  - 1, 0) : 0
+shortArm := shortSetup and not shortSetup[1] ? confirmBars : shortSetup ? math.max(shortArm - 1, 0) : 0
+
+longConfirm  = confirmMode == "Immediate" ? true : confirmMode == "Breakout" ? (close > high[1] and close > open) : (low  <= emaFast and close > emaFast and close > open)
+shortConfirm = confirmMode == "Immediate" ? true : confirmMode == "Breakout" ? (close < low[1]  and close < open) : (high >= emaFast and close < emaFast and close < open)
+
+goLong  = gatesOk and longArm  > 0 and longConfirm
+goShort = gatesOk and shortArm > 0 and shortConfirm and not goLong
+
+// --- Position sizing: fixed fractional risk, capped by leverage ---
+stopDistNow = atr * stopMult
+riskCash    = strategy.equity * riskPct / 100.0
+qtyByRisk   = stopDistNow > 0 ? riskCash / stopDistNow : 0.0
+qtyByLev    = close > 0 ? strategy.equity * maxLev / close : 0.0
+qtyPlan     = math.max(1.0, math.floor(math.min(qtyByRisk, qtyByLev)))
+
+// ============================================================================================
+//  TRADE STATE
+// ============================================================================================
+var float entryPx   = na
+var float riskPS    = na      // risk per share locked in at entry
+var float slPx      = na
+var float tp1Px     = na
+var float tp2Px     = na
+var float trailPx   = na
+var bool  tp1Done   = false
+var int   entryBar  = na
+var float pendStop  = na      // stop distance planned when the order was submitted
+var string entryTxt = ""
+
+justOpened = strategy.position_size != 0 and strategy.position_size[1] == 0
+justClosed = strategy.position_size == 0 and strategy.position_size[1] != 0
+
+if justOpened
+    entryPx  := strategy.position_avg_price
+    riskPS   := nz(pendStop, atr * stopMult)
+    entryBar := bar_index
+    tp1Done  := false
+    trailPx  := na
+    tradesToday := tradesToday + 1
+    if strategy.position_size > 0
+        slPx  := entryPx - riskPS
+        tp1Px := entryPx + riskPS * rr1
+        tp2Px := entryPx + riskPS * rr2
+    else
+        slPx  := entryPx + riskPS
+        tp1Px := entryPx - riskPS * rr1
+        tp2Px := entryPx - riskPS * rr2
+
+if justClosed
+    lastExitBar := bar_index
+    entryPx := na
+    slPx    := na
+    tp1Px   := na
+    tp2Px   := na
+    trailPx := na
+    tp1Done := false
+
+// ============================================================================================
+//  EXIT MANAGEMENT
+// ============================================================================================
+barsInTrade = na(entryBar) ? 0 : bar_index - entryBar
+mustFlat    = strategy.position_size != 0 and (not inRth or not inFlatWin)
+
+if strategy.position_size > 0
+    if high >= tp1Px
+        tp1Done := true
+    if tp1Done
+        if moveBE
+            slPx := math.max(slPx, entryPx + beTicks * syminfo.mintick)
+        if useTrail
+            cand    = close - atr * trailMult
+            trailPx := na(trailPx) ? cand : math.max(trailPx, cand)
+    effStop = tp1Done and useTrail and not na(trailPx) ? math.max(slPx, trailPx) : slPx
+    strategy.exit("L-TP1", from_entry = "LONG", qty_percent = tp1Pct, limit = tp1Px, stop = effStop, comment = "L TP1/SL")
+    strategy.exit("L-RUN", from_entry = "LONG", limit = useTp2 ? tp2Px : na, stop = effStop, comment = "L Runner")
+
+if strategy.position_size < 0
+    if low <= tp1Px
+        tp1Done := true
+    if tp1Done
+        if moveBE
+            slPx := math.min(slPx, entryPx - beTicks * syminfo.mintick)
+        if useTrail
+            cand    = close + atr * trailMult
+            trailPx := na(trailPx) ? cand : math.min(trailPx, cand)
+    effStop = tp1Done and useTrail and not na(trailPx) ? math.min(slPx, trailPx) : slPx
+    strategy.exit("S-TP1", from_entry = "SHORT", qty_percent = tp1Pct, limit = tp1Px, stop = effStop, comment = "S TP1/SL")
+    strategy.exit("S-RUN", from_entry = "SHORT", limit = useTp2 ? tp2Px : na, stop = effStop, comment = "S Runner")
+
+if strategy.position_size != 0 and barsInTrade >= maxBarsIn and not mustFlat
+    strategy.close_all(comment = "Time stop")
+
+if mustFlat
+    strategy.close_all(comment = "EOD flat")
+
+// ============================================================================================
+//  ENTRIES
+// ============================================================================================
+voteTags(int dir) =>
+    string s = ""
+    for i = 0 to array.size(votes) - 1
+        if array.get(votes, i) == dir
+            s := s + "• " + array.get(voteNames, i) + "\n"
+    s
+
+if goLong
+    pendStop := stopDistNow
+    entryTxt := "LONG  score " + str.tostring(score, "#.#") + "\nATR " + str.tostring(atr, "#.##") + "  ADX " + str.tostring(adx, "#.#") + "  RVol " + str.tostring(relVol, "#.##") + "\nVoting for it:\n" + voteTags(1)
+    strategy.entry("LONG", strategy.long, qty = qtyPlan, comment = "LONG " + str.tostring(score, "#"))
+    // Bracket the entry immediately, using the anticipated fill (this bar's close). These orders
+    // activate the moment the entry fills, so the fill bar is never unprotected. They are
+    // re-issued with the same IDs next bar against the real average fill price.
+    strategy.exit("L-TP1", from_entry = "LONG", qty_percent = tp1Pct, limit = close + stopDistNow * rr1, stop = close - stopDistNow, comment = "L TP1/SL")
+    strategy.exit("L-RUN", from_entry = "LONG", limit = useTp2 ? close + stopDistNow * rr2 : na, stop = close - stopDistNow, comment = "L Runner")
+    alert("QQQ LONG signal | score " + str.tostring(score, "#.#") + " | price " + str.tostring(close, format.mintick), alert.freq_once_per_bar_close)
+
+if goShort
+    pendStop := stopDistNow
+    entryTxt := "SHORT  score " + str.tostring(score, "#.#") + "\nATR " + str.tostring(atr, "#.##") + "  ADX " + str.tostring(adx, "#.#") + "  RVol " + str.tostring(relVol, "#.##") + "\nVoting for it:\n" + voteTags(-1)
+    strategy.entry("SHORT", strategy.short, qty = qtyPlan, comment = "SHORT " + str.tostring(score, "#"))
+    strategy.exit("S-TP1", from_entry = "SHORT", qty_percent = tp1Pct, limit = close - stopDistNow * rr1, stop = close + stopDistNow, comment = "S TP1/SL")
+    strategy.exit("S-RUN", from_entry = "SHORT", limit = useTp2 ? close - stopDistNow * rr2 : na, stop = close + stopDistNow, comment = "S Runner")
+    alert("QQQ SHORT signal | score " + str.tostring(score, "#.#") + " | price " + str.tostring(close, format.mintick), alert.freq_once_per_bar_close)
+
+// ============================================================================================
+//  DRAWING — every indicator the decision came from
+// ============================================================================================
+cBull = color.new(#26a69a, 0)
+cBear = color.new(#ef5350, 0)
+
+pFast = plot(showEmas ? emaFast : na, "EMA fast",  color = color.new(#42bda8, 0),  linewidth = 1)
+pMid  = plot(showEmas ? emaMid  : na, "EMA mid",   color = color.new(#f0b90b, 0),  linewidth = 1)
+plot(showEmas ? emaSlow : na, "EMA slow",  color = color.new(#2962ff, 0), linewidth = 2)
+plot(showEmas ? emaTrnd : na, "EMA trend", color = color.new(#9c27b0, 0), linewidth = 2)
+fill(pFast, pMid, color = showEmas ? color.new(emaFast > emaMid ? #26a69a : #ef5350, 88) : na, title = "EMA ribbon")
+
+plot(showVwap ? vwap   : na, "VWAP",      color = color.new(#ff9800, 0), linewidth = 2)
+pVwUp = plot(showVwap ? vwapUp : na, "VWAP upper", color = color.new(#ff9800, 55), linewidth = 1)
+pVwLo = plot(showVwap ? vwapLo : na, "VWAP lower", color = color.new(#ff9800, 55), linewidth = 1)
+fill(pVwUp, pVwLo, color = showVwap ? color.new(#ff9800, 94) : na, title = "VWAP band")
+
+stUp = showSt and stDir < 0 ? stLine : na
+stDn = showSt and stDir > 0 ? stLine : na
+plot(stUp, "Supertrend up",   color = cBull, style = plot.style_linebr, linewidth = 2)
+plot(stDn, "Supertrend down", color = cBear, style = plot.style_linebr, linewidth = 2)
+
+plot(showBands ? bbUp : na, "BB upper", color = color.new(#787b86, 45), linewidth = 1)
+plot(showBands ? bbLo : na, "BB lower", color = color.new(#787b86, 45), linewidth = 1)
+plot(showBands ? kcUp : na, "KC upper", color = color.new(#607d8b, 70), linewidth = 1, style = plot.style_circles)
+plot(showBands ? kcLo : na, "KC lower", color = color.new(#607d8b, 70), linewidth = 1, style = plot.style_circles)
+
+// Live trade levels
+inTrade = strategy.position_size != 0
+plot(showLevels and inTrade ? slPx  : na, "Stop", color = color.new(#ef5350, 0), style = plot.style_linebr, linewidth = 2)
+plot(showLevels and inTrade ? tp1Px : na, "TP1",  color = color.new(#26a69a, 0), style = plot.style_linebr, linewidth = 1)
+plot(showLevels and inTrade and useTp2 ? tp2Px : na, "TP2", color = color.new(#26a69a, 40), style = plot.style_linebr, linewidth = 1)
+plot(showLevels and inTrade and tp1Done and useTrail ? trailPx : na, "Trail", color = color.new(#ffeb3b, 20), style = plot.style_linebr, linewidth = 1)
+
+// Signal markers + the "why"
+plotshape(goLong,  "Long signal",  style = shape.triangleup,   location = location.belowbar, color = cBull, size = size.small)
+plotshape(goShort, "Short signal", style = shape.triangledown, location = location.abovebar, color = cBear, size = size.small)
+
+if showLabels and (goLong or goShort)
+    label.new(bar_index, goLong ? low - atr * 0.8 : high + atr * 0.8, entryTxt, style = goLong ? label.style_label_up : label.style_label_down, color = color.new(goLong ? #26a69a : #ef5350, 15), textcolor = color.white, size = size.small, textalign = text.align_left)
+
+// Context shading: armed-and-waiting, and blocked-by-gates
+bgcolor(inRth and (longArm > 0 or shortArm > 0) and not (goLong or goShort) ? color.new(longArm > 0 ? #26a69a : #ef5350, 92) : na, title = "Setup armed")
+bgcolor(inRth and inEntryWin and not (gAdx and gVol and gAtr) ? color.new(#787b86, 93) : na, title = "Filtered out")
+
+// ============================================================================================
+//  DASHBOARD
+// ============================================================================================
+panelPos = tblPos == "Top Right" ? position.top_right : tblPos == "Middle Right" ? position.middle_right : tblPos == "Bottom Right" ? position.bottom_right : tblPos == "Top Left" ? position.top_left : position.bottom_left
+var table dash = table.new(panelPos, 4, 21, bgcolor = color.new(#131722, 12), border_color = color.new(#2a2e39, 0), border_width = 1, frame_color = color.new(#2a2e39, 0), frame_width = 1)
+
+cellTxt(bool ok) => ok ? "PASS" : "BLOCK"
+cellCol(bool ok) => color.new(ok ? #26a69a : #ef5350, 75)
+
+if showPanel and barstate.islast
+    table.cell(dash, 0, 0, "QQQ 1m Confluence", text_color = color.white, text_size = size.small, bgcolor = color.new(#2962ff, 30))
+    table.cell(dash, 1, 0, "Vote",   text_color = color.white, text_size = size.small, bgcolor = color.new(#2962ff, 30))
+    table.cell(dash, 2, 0, "Weight", text_color = color.white, text_size = size.small, bgcolor = color.new(#2962ff, 30))
+    table.cell(dash, 3, 0, "Pts",    text_color = color.white, text_size = size.small, bgcolor = color.new(#2962ff, 30))
+
+    for i = 0 to array.size(votes) - 1
+        vv = array.get(votes, i)
+        ww = array.get(voteWeights, i)
+        table.cell(dash, 0, i + 1, array.get(voteNames, i), text_color = color.new(#d1d4dc, 0), text_size = size.tiny, text_halign = text.align_left)
+        table.cell(dash, 1, i + 1, vv > 0 ? "LONG" : vv < 0 ? "SHORT" : "flat", text_color = color.white, text_size = size.tiny, bgcolor = color.new(vv > 0 ? #26a69a : vv < 0 ? #ef5350 : #787b86, 70))
+        table.cell(dash, 2, i + 1, str.tostring(ww, "#"), text_color = color.new(#d1d4dc, 0), text_size = size.tiny)
+        table.cell(dash, 3, i + 1, str.tostring(vv * ww, "#"), text_color = color.new(#d1d4dc, 0), text_size = size.tiny)
+
+    r = array.size(votes) + 1
+    table.cell(dash, 0, r, "SCORE (thr " + str.tostring(scoreThr, "#") + ")", text_color = color.white, text_size = size.small, bgcolor = color.new(#363a45, 20))
+    table.cell(dash, 1, r, str.tostring(score, "#.#"), text_color = color.white, text_size = size.small, bgcolor = color.new(score >= scoreThr ? #26a69a : score <= -scoreThr ? #ef5350 : #787b86, 55))
+    table.cell(dash, 2, r, "ADX " + str.tostring(adx, "#.#") + (diPlus > diMinus ? " +DI" : " -DI"), text_color = color.new(#d1d4dc, 0), text_size = size.tiny, bgcolor = cellCol(gAdx))
+    table.cell(dash, 3, r, "RV " + str.tostring(relVol, "#.##"), text_color = color.new(#d1d4dc, 0), text_size = size.tiny, bgcolor = cellCol(gVol))
+
+    table.cell(dash, 0, r + 1, "Gates", text_color = color.white, text_size = size.tiny, bgcolor = color.new(#363a45, 20))
+    table.cell(dash, 1, r + 1, "Time "  + cellTxt(gTime),  text_color = color.white, text_size = size.tiny, bgcolor = cellCol(gTime))
+    table.cell(dash, 2, r + 1, "ATR% "  + str.tostring(atrPct, "#.###"), text_color = color.white, text_size = size.tiny, bgcolor = cellCol(gAtr))
+    table.cell(dash, 3, r + 1, "VWAP "  + cellTxt(gVwapExt), text_color = color.white, text_size = size.tiny, bgcolor = cellCol(gVwapExt))
+
+    table.cell(dash, 0, r + 2, "Trades today", text_color = color.new(#d1d4dc, 0), text_size = size.tiny, text_halign = text.align_left)
+    table.cell(dash, 1, r + 2, str.tostring(tradesToday) + "/" + str.tostring(maxTrades), text_color = color.white, text_size = size.tiny, bgcolor = cellCol(gCount))
+    table.cell(dash, 2, r + 2, "Day P&L", text_color = color.new(#d1d4dc, 0), text_size = size.tiny)
+    table.cell(dash, 3, r + 2, str.tostring(dayPnl, "#.#"), text_color = color.white, text_size = size.tiny, bgcolor = cellCol(gLoss))
+
+    winRate = strategy.closedtrades > 0 ? 100.0 * strategy.wintrades / strategy.closedtrades : 0.0
+    table.cell(dash, 0, r + 3, "Net profit", text_color = color.new(#d1d4dc, 0), text_size = size.tiny, text_halign = text.align_left)
+    table.cell(dash, 1, r + 3, str.tostring(strategy.netprofit, "#.#"), text_color = color.white, text_size = size.tiny, bgcolor = color.new(strategy.netprofit >= 0 ? #26a69a : #ef5350, 70))
+    table.cell(dash, 2, r + 3, "Win rate", text_color = color.new(#d1d4dc, 0), text_size = size.tiny)
+    table.cell(dash, 3, r + 3, str.tostring(winRate, "#.#") + "%", text_color = color.white, text_size = size.tiny)
+
+    posTxt = strategy.position_size > 0 ? "LONG " + str.tostring(strategy.position_size, "#") : strategy.position_size < 0 ? "SHORT " + str.tostring(math.abs(strategy.position_size), "#") : "FLAT"
+    table.cell(dash, 0, r + 4, "Position", text_color = color.new(#d1d4dc, 0), text_size = size.tiny, text_halign = text.align_left)
+    table.cell(dash, 1, r + 4, posTxt, text_color = color.white, text_size = size.tiny, bgcolor = color.new(strategy.position_size > 0 ? #26a69a : strategy.position_size < 0 ? #ef5350 : #787b86, 70))
+    table.cell(dash, 2, r + 4, "Closed", text_color = color.new(#d1d4dc, 0), text_size = size.tiny)
+    table.cell(dash, 3, r + 4, str.tostring(strategy.closedtrades), text_color = color.white, text_size = size.tiny)
