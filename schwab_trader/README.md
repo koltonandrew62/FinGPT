@@ -98,8 +98,10 @@ peak.
 
 ## Dad's daily plan (Sunday–Friday, 8:30 AM ET)
 
-`daily_report.py` emails a plan for the $1.5M margin account every morning before the
-open (built by a scheduled task in the Claude app from read-only Robinhood data):
+`daily_report.py` builds a plan for the $1.5M margin account every morning before the
+open. A scheduled task in the Claude app runs it from read-only Robinhood data and saves
+it as a **Gmail draft** for you to review and send; the email itself never names who it
+is for or the account size:
 
 - market trends (SPY, QQQ, sectors) and the 5-day "similar past mornings" forecast;
 - Asia overnight (US-listed Japan/China/Hong Kong/Korea/Taiwan/Australia/India funds in
