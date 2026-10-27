@@ -132,7 +132,7 @@ def overnight_moves(ext: dict, last_close: pd.Series | None = None, last_day: pd
         latest = float(after.close.iloc[-1])
         out[s] = {"post": post / ref - 1, "overnight": night / post - 1, "pre": pre / night - 1,
                   "total": latest / ref - 1, "price": latest, "as_of": after.index[-1].tz_convert(ET),
-                  "opened": "reg" in px, "close": ref, "close_date": closed.date()}
+                  "opened": "reg" in px, "close": ref, "close_date": closed.date(), "sessions": set(px)}
     return out
 
 
@@ -218,6 +218,9 @@ def overnight_section(px, moves, summary) -> tuple[list[str], float | None]:
     lines = ["", "OVERNIGHT: ASIA, AFTER-HOURS AND PRE-MARKET (latest price vs yesterday's close)"]
     asia = [(s, ASIA[s], moves[s]) for s in ASIA if s in moves]
     composite = float(np.mean([m["total"] for _, _, m in asia])) if asia else None
+    if asia and not any("overnight" in m["sessions"] for _, _, m in asia):
+        lines.append("  Asia: hasn't traded since the US close yet (Tokyo opens 8 PM ET); the 8:30 AM emails include it.")
+        asia, composite = [], None
     if asia:
         lines.append("  Asia (US-listed funds trading overnight): " +
                      ", ".join(f"{name} {pct(m['total'])}" for _, name, m in asia) + f"; average {pct(composite)}")
@@ -254,7 +257,7 @@ def overnight_section(px, moves, summary) -> tuple[list[str], float | None]:
     return lines, composite
 
 
-def eps_section(px, calendar, moves, nxt, summary, cash) -> tuple[list[str], list[dict]]:
+def eps_section(px, calendar, moves, nxt, summary, cash) -> tuple[list[str], list[dict], list[str]]:
     pick = summary["eps_pick"]
     cfg = EpsConfig(**pick["config"])
     c, o = px["close"], px["open"]
@@ -316,15 +319,16 @@ def eps_section(px, calendar, moves, nxt, summary, cash) -> tuple[list[str], lis
                      f" | SELL {order_time(b['exit'].date())}")
         plays.append({"symbol": b["symbol"], "price": price, "signal": "eps", "entry": b["entry"].date()})
     for h in sells:
-        lines.append(f"  SELL {h['symbol']:5s} at {order_time(h['exit'].date())} (EPS pick from {h['entry'].date()})")
+        lines.append(f"  SELL {h['symbol']:5s} at {order_time(h['exit'].date())} if you own it (EPS pick from {h['entry'].date()})")
     for h in holds:
-        lines.append(f"  HOLD {h['symbol']:5s} (bought {h['entry'].date()}) until {order_time(h['exit'].date())}")
+        lines.append(f"  HOLD {h['symbol']:5s} until {order_time(h['exit'].date())} if you own it (EPS pick from "
+                     f"{h['entry'].date()}; if not, skip it - its entry has passed)")
     if not (buys or sells or holds):
         lines.append("  No EPS trades today.")
-    return lines, plays
+    return lines, plays, [h["symbol"] for h in sells]
 
 
-def dip_section(px, moves, nxt, summary, cash, splits, upcoming=()) -> tuple[list[str], list[dict]]:
+def dip_section(px, moves, nxt, summary, cash, splits, upcoming=()) -> tuple[list[str], list[dict], list[str]]:
     syms = list(POOLS[DIP.pool])
     close = px["close"][syms]
     eq, trips = run_pullback(px, DIP, close.index[-520], close.index[-1], cash, splits)
@@ -346,7 +350,7 @@ def dip_section(px, moves, nxt, summary, cash, splits, upcoming=()) -> tuple[lis
     slots = DIP.max_positions - len(keep)
     slot = cash / DIP.max_positions
     for s in sells:
-        lines.append(f"  SELL {s:5s} at {order_time(nxt)} (dip bought {held[s]['since'].date()})")
+        lines.append(f"  SELL {s:5s} at {order_time(nxt)} if you own it (dip bought {held[s]['since'].date()})")
     for s in cands[:max(slots, 0)]:
         price = moves.get(s, {}).get("price", float(px["close"][s].iloc[-1]))
         n = int(slot // price)
@@ -356,10 +360,12 @@ def dip_section(px, moves, nxt, summary, cash, splits, upcoming=()) -> tuple[lis
                      + earnings_between(s, nxt, nxt + dt.timedelta(days=10), upcoming))
         plays.append({"symbol": s, "price": price, "signal": "dip", "entry": nxt})
     for s in keep:
-        lines.append(f"  HOLD {s:5s} (bought {held[s]['since'].date()}; 2-day RSI {ind['rsi2'].at[last, s]:.0f})")
+        lines.append(f"  HOLD {s:5s} if you own it (dip bought {held[s]['since'].date()}; 2-day RSI "
+                     f"{ind['rsi2'].at[last, s]:.0f}; if not, skip it - its entry has passed)"
+                     + earnings_between(s, nxt, nxt + dt.timedelta(days=7), upcoming))
     if not (sells or keep or cands[:max(slots, 0)]):
         lines.append("  No dip-buys today: none of the 10 strongest names has dipped hard enough.")
-    return lines, plays
+    return lines, plays, sells
 
 
 def spread_lines(sym, price, vol, pick, nxt, mult, risk_dollars, upcoming=()) -> list[str]:
@@ -413,7 +419,7 @@ def options_section(px, plays, nxt, summary, moves, upcoming=()) -> list[str]:
                          f"{pick['test_mid']['trades']} in 2021-2026 (fair pricing: {pick['test_fair']['win_rate']:.0%}); "
                          f"avg {pct(pick['test_mid']['avg'])} of the max loss per trade, worst {pct(pick['test_mid']['worst_trade'], 0)}")
     if not shown:
-        lines.insert(1, "  No new stock picks today, so no new options plays.")
+        lines.insert(2, "  No new stock picks today, so no new options plays.")
     return lines
 
 
@@ -424,12 +430,15 @@ def qqq_section(px, vix_frame, moves, nxt, summary) -> list[str]:
     spy = pd.DataFrame({k: px[k]["SPY"] for k in ("open", "high", "low", "close", "volume")}).dropna(subset=["close"])
     end = min(qqq.index[-1], spy.index[-1], vix_frame.index[-1])
     gap = moves.get("QQQ", {}).get("total")
-    gaps = sorted({-0.01, -0.005, 0.0, 0.005, 0.01} | ({round(gap, 4)} if gap is not None and np.isfinite(gap) else set()))
+    base = {-0.01, -0.005, 0.0, 0.005, 0.01}
+    near = gap is not None and np.isfinite(gap) and min(abs(gap - g) for g in base) < 0.001
+    gaps = sorted(base | ({round(gap, 4)} if gap is not None and np.isfinite(gap) and not near else set()))
     acct = [Account("Dad", ACCOUNT, 1.0, CONDOR_RISK, True)]
     table = [l.replace(" Tuesday-Friday: same rule each morning.", "")
              for l in monday_table(qqq.loc[:end], spy.loc[:end], vix_frame.loc[:end], acct, gaps=gaps)]
     if gap is not None and np.isfinite(gap):
-        table.insert(1, f"  QQQ is {pct(gap, 2)} vs yesterday's close in pre-market -> use the {pct(round(gap, 4), 1)} row")
+        row = min(gaps, key=lambda g: abs(g - gap))
+        table.insert(1, f"  QQQ is now {pct(gap, 2)} vs yesterday's close -> use the {pct(row, 1)} row")
     lines += ["  1) " + table[0]] + table[1:]
     pick = summary.get("options_pick", {}).get("qqq")
     if pick:
@@ -519,8 +528,8 @@ def build(ext_paths, past_json, next_json, now: pd.Timestamp | None = None) -> t
             "each options play risks at most 1% ($15,000); 0DTE QQQ condors at most 2%.", ""]
     over, asia_live = overnight_section(px, moves, summary)
     mkt = market_section(px, vix, asia_live, nxt, summary)
-    eps_lines, eps_plays = eps_section(px, past, moves, pd.Timestamp(nxt), summary, ACCOUNT * EPS_SHARE)
-    dip_lines, dip_plays = dip_section(px, moves, nxt, summary, ACCOUNT * DIP_SHARE, splits, upcoming)
+    eps_lines, eps_plays, eps_sells = eps_section(px, past, moves, pd.Timestamp(nxt), summary, ACCOUNT * EPS_SHARE)
+    dip_lines, dip_plays, dip_sells = dip_section(px, moves, nxt, summary, ACCOUNT * DIP_SHARE, splits, upcoming)
     opt = options_section(px, eps_plays + dip_plays, nxt, summary, moves, upcoming)
     qqq = qqq_section(px, vix_frame, moves, nxt, summary)
     pats = patterns_section(px)
@@ -534,7 +543,9 @@ def build(ext_paths, past_json, next_json, now: pd.Timestamp | None = None) -> t
     tail.append("Not financial advice. Backtests use modelled option prices and the largest stocks of 2021; real results will differ.")
     text = "\n".join(head + mkt + over + eps_lines + dip_lines + opt + qqq + pats + cal + tail)
     buys = [p["symbol"] for p in eps_plays + dip_plays]
-    subject = f"Daily plan {nxt:%a %b %d}: " + (f"BUY {', '.join(buys)}" if buys else "no new stock buys")
+    sells = eps_sells + dip_sells
+    actions = ([f"BUY {', '.join(buys)}"] if buys else []) + ([f"SELL {', '.join(sells)}"] if sells else [])
+    subject = f"Daily plan {nxt:%a %b %d}: " + (" | ".join(actions) or "no new stock trades")
     return subject, text
 
 
