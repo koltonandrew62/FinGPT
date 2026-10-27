@@ -47,7 +47,6 @@ from .patterns import (ASIA, FEATURES, SECTORS, analog_forecast, asia_impact, as
                        market_features, market_outcomes, pattern_frames, pattern_stats)
 from .pullback import INDEX, POOLS, PullbackConfig, indicators, signals
 from .strategy import split_factor
-from .universe import sp500_mask, was_member
 
 OUT = RESULTS_DIR / "daily"
 DESIGN = ("2011-02-01", "2021-10-22")

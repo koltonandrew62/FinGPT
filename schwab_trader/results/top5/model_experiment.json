@@ -1,0 +1,44 @@
+{
+  "what": "gradient-boosting score of every S&P 500 stock's next-5-session move, refit each January on earlier years; the 5 largest expected moves each day as buys or shorts",
+  "design_ranking": {
+    "right_direction": 0.51,
+    "corr": 0.062
+  },
+  "test_ranking": {
+    "right_direction": 0.523,
+    "corr": 0.077
+  },
+  "buys": {
+    "exit": "+2% target, -5% stop, 20 sessions",
+    "design": {
+      "trades": 5890,
+      "win_rate": 0.726,
+      "avg": 0.0016
+    },
+    "test": {
+      "trades": 4357,
+      "win_rate": 0.708,
+      "avg": -0.0005
+    }
+  },
+  "shorts": {
+    "exit": "-1% target, +15% stop, 20 sessions (no variant met the -20% worst-trade limit)",
+    "design": {
+      "trades": 5200,
+      "win_rate": 0.854,
+      "avg": -0.003
+    },
+    "test": {
+      "trades": 1914,
+      "win_rate": 0.883,
+      "avg": -0.0033
+    }
+  },
+  "portfolio": {
+    "design_cagr": -0.0715,
+    "design_max_drawdown": -0.578,
+    "test_cagr": -0.123,
+    "test_max_drawdown": -0.486
+  },
+  "verdict": "rejected: no edge (the biggest expected moves are mostly just the most volatile stocks)"
+}

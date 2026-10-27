@@ -1,0 +1,218 @@
+{
+  "rally": {
+    "rsi_min": 90.0,
+    "bottom": 25,
+    "spy_down": true,
+    "no_earnings": true,
+    "exit": {
+      "target": 0.03,
+      "stop": 0.1,
+      "hold": 20
+    },
+    "safety_rule_met": true,
+    "design": {
+      "trades": 354,
+      "win_rate": 0.751412429378531,
+      "avg": 0.001916204821032365,
+      "avg_win": 0.03061634735287503,
+      "avg_loss": -0.08483649874112843,
+      "worst": -0.1321579048025174
+    },
+    "test": {
+      "trades": 262,
+      "win_rate": 0.7442748091603053,
+      "avg": -0.00036684108261176164,
+      "avg_win": 0.03114836405989059,
+      "avg_loss": -0.09209019933317832,
+      "worst": -0.13223965274288568
+    },
+    "design_portfolio": {
+      "cagr": 0.005499958777203107,
+      "max_drawdown": -0.18724646332233574
+    },
+    "test_portfolio": {
+      "cagr": -0.10820900671032285,
+      "max_drawdown": -0.47795192251405605
+    }
+  },
+  "eps": {
+    "min_gap": 0.06,
+    "need_miss": false,
+    "spy_down": false,
+    "exit": {
+      "target": 0.03,
+      "stop": 0.15,
+      "hold": 20
+    },
+    "safety_rule_met": true,
+    "design": {
+      "trades": 331,
+      "win_rate": 0.7069486404833837,
+      "avg": 0.0020426757539234583,
+      "avg_win": 0.029710817595518347,
+      "avg_loss": -0.06470315095672813,
+      "worst": -0.18408604103639112
+    },
+    "test": {
+      "trades": 375,
+      "win_rate": 0.704,
+      "avg": -0.007252740077106485,
+      "avg_win": 0.029510445753206677,
+      "avg_loss": -0.0946895063762297,
+      "worst": -0.15532266385545596
+    },
+    "design_portfolio": {
+      "cagr": 0.0025184421633994702,
+      "max_drawdown": -0.1982793240931755
+    },
+    "test_portfolio": {
+      "cagr": -0.10586539153012287,
+      "max_drawdown": -0.5482808933492542
+    }
+  },
+  "option_pricing": {
+    "fair": {
+      "rally": 1.05236788671367,
+      "eps": 1.3810192816926297
+    },
+    "premium": 1.3356162704331047
+  },
+  "options": {
+    "rally_call_spread": {
+      "config": {
+        "signal": "rally",
+        "structure": "call_spread",
+        "otm": 0.08,
+        "width": 0.05,
+        "dte": 5,
+        "take_profit": 0.5,
+        "hold": 0
+      },
+      "label": "sell a bear call spread 8% above, 5.0% wide, ~5 sessions, buy back at 50% of the credit",
+      "design_win_rate_fair": 0.8681318681318682,
+      "design_avg_fair": -0.021815967150748385,
+      "design_worst_fair": -1.0819467637300502,
+      "test_win_rate_fair": 0.8848484848484849,
+      "test_avg_fair": -0.04128820368242967,
+      "test_worst_fair": -1.0458896519347478,
+      "design_trades_mid": "237",
+      "design_win_rate_mid": 0.869198312236287,
+      "design_avg_mid": 0.009989239314732347,
+      "design_worst_mid": -1.084758730522843,
+      "test_trades_mid": "215",
+      "test_win_rate_mid": 0.8930232558139535,
+      "test_avg_mid": -0.012892403339167488,
+      "test_worst_mid": -1.0478306947747602,
+      "design_win_rate_rich": 0.9011406844106464,
+      "design_avg_rich": 0.03081620156712713,
+      "design_worst_rich": -1.0869424158070622,
+      "test_win_rate_rich": 0.9012345679012346,
+      "test_avg_rich": 0.007924849824671749,
+      "test_worst_rich": -1.0493853243975901,
+      "design_win_rate": 0.869198312236287,
+      "design_avg": 0.009989239314732347
+    },
+    "rally_put": {
+      "config": {
+        "signal": "rally",
+        "structure": "put",
+        "otm": 0.0,
+        "width": 0.0,
+        "dte": 21,
+        "take_profit": 0.5,
+        "hold": 0
+      },
+      "label": "buy a put 0% below, ~21 sessions, sell at +50%, hold 21",
+      "design_win_rate_fair": 0.4293785310734463,
+      "design_avg_fair": -0.2087026602323462,
+      "design_worst_fair": -1.033824290603516,
+      "test_win_rate_fair": 0.5190839694656488,
+      "test_avg_fair": -0.020884439419806448,
+      "test_worst_fair": -1.0125578582055108,
+      "design_trades_mid": "354",
+      "design_win_rate_mid": 0.3700564971751412,
+      "design_avg_mid": -0.3054495443150364,
+      "design_worst_mid": -1.029612257694219,
+      "test_trades_mid": "262",
+      "test_win_rate_mid": 0.45038167938931295,
+      "test_avg_mid": -0.17215018117662878,
+      "test_worst_mid": -1.0107982705830285,
+      "design_win_rate_rich": 0.3389830508474576,
+      "design_avg_rich": -0.37914747076763305,
+      "design_worst_rich": -1.0263340552874787,
+      "test_win_rate_rich": 0.3969465648854962,
+      "test_avg_rich": -0.24199923505323784,
+      "test_worst_rich": -1.0094720019954277,
+      "design_win_rate": 0.3700564971751412,
+      "design_avg": -0.3054495443150364
+    },
+    "eps_call_spread": {
+      "config": {
+        "signal": "eps",
+        "structure": "call_spread",
+        "otm": 0.08,
+        "width": 0.05,
+        "dte": 5,
+        "take_profit": 0.5,
+        "hold": 0
+      },
+      "label": "sell a bear call spread 8% above, 5.0% wide, ~5 sessions, buy back at 50% of the credit",
+      "design_win_rate_fair": 0.8875,
+      "design_avg_fair": 0.011492729542590254,
+      "design_worst_fair": -1.0460504717965278,
+      "test_win_rate_fair": 0.8928571428571429,
+      "test_avg_fair": -0.035061480437584266,
+      "test_worst_fair": -1.0389931022038055,
+      "design_trades_mid": "117",
+      "design_win_rate_mid": 0.9145299145299145,
+      "design_avg_mid": 0.028887526389205203,
+      "design_worst_mid": -1.0459302746870287,
+      "test_trades_mid": "231",
+      "test_win_rate_mid": 0.8831168831168831,
+      "test_avg_mid": -0.022540527349102005,
+      "test_worst_mid": -1.0401920830224618,
+      "design_win_rate_rich": 0.9272727272727272,
+      "design_avg_rich": 0.04013302812229398,
+      "design_worst_rich": -1.0451994991716258,
+      "test_win_rate_rich": 0.8996539792387543,
+      "test_avg_rich": 0.0008866465296730703,
+      "test_worst_rich": -1.0409226812604384,
+      "design_win_rate": 0.9145299145299145,
+      "design_avg": 0.028887526389205203
+    },
+    "eps_put": {
+      "config": {
+        "signal": "eps",
+        "structure": "put",
+        "otm": 0.0,
+        "width": 0.0,
+        "dte": 10,
+        "take_profit": 0.5,
+        "hold": 0
+      },
+      "label": "buy a put 0% below, ~10 sessions, sell at +50%, hold 10",
+      "design_win_rate_fair": 0.46504559270516715,
+      "design_avg_fair": -0.12596274990758538,
+      "design_worst_fair": -1.043280408937951,
+      "test_win_rate_fair": 0.416,
+      "test_avg_fair": -0.2213109336868988,
+      "test_worst_fair": -1.022506119342184,
+      "design_trades_mid": "329",
+      "design_win_rate_mid": 0.4012158054711246,
+      "design_avg_mid": -0.23867419855198457,
+      "design_worst_mid": -1.0380762157275283,
+      "test_trades_mid": "375",
+      "test_win_rate_mid": 0.38133333333333336,
+      "test_avg_mid": -0.292580446798046,
+      "test_worst_mid": -1.0194500949087564,
+      "design_win_rate_rich": 0.3495440729483283,
+      "design_avg_rich": -0.3175728788229767,
+      "design_worst_rich": -1.033989942341686,
+      "test_win_rate_rich": 0.31466666666666665,
+      "test_avg_rich": -0.39362437850675525,
+      "test_worst_rich": -1.0171250766353062,
+      "design_win_rate": 0.4012158054711246,
+      "design_avg": -0.23867419855198457
+    }
+  }
+}

@@ -1,0 +1,393 @@
+{
+  "rules": {
+    "dip-buy": {
+      "design_avg": 0.006076018756714531,
+      "exit": {
+        "target": 0.02,
+        "stop": 0.15,
+        "hold": 20
+      }
+    },
+    "5 down days in a row": {
+      "design_avg": 0.0062,
+      "exit": {
+        "target": 0.03,
+        "stop": 0.15,
+        "hold": 20
+      }
+    },
+    "death cross (50d below 200d)": {
+      "design_avg": 0.0062,
+      "exit": {
+        "target": 0.03,
+        "stop": 0.15,
+        "hold": 20
+      }
+    },
+    "gap up 2%+ and held": {
+      "design_avg": 0.0071,
+      "exit": {
+        "target": 0.03,
+        "stop": 0.15,
+        "hold": 20
+      }
+    },
+    "oversold in downtrend (RSI2<5)": {
+      "design_avg": 0.0047,
+      "exit": {
+        "target": 0.03,
+        "stop": 0.15,
+        "hold": 20
+      }
+    },
+    "pullback to 50-day in uptrend": {
+      "design_avg": 0.0072,
+      "exit": {
+        "target": 0.03,
+        "stop": 0.15,
+        "hold": 20
+      }
+    },
+    "sharp dip in uptrend (RSI2<5)": {
+      "design_avg": 0.0042,
+      "exit": {
+        "target": 0.03,
+        "stop": 0.15,
+        "hold": 20
+      }
+    },
+    "volume surge down day": {
+      "design_avg": 0.0037,
+      "exit": {
+        "target": 0.03,
+        "stop": 0.15,
+        "hold": 20
+      }
+    }
+  },
+  "no_earnings": false,
+  "earnings_test": {
+    "False": {
+      "design": {
+        "trades": 12067,
+        "win_rate": 0.7192342752962625,
+        "avg": 0.0048012796945208274,
+        "avg_win": 0.029338134289287988,
+        "avg_loss": -0.05805449392648985,
+        "worst": -0.49904178427179857
+      },
+      "test": {
+        "trades": 6043,
+        "win_rate": 0.737878537150422,
+        "avg": 0.002700704365626163,
+        "avg_win": 0.03066853288735875,
+        "avg_loss": -0.0760294391813471,
+        "worst": -0.6630614164926923
+      }
+    },
+    "True": {
+      "design": {
+        "trades": 10964,
+        "win_rate": 0.7165268150310106,
+        "avg": 0.004624496445037377,
+        "avg_win": 0.028569651522514262,
+        "avg_loss": -0.05590096632480123,
+        "worst": -0.26583869523571535
+      },
+      "test": {
+        "trades": 5654,
+        "win_rate": 0.7324018394057304,
+        "avg": 0.002707891084993924,
+        "avg_win": 0.02975087974444256,
+        "avg_loss": -0.07130732110190417,
+        "worst": -0.6630614164926923
+      }
+    }
+  },
+  "picks_per_day": 4.44612169066419,
+  "buy": {
+    "label": "each rule's limit sell, a -15% stop, sell by its last session",
+    "exit": {
+      "target": null,
+      "stop": 0.15,
+      "hold": 20
+    },
+    "design": {
+      "trades": 12067,
+      "win_rate": 0.7192342752962625,
+      "avg": 0.0048012796945208274,
+      "avg_win": 0.029338134289287988,
+      "avg_loss": -0.05805449392648985,
+      "worst": -0.49904178427179857
+    },
+    "test": {
+      "trades": 6043,
+      "win_rate": 0.737878537150422,
+      "avg": 0.002700704365626163,
+      "avg_win": 0.03066853288735875,
+      "avg_loss": -0.0760294391813471,
+      "worst": -0.6630614164926923
+    },
+    "design_portfolio": {
+      "cagr": 0.10813176357729981,
+      "max_drawdown": -0.2694071152357299
+    },
+    "test_portfolio": {
+      "cagr": 0.06726497730999403,
+      "max_drawdown": -0.22115398219699278
+    }
+  },
+  "by_rule": {
+    "5 down days in a row": {
+      "design": {
+        "trades": 2465,
+        "win_rate": 0.7204868154158215,
+        "avg": 0.005400458772420299,
+        "avg_win": 0.029028802772440333,
+        "avg_loss": -0.055505112989605226,
+        "worst": -0.20651488519063343
+      },
+      "test": {
+        "trades": 1304,
+        "win_rate": 0.7246932515337423,
+        "avg": 0.0036063659581563145,
+        "avg_win": 0.031107646259690903,
+        "avg_loss": -0.0687855835820949,
+        "worst": -0.3536231924062516
+      }
+    },
+    "death cross (50d below 200d)": {
+      "design": {
+        "trades": 1364,
+        "win_rate": 0.7346041055718475,
+        "avg": 0.0060088118287678835,
+        "avg_win": 0.029298468962686237,
+        "avg_loss": -0.05845592974080723,
+        "worst": -0.20632471507146266
+      },
+      "test": {
+        "trades": 758,
+        "win_rate": 0.7387862796833773,
+        "avg": 0.0030464733393253235,
+        "avg_win": 0.030824428315655857,
+        "avg_loss": -0.07551743972504388,
+        "worst": -0.4111455480619072
+      }
+    },
+    "dip-buy": {
+      "design": {
+        "trades": 281,
+        "win_rate": 0.8291814946619217,
+        "avg": 0.0065584157525468674,
+        "avg_win": 0.020281397905700948,
+        "avg_loss": -0.060055226782555225,
+        "worst": -0.16024766702385507
+      },
+      "test": {
+        "trades": 65,
+        "win_rate": 0.8923076923076924,
+        "avg": 0.011357620725828414,
+        "avg_win": 0.02024647215275314,
+        "avg_loss": -0.06229286252583361,
+        "worst": -0.09735718274760463
+      }
+    },
+    "gap up 2%+ and held": {
+      "design": {
+        "trades": 2111,
+        "win_rate": 0.744197063003316,
+        "avg": 0.00561902594868751,
+        "avg_win": 0.030511914201493604,
+        "avg_loss": -0.06680083969049465,
+        "worst": -0.49904178427179857
+      },
+      "test": {
+        "trades": 1500,
+        "win_rate": 0.766,
+        "avg": 0.00394524999001145,
+        "avg_win": 0.03173098191730034,
+        "avg_loss": -0.08701146221641289,
+        "worst": -0.3011193982840512
+      }
+    },
+    "oversold in downtrend (RSI2<5)": {
+      "design": {
+        "trades": 1586,
+        "win_rate": 0.6796973518284993,
+        "avg": 0.0021728015904485974,
+        "avg_win": 0.030250522671850206,
+        "avg_loss": -0.0574094490507934,
+        "worst": -0.18559741868196322
+      },
+      "test": {
+        "trades": 441,
+        "win_rate": 0.7097505668934241,
+        "avg": -0.0020095118741146755,
+        "avg_win": 0.030498534249403263,
+        "avg_loss": -0.08150184341052963,
+        "worst": -0.21338543326761805
+      }
+    },
+    "pullback to 50-day in uptrend": {
+      "design": {
+        "trades": 2644,
+        "win_rate": 0.7208774583963692,
+        "avg": 0.004627251731766625,
+        "avg_win": 0.029331752989418924,
+        "avg_loss": -0.05917597238352508,
+        "worst": -0.23723500803710695
+      },
+      "test": {
+        "trades": 1688,
+        "win_rate": 0.7251184834123223,
+        "avg": 0.0017165050907137433,
+        "avg_win": 0.029969580153649044,
+        "avg_loss": -0.07281315843737421,
+        "worst": -0.6630614164926923
+      }
+    },
+    "sharp dip in uptrend (RSI2<5)": {
+      "design": {
+        "trades": 835,
+        "win_rate": 0.6455089820359281,
+        "avg": 0.0029924078182973347,
+        "avg_win": 0.028907070190613105,
+        "avg_loss": -0.04419679156912902,
+        "worst": -0.188584746927846
+      },
+      "test": {
+        "trades": 126,
+        "win_rate": 0.753968253968254,
+        "avg": 0.007528073128207768,
+        "avg_win": 0.02958955843167903,
+        "avg_loss": -0.060079704414687976,
+        "worst": -0.15042500000000003
+      }
+    },
+    "volume surge down day": {
+      "design": {
+        "trades": 781,
+        "win_rate": 0.734955185659411,
+        "avg": 0.005819508107121221,
+        "avg_win": 0.029540713377809374,
+        "avg_loss": -0.05995813356135704,
+        "worst": -0.2536033862906364
+      },
+      "test": {
+        "trades": 161,
+        "win_rate": 0.7142857142857143,
+        "avg": -0.001909906348794759,
+        "avg_win": 0.029735422483309317,
+        "avg_loss": -0.08102322842905495,
+        "worst": -0.15825033125297183
+      }
+    }
+  },
+  "option_pricing": {
+    "fair": {
+      "top5": 1.372409692829404
+    },
+    "premium": 1.3356162704331047
+  },
+  "options": {
+    "call": {
+      "use": false,
+      "kind": "call",
+      "min_rule_avg": 0.006,
+      "label": "buy call 0% OTM 21d hold5 tp+50%",
+      "otm": 0.0,
+      "dte": 21,
+      "take_profit": 0.5,
+      "hold": 5,
+      "design_trades_fair": 8838,
+      "design_win_rate_fair": 0.4474994342611451,
+      "design_avg_fair": -0.013973410743224885,
+      "test_trades_fair": 5232,
+      "test_win_rate_fair": 0.4434250764525994,
+      "test_avg_fair": -0.022758888991603103,
+      "design_trades_mid": 8841,
+      "design_win_rate_mid": 0.4139803189684425,
+      "design_avg_mid": -0.05072408613871969,
+      "test_trades_mid": 5232,
+      "test_win_rate_mid": 0.4099770642201835,
+      "test_avg_mid": -0.058725031536855286
+    }
+  },
+  "combined": {
+    "design": {
+      "final": 6619398.643378471,
+      "cagr": 0.14826188142800611,
+      "max_drawdown": -0.1921055605880121,
+      "trades": 23884,
+      "win_rate": 0.83348685312343,
+      "parts": {
+        "top-5 shares": 1511720.2508222642,
+        "EPS shares": 784175.2822143119,
+        "eps options": 61443.060971573694,
+        "qqq options": 23583.803923383122,
+        "top-5 put spread options": 998299.0637925128,
+        "QQQ 0DTE condors": 1736709.5036922274
+      },
+      "spy_final": 5247492.119844604,
+      "spy_cagr": 0.12294252928770244
+    },
+    "test": {
+      "final": 3310565.9517731317,
+      "cagr": 0.1725139783454317,
+      "max_drawdown": -0.1406362947831965,
+      "trades": 13280,
+      "win_rate": 0.8466867469879518,
+      "parts": {
+        "top-5 shares": 287283.16546103405,
+        "EPS shares": -39234.41175500944,
+        "eps options": 41543.786277191015,
+        "qqq options": 27018.1933398759,
+        "top-5 put spread options": 521285.70688445447,
+        "QQQ 0DTE condors": 977336.6488253153
+      },
+      "spy_final": 2508112.4138115854,
+      "spy_cagr": 0.10791620214913578
+    }
+  },
+  "put_spread": {
+    "config": {
+      "signal": "top5",
+      "structure": "put_spread",
+      "otm": 0.08,
+      "width": 0.05,
+      "dte": 5,
+      "take_profit": 0.5,
+      "hold": 0
+    },
+    "label": "sell put spread 8% OTM w5.0% 5d tp0.5",
+    "fair": {
+      "design": {
+        "trades": 8564,
+        "win_rate": 0.9627510509107894,
+        "avg": 0.008238264237455625,
+        "cagr_1pct": 0.018804869019401815
+      },
+      "test": {
+        "trades": 5658,
+        "win_rate": 0.9482149169317781,
+        "avg": 0.009187710907459023,
+        "cagr_1pct": 0.03347975342953635
+      }
+    },
+    "mid": {
+      "design": {
+        "trades": 9790,
+        "win_rate": 0.9633299284984678,
+        "avg": 0.015696455449401,
+        "cagr_1pct": 0.04873202109365948
+      },
+      "test": {
+        "trades": 5858,
+        "win_rate": 0.9508364629566405,
+        "avg": 0.01854554183841822,
+        "cagr_1pct": 0.061547048571661156
+      }
+    },
+    "chosen_over": "the 10-session version (lower 2011-2021 win rate and average)"
+  }
+}

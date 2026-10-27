@@ -690,3 +690,48 @@ def test_open_check_prices_the_condor_from_real_quotes(tmp_path, monkeypatch):
     assert "mid credit $1.6" in text and "sets with a limit order" in text     # 1.12-0.315+1.22-0.38 = 1.645
     rec = journal.load()
     assert rec.iloc[0].kind == "qqq_condor" and rec.iloc[0].real_credit == pytest.approx(1.645)
+
+
+def test_short_engine_covers_at_target_and_buy_stop():
+    from schwab_trader.accuracy_research import Exit, arrays
+    from schwab_trader.short_research import simulate_short
+    idx = pd.bdate_range("2026-02-02", periods=8)
+    o = pd.DataFrame({"A": 100.0, "B": 100.0}, index=idx)
+    h, l = o * 1.005, o * 0.995
+    l.iloc[2, 0] = 96.5                                      # A falls 3%+ on session 3: covered at the limit
+    h.iloc[1, 1] = 111.0                                     # B jumps 10%+ on session 2: bought back at the stop
+    px = {"open": o, "high": h, "low": l, "close": o}
+    ent = pd.DataFrame({"symbol": ["A", "B"], "entry": [idx[0], idx[0]]})
+    tr = simulate_short(px, arrays(px, ["A", "B"]), ent, Exit(0.03, 0.10, 5), ["A", "B"], carry=0.0).set_index("symbol")
+    assert tr.at["A", "reason"] == "target" and tr.at["A", "return"] == pytest.approx(0.03, abs=2e-3)
+    assert tr.at["B", "reason"] == "stop" and tr.at["B", "return"] == pytest.approx(-0.10, abs=2e-3)
+
+
+def test_email_holds_only_what_an_email_recommended(tmp_path, monkeypatch):
+    from schwab_trader import journal
+    from schwab_trader.daily_report import actions_section, only_recommended
+    monkeypatch.setattr(journal, "JOURNAL", tmp_path / "rec.csv")
+    journal.record([{"plan_date": "2026-10-28", "kind": "eps", "symbol": "PNR", "target": 0.02, "stop": 0.15, "hold": 20}])
+    past = [{"symbol": "PNR", "entry": pd.Timestamp("2026-10-28")}, {"symbol": "INTC", "entry": pd.Timestamp("2026-10-09")}]
+    assert [e["symbol"] for e in only_recommended(past, ["eps"])] == ["PNR"]      # INTC was never emailed: no HOLD line
+    top = {"buys": ["AAA"], "shorts": ["ZZZ"], "sells": [], "covers": [], "holds": [], "short_holds": [], "options": []}
+    lines = "\n".join(actions_section([{"symbol": "PNR", "tag": "B", "shares": 10}], top, [], [], ["JCI"], [], [], [],
+                                      dt.date(2026, 10, 29)))
+    assert "PNR [B] 10 sh" in lines and "SHORT:      ZZZ (top 5)" in lines and "HOLD:       JCI" in lines
+
+
+def test_top5_ranks_by_rule_average_caps_each_rule_and_skips_open_picks():
+    from schwab_trader.top5_research import pick_daily
+    acc = {"dip": {"design": {"avg": 0.006}, "exit": {"target": 0.02, "stop": 0.15, "hold": 20}},
+           "patterns": {"A": {"design_avg": 0.007, "exit": {"target": 0.03, "hold": 20}},
+                        "B": {"design_avg": 0.004, "exit": {"target": 0.03, "hold": 20}},
+                        "C": {"design_avg": 0.001, "exit": {"target": 0.03, "hold": 20}}}}   # C is below the 0.3% bar
+    idx = pd.bdate_range("2026-03-02", periods=3)
+    rows = [("A", s, 0.007, d) for s, d in (("S1", 5e9), ("S2", 4e9), ("S3", 3e9))]
+    rows += [("B", s, 0.004, d) for s, d in (("S4", 9e9), ("S5", 1e9), ("S6", 2e9))]
+    c = pd.DataFrame([{"date": idx[0], "symbol": s, "rule": r, "avg": a, "dollars": d} for r, s, a, d in rows])
+    c = pd.concat([c, c.assign(date=idx[1])])
+    p = pick_daily(c, acc, idx, n=5)
+    day0 = p[p.date == idx[0]]
+    assert list(day0.symbol) == ["S1", "S2", "S4", "S6"]       # 2 from A (best average), then 2 from B, most traded first
+    assert list(p[p.date == idx[1]].symbol) == ["S3", "S5"]      # day-1 picks are still open; the two left over get in

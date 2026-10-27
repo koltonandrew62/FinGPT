@@ -35,7 +35,7 @@ import pandas as pd
 from .backtest import performance
 from .config import DATA_DIR, RESULTS_DIR
 from .daily_research import (DESIGN, DIP, OUT as DAILY_OUT, STOCKS, TEST, EpsConfig, earnings_events, in_window,
-                             load_eps, reaction_day, surprise)
+                             load_eps)
 from .data import load_prices
 from .patterns import (ASIA, SECTORS, analog_forecast, asia_overnight, market_features, pattern_frames)
 from .pullback import POOLS, indicators, signals

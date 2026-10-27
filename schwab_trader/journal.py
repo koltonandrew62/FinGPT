@@ -29,8 +29,12 @@ COLUMNS = ["id", "plan_date", "kind", "symbol", "ref_price", "target", "stop", "
            "reason", "real_credit", "real_quotes"]
 TEXT = ["id", "plan_date", "kind", "symbol", "legs", "rule", "note", "status", "entry_date", "exit_date", "reason",
         "real_quotes"]
-SHARE_KINDS = ("dip", "eps")
-NAMES = {"dip": "dip-buys", "eps": "EPS picks", "dip_put_spread": "put spreads on dip-buys",
+SHARE_KINDS = ("dip", "eps", "top5_buy")
+SHORT_KINDS = ("short_rally", "short_eps", "top5_short")
+NAMES = {"top5_buy": "top-5 buys", "top5_short": "top-5 shorts", "long_call": "calls bought",
+         "dip": "dip-buys", "eps": "EPS picks", "short_rally": "short sales (weak-stock bounces)",
+         "short_eps": "short sales (earnings gap-downs)", "bear_call_spread": "bear call spreads", "long_put": "puts bought",
+         "top5_put_spread": "put spreads on top-5 picks", "dip_put_spread": "put spreads on dip-buys",
          "eps_put_spread": "put spreads on EPS picks", "qqq_put_spread": "QQQ put spreads", "qqq_condor": "QQQ 0DTE condors"}
 SLIP = 0.0005
 
@@ -108,6 +112,52 @@ def _share_outcome(px: dict, r) -> dict | None:
     return None
 
 
+def _short_outcome(px: dict, r) -> dict | None:
+    """Short at the plan day's open; cover at -target (limit), +stop (buy-stop) or the
+    close of the last session; borrow/dividend cost 2.5%/yr."""
+    idx = px["close"].index
+    s, day = r.symbol, pd.Timestamp(r.plan_date)
+    if s not in px["close"] or day not in idx:
+        return None
+    i0 = idx.get_loc(day)
+    o, h, l, c = (px[k][s].to_numpy(dtype=float) for k in ("open", "high", "low", "close"))
+    if not np.isfinite(o[i0]):
+        return None
+    entry = o[i0] * (1 - SLIP)
+    hold = int(r.hold)
+    tgt = entry * (1 - float(r.target)) if pd.notna(r.target) and r.target else -math.inf
+    stp = entry * (1 + float(r.stop)) if pd.notna(r.stop) and r.stop else math.inf
+    for k in range(hold):
+        i = i0 + k
+        if i >= len(idx):
+            return {"entry_date": day.date().isoformat(), "entry_price": entry}
+        if h[i] >= stp:
+            px_out, why = (max(o[i], stp) if k else stp), "stop"
+        elif l[i] <= tgt:
+            px_out, why = (min(o[i], tgt) if k else tgt), "target"
+        elif k == hold - 1:
+            px_out, why = c[i], "time"
+        else:
+            continue
+        return {"entry_date": day.date().isoformat(), "entry_price": entry, "exit_date": idx[i].date().isoformat(),
+                "exit_price": px_out, "return": (entry - px_out * (1 + SLIP)) / entry - 0.025 * (k + 1) / 252,
+                "reason": why, "status": "closed"}
+    return None
+
+
+def _put_outcome(px: dict, r) -> dict | None:
+    """A put bought for `model_credit` (its cost), held to expiry."""
+    legs = json.loads(r.legs) if isinstance(r.legs, str) and r.legs else {}
+    exp = pd.Timestamp(legs.get("expiry", r.plan_date))
+    if r.symbol not in px["close"] or exp > px["close"].index[-1]:
+        return None
+    s = float(px["close"][r.symbol].loc[:exp].iloc[-1])
+    paid = float(r.real_credit) if pd.notna(r.real_credit) else float(r.model_credit)
+    value = max(0.0, legs["put"] - s) if "put" in legs else max(0.0, s - legs["call"])
+    return {"entry_date": str(r.plan_date), "entry_price": paid, "exit_date": exp.date().isoformat(), "exit_price": value,
+            "return": value / paid - 1 if paid > 0 else np.nan, "reason": "expiry", "status": "closed"}
+
+
 def _option_outcome(px: dict, r) -> dict | None:
     """Put spreads and condors held to expiry, settled at the expiry day's close."""
     legs = json.loads(r.legs) if isinstance(r.legs, str) and r.legs else {}
@@ -134,7 +184,8 @@ def evaluate(px: dict, path: Path | None = None) -> pd.DataFrame:
     if not len(df):
         return df
     for i, r in df[df.status == "open"].iterrows():
-        out = _share_outcome(px, r) if r.kind in SHARE_KINDS else _option_outcome(px, r)
+        out = (_share_outcome(px, r) if r.kind in SHARE_KINDS else _short_outcome(px, r) if r.kind in SHORT_KINDS
+               else _put_outcome(px, r) if r.kind in ("long_put", "long_call") else _option_outcome(px, r))
         if out:
             for k, v in out.items():
                 df.at[i, k] = v
@@ -162,6 +213,10 @@ def record_lines(acc: dict | None = None, df: pd.DataFrame | None = None) -> lis
         return ["  No picks closed yet - the journal started with this email."]
     first = min(v["first"] for v in tr.values())
     bt = {"dip": (acc or {}).get("dip", {}).get("test", {}), "eps": (acc or {}).get("eps", {}).get("test", {})}
+    t5 = RESULTS_DIR / "top5" / "summary.json"
+    if t5.exists():
+        t5s = json.loads(t5.read_text())
+        bt |= {"top5_buy": t5s.get("buy", {}).get("test", {}), "top5_short": t5s.get("short", {}).get("test", {})}
     lines = [f"  Picks made by this email since {first} and how they did (closed trades):"]
     for kind in NAMES:
         if kind not in tr:
@@ -169,7 +224,7 @@ def record_lines(acc: dict | None = None, df: pd.DataFrame | None = None) -> lis
         v = tr[kind]
         res = (f"{v['wins']} of {v['closed']} won ({v['win_rate']:.0%}), avg {v['avg'] * 100:+.1f}%"
                if v["closed"] else "none closed yet")
-        unit = "" if kind in SHARE_KINDS else " of the max loss"
+        unit = "" if kind in SHARE_KINDS + SHORT_KINDS else " of the cost" if kind in ("long_put", "long_call") else " of the max loss"
         ref = f" | backtest {bt[kind]['win_rate']:.0%}" if kind in bt and bt[kind].get("win_rate") else ""
         lines.append(f"    {NAMES[kind]:26s} {res}{unit if v['closed'] else ''}; {v['open']} still open{ref}")
     return lines

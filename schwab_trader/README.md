@@ -109,25 +109,24 @@ or the account size:
 - Asia overnight (US-listed Japan/China/Hong Kong/Korea/Taiwan/Australia/India funds in
   Robinhood's 24-hour market), the US sectors and stocks it moves most at the open, and
   after-hours / overnight / pre-market moves;
-- **EPS picks** (last night's and this morning's reports, beat/miss, gap) with buy and
-  sell dates; **regular stock picks** (dip-buys); a **put-spread options play** on each
-  new pick, with the lowest credit worth taking; the **QQQ** 0DTE condor plan and QQQ put
-  spreads; chart patterns spotted at the close with their track record; the track record
-  of the email's own picks and what it has learned; the next 3 days' earnings calendar.
+- **WHAT TO DO AT THE OPEN**: one list of BUY / SHORT / SELL / HOLD / OPTIONS, with [B]/[M]
+  for EPS beats and misses; every stock gets one call, and HOLD/SELL lines only cover trades
+  an earlier email recommended;
+- **TOP 5 STOCKS TO BUY**: the day's five best signals from the rules that tested best (the
+  dip-buy and chart-pattern setups, ranked by their 2011–2021 average), each with a limit
+  sell, a −15% stop and a put spread; a clear "calls: no" (calls lost money at real option
+  prices) ([results/top5](results/top5/RESULTS.md));
+- **EPS picks** (last night's and this morning's reports, [B]/[M], gap) with buy and sell
+  dates and a put spread each; **short ideas** with their honest record (shorts lost money
+  in 2021–2026: [results/shorts](results/shorts/RESULTS.md)); the **QQQ** 0DTE condor plan
+  and QQQ put spreads; the track record of the email's own picks and what it has learned;
+  the next 3 days' earnings calendar.
 
-Every section shows its track record; the rules aim for a 70–80% hit rate with a
-safety limit (no backtest trade worse than −20%), chosen on 2011–2021 and tested on
-2021–2026 with point-in-time S&P membership (`accuracy_research.py`,
-[results](results/accuracy/RESULTS.md)): dip-buys sell at +2% with a −15% stop or after
-20 sessions and skip stocks with earnings due (85% of trades won in 2021–2026), EPS
-picks the same with an S&P trend filter (80%, but only break-even on average), chart
-patterns as trades (71–81%), an Asia opening call when it moves 1%+ (S&P 91%, Nasdaq 93%),
-and "likely beat" flags (88%).
-
-Half the account goes to EPS picks (5 slots of $150,000), half to dip-buys (3 slots of
-$250,000); each options play risks at most 1% ($15,000), condors 2%. Whole plan,
-2021–2026: $1.5M → **$3.27M (+17.0%/yr)** vs the S&P's $2.51M, worst drop −15%, 89% of
-2,586 trades won (mid option pricing). Details: [results/daily/RESULTS.md](results/daily/RESULTS.md).
+Half the account goes to the top-5 list (10 slots of $75,000), half to EPS picks (5 slots
+of $150,000); each options play risks at most 1% ($15,000), condors 2%. Whole plan,
+2021–2026 (rules chosen on 2011–2021, point-in-time S&P membership): $1.5M → **$3.31M
+(+17.3%/yr)** vs the S&P's $2.51M, worst drop −14%, 85% of 13,280 trades won (mid option
+pricing). Details: [results/top5/RESULTS.md](results/top5/RESULTS.md).
 
 **Journal and learning.** Every recommendation goes into
 `results/journal/recommendations.csv` and is scored with the same rules once it
@@ -151,6 +150,9 @@ there's something to do.
 python -m schwab_trader.accuracy_research --reuse-market   # rules for each email section
 python -m schwab_trader.daily_research --revalidate        # options rules + whole plan
 python -m schwab_trader.learning                           # learning, tested year by year
+python -m schwab_trader.top5_research                      # the top-5 list, its exits, calls yes/no
+python -m schwab_trader.top5_research --combined           # the whole plan backtest
+python -m schwab_trader.short_research                     # short sales and bearish options
 python -m schwab_trader.routine plan                       # the scheduled run: calls to make,
 python -m schwab_trader.routine daily                      #   then the email (+ journal)
 python -m schwab_trader.routine open-plan                  # 9:40 check: open-legs, open-quotes, open-build
