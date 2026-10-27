@@ -1,0 +1,148 @@
+{
+  "winner": "stocks+ETFs momentum top3",
+  "spy_design_cagr": 0.12294252928770244,
+  "spy_test_final": 2508.112413811585,
+  "spy_test_cagr": 0.10791620214913578,
+  "table": [
+    {
+      "strategy": "stocks+ETFs momentum top3",
+      "design_cagr": 0.41953231144420267,
+      "design_maxdd": -0.3986958624632271,
+      "test_final": 6398.163921148347,
+      "test_cagr": 0.3358460696372254,
+      "test_maxdd": -0.3806450111902725,
+      "test_trades": 349,
+      "beat_spy_both": true
+    },
+    {
+      "strategy": "scorecard v2 top2",
+      "design_cagr": 0.5448339674869922,
+      "design_maxdd": -0.5301808485260477,
+      "test_final": 6306.976511810197,
+      "test_cagr": 0.33192552005865594,
+      "test_maxdd": -0.4524155167325784,
+      "test_trades": 205,
+      "beat_spy_both": true
+    },
+    {
+      "strategy": "stock momentum top3",
+      "design_cagr": 0.42574333440733647,
+      "design_maxdd": -0.3917558227956144,
+      "test_final": 6232.259574452325,
+      "test_cagr": 0.3289295074228711,
+      "test_maxdd": -0.4119793442125914,
+      "test_trades": 360,
+      "beat_spy_both": true
+    },
+    {
+      "strategy": "stocks+ETFs momentum top2",
+      "design_cagr": 0.4902449575241332,
+      "design_maxdd": -0.4445993054598406,
+      "test_final": 6089.300469187075,
+      "test_cagr": 0.3218530776308133,
+      "test_maxdd": -0.4955414981138343,
+      "test_trades": 269,
+      "beat_spy_both": true
+    },
+    {
+      "strategy": "stock momentum top2",
+      "design_cagr": 0.4975040844505412,
+      "design_maxdd": -0.4443189502414402,
+      "test_final": 5957.456739273835,
+      "test_cagr": 0.31607166774153583,
+      "test_maxdd": -0.46996140690657795,
+      "test_trades": 263,
+      "beat_spy_both": true
+    },
+    {
+      "strategy": "ETF rotation top1",
+      "design_cagr": 0.04924598127630886,
+      "design_maxdd": -0.3334599290410215,
+      "test_final": 5509.538623767823,
+      "test_cagr": 0.29713127543737095,
+      "test_maxdd": -0.2609298504060851,
+      "test_trades": 86,
+      "beat_spy_both": false
+    },
+    {
+      "strategy": "scorecard v2 top3",
+      "design_cagr": 0.478007244452624,
+      "design_maxdd": -0.42374006685067167,
+      "test_final": 4865.798969944972,
+      "test_cagr": 0.26538057649892166,
+      "test_maxdd": -0.4116280507909018,
+      "test_trades": 343,
+      "beat_spy_both": true
+    },
+    {
+      "strategy": "stock momentum top5",
+      "design_cagr": 0.3317539438077379,
+      "design_maxdd": -0.3702019145729397,
+      "test_final": 3983.758112619835,
+      "test_cagr": 0.2150167933983591,
+      "test_maxdd": -0.2861480019748647,
+      "test_trades": 557,
+      "beat_spy_both": true
+    },
+    {
+      "strategy": "ETF rotation top2",
+      "design_cagr": 0.062489279051389346,
+      "design_maxdd": -0.28783647080149055,
+      "test_final": 3506.759155509391,
+      "test_cagr": 0.18567227362570327,
+      "test_maxdd": -0.19327213438610158,
+      "test_trades": 225,
+      "beat_spy_both": false
+    },
+    {
+      "strategy": "ETF rotation top3",
+      "design_cagr": 0.06342689717225691,
+      "design_maxdd": -0.28112650234848413,
+      "test_final": 3116.375603651903,
+      "test_cagr": 0.157331403068812,
+      "test_maxdd": -0.1584474137667422,
+      "test_trades": 360,
+      "beat_spy_both": false
+    },
+    {
+      "strategy": "scorecard v2 top1",
+      "design_cagr": 0.5487043785849952,
+      "design_maxdd": -0.557815833422872,
+      "test_final": 3063.821386481388,
+      "test_cagr": 0.1426971196623319,
+      "test_maxdd": -0.5837651891307818,
+      "test_trades": 111,
+      "beat_spy_both": true
+    },
+    {
+      "strategy": "stocks+ETFs momentum top1",
+      "design_cagr": 0.5881422006468171,
+      "design_maxdd": -0.5802757331971506,
+      "test_final": 3018.144460854799,
+      "test_cagr": 0.13926521994070762,
+      "test_maxdd": -0.5500578172771846,
+      "test_trades": 101,
+      "beat_spy_both": true
+    },
+    {
+      "strategy": "stock momentum top1",
+      "design_cagr": 0.5881422006468171,
+      "design_maxdd": -0.5802757331971506,
+      "test_final": 3017.450191418329,
+      "test_cagr": 0.1392127369946381,
+      "test_maxdd": -0.5535076368158712,
+      "test_trades": 99,
+      "beat_spy_both": true
+    },
+    {
+      "strategy": "scorecard v2 top5",
+      "design_cagr": 0.3722963600569087,
+      "design_maxdd": -0.3679337202942963,
+      "test_final": 2281.972339287918,
+      "test_cagr": 0.08723954366482789,
+      "test_maxdd": -0.4098066936737639,
+      "test_trades": 485,
+      "beat_spy_both": false
+    }
+  ]
+}

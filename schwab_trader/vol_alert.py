@@ -1,10 +1,11 @@
-"""Morning 0DTE QQQ alert: run at ~9:31 AM ET, right after the open.
+"""Morning 0DTE QQQ check: run at ~9:31 AM ET, right after the open.
 
-Uses the detector and trading rule that zero_dte_research.py selected on 2005-2021
-data (results/zero_dte/summary.json), retrained on all history up to yesterday.
-If today is flagged as likely volatile it prints and emails the exact QQQ
-contracts expiring today, their live bid/ask, how many to buy for each account
-(see sizing.py) and when to sell. Nothing is sent on quiet days.
+Uses the volatile-day detector the other way round: on days it rates among the
+calmest 30% it recommends SELLING a 0DTE QQQ iron condor (short strikes 1% from the
+open, wings 1% further out) for accounts allowed to trade options (options_risk > 0 in
+ACCOUNTS; a margin account is required). Backtest 2021-2026 on data it never saw: won
+89-93% of trades under every pricing assumption; returned +0.4% to +21%/yr depending
+on how options are priced (results/condor/RESULTS.md). On other days: no trade.
 
     python -m schwab_trader.vol_alert                 # yfinance history and chain
     python -m schwab_trader.vol_alert --source schwab # Schwab option chain
@@ -30,7 +31,9 @@ from .config import DATA_DIR, RESULTS_DIR
 from .notify import email_configured, send_email
 from .sizing import accounts_from_env, contracts, money
 from .vol_model import BIG_MOVE_QUANTILE, features, fit, predict, target
-from .zero_dte_research import legs
+from .condor_research import condor_strikes
+
+CALM_SHARE, CONDOR_K, CONDOR_W = 0.30, 0.01, 0.01   # the most accurate rule on 2005-2021 data
 
 SELL_BY = "3:50 PM ET"   # close well before the 4:00 PM expiry; in-the-money SPY/QQQ options become shares
 MODEL_PATH = RESULTS_DIR / "zero_dte" / "model.joblib"
@@ -80,39 +83,84 @@ def chain_schwab(expiry: dt.date) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def todays_rule() -> dict:
-    path = RESULTS_DIR / "zero_dte" / "summary.json"
-    if not path.exists():
-        raise SystemExit("Run `python -m schwab_trader.zero_dte_research` first.")
-    return json.loads(path.read_text())
-
-
-def train(qqq: pd.DataFrame, spy: pd.DataFrame, vix: pd.DataFrame, rule: dict) -> dict:
-    """Fit the selected detector on all completed days and fix its flag threshold."""
-    pick = rule["design"]["selected"]
+def train(qqq: pd.DataFrame, spy: pd.DataFrame, vix: pd.DataFrame, kind: str = "complex") -> dict:
+    """Fit the detector on all completed days and fix its calm threshold."""
     X = features(qqq, vix, spy)
     move = target(qqq)
     y = (move >= move.quantile(BIG_MOVE_QUANTILE)).astype(float).where(move.notna())
-    model, cols = fit(pick["model"], X, y)
+    model, cols = fit(kind, X, y)
     # Threshold from walk-forward probabilities (each year scored by a model fit on earlier
     # years), as in the research: in-sample probabilities are overconfident.
     from .zero_dte_research import walk_forward
-    oos = walk_forward(pick["model"], X, y, last_year=int(qqq.index[-1].year))
-    threshold = float(oos.dropna().quantile(1 - pick["flag_rate"]))
-    return {"model": model, "cols": cols, "threshold": threshold, "trained_through": str(qqq.index[-1].date())}
+    oos = walk_forward(kind, X, y, last_year=int(qqq.index[-1].year))
+    return {"model": model, "cols": cols, "threshold": float(oos.dropna().quantile(CALM_SHARE)),
+            "trained_through": str(qqq.index[-1].date())}
 
 
-def evaluate_today(qqq: pd.DataFrame, spy: pd.DataFrame, vix: pd.DataFrame, rule: dict) -> dict:
-    """Probability that today (the last row, which must hold today's open) is a big-move day."""
-    pick = rule["design"]["selected"]
+def load_model(qqq, spy, vix) -> dict:
     if MODEL_PATH.exists():
         import joblib
-        fitted = joblib.load(MODEL_PATH)
-    else:
-        fitted = train(qqq.iloc[:-1], spy.iloc[:-1], vix.iloc[:-1], rule)
-    X = features(qqq, vix, spy)
-    p_today = float(predict(fitted["model"], fitted["cols"], X.iloc[[-1]]).iloc[0])
-    return {"prob": p_today, "threshold": fitted["threshold"], "flagged": p_today >= fitted["threshold"], "pick": pick}
+        return joblib.load(MODEL_PATH)
+    return train(qqq, spy, vix)
+
+
+def condor_plan(spot: float, vix_open: float, accounts) -> list[str]:
+    """Strikes, estimated credit and size per account for one calm-day condor."""
+    from .options_backtest import bs_price, half_spread, implied_vol
+    sc, lc, sp, lp = condor_strikes(spot, CONDOR_K, CONDOR_W)
+    t, atm = 1 / 252, vix_open / 100 * 1.06          # mid-pricing multiplier from the research
+    mid = {k: bs_price(spot, K, t, implied_vol(atm, spot, K, t), 0.04, c)
+           for k, K, c in (("sc", sc, True), ("lc", lc, True), ("sp", sp, False), ("lp", lp, False))}
+    credit = sum((-1 if k[0] == "l" else 1) * (v + (half_spread(v) if k[0] == "l" else -half_spread(v)))
+                 for k, v in mid.items())
+    width = max(lc - sc, sp - lp)
+    max_loss = (width - credit + half_spread(width)) * 100 + 6 * 0.65
+    lines = [f"  SELL QQQ {sc} call / BUY {lc} call, SELL {sp} put / BUY {lp} put, all expiring today",
+             f"  est. credit ${credit:.2f}/share (${credit * 100:,.0f} per set), max loss {money(max_loss)} per set; "
+             "use a limit order for the whole condor at the mid price or better"]
+    for acct in accounts:
+        if acct.options_risk <= 0:
+            lines.append(f"  {acct.name}: no options in this account")
+        else:
+            n = int(acct.options_dollars // max_loss) if max_loss > 0 else 0
+            lines.append(f"  {acct.name}: {n} set(s), max loss {money(n * max_loss)} "
+                         f"({acct.options_risk:.2%} of {money(acct.value)}), est. credit {money(n * credit * 100)}")
+    lines.append(f"  Close anything still in the money by {SELL_BY}; otherwise let it expire.")
+    return lines
+
+
+def monday_table(qqq: pd.DataFrame, spy: pd.DataFrame, vix: pd.DataFrame, accounts,
+                 gaps=(-0.02, -0.01, -0.005, 0.0, 0.005, 0.01, 0.02)) -> list[str]:
+    """For the weekend email: the decision for the next session at each possible opening gap."""
+    fitted = load_model(qqq, spy, vix)
+    from .calendar_utils import is_trading_day, next_trading_day
+    nxt = pd.Timestamp(next_trading_day(qqq.index[-1].date()))
+    now = pd.Timestamp.now(tz="America/New_York")
+    if pd.Timestamp(f"{nxt.date()} 09:35", tz="America/New_York") < now:     # that session already started
+        today = now.date()
+        nxt = pd.Timestamp(today if (is_trading_day(today) and now.hour < 9) else next_trading_day(today))
+    last_close, vix_close = float(qqq["close"].iloc[-1]), float(vix["close"].iloc[-1])
+    lines = [f"0DTE QQQ PLAN for {nxt:%a %b %d} (options accounts only). Sell a 1%-wide iron condor at 9:35 AM ET "
+             f"only if the detector rates the day calm (probability of a big move <= {fitted['threshold']:.0%}):"]
+    for g in gaps:
+        q2, s2, v2 = qqq.copy(), spy.copy(), vix.copy()
+        q2.loc[nxt] = {"open": last_close * (1 + g), "high": np.nan, "low": np.nan, "close": np.nan, "volume": np.nan}
+        s2.loc[nxt] = {c: np.nan for c in s2.columns}
+        v2.loc[nxt] = {"open": vix_close, "close": np.nan}
+        p = float(predict(fitted["model"], fitted["cols"], features(q2, v2, s2).iloc[[-1]]).iloc[0])
+        verdict = "SELL CONDOR" if p <= fitted["threshold"] else "no trade"
+        lines.append(f"  QQQ opens {g:+.1%} (~${last_close * (1 + g):,.2f}): big-move probability {p:.0%} -> {verdict}")
+    lines += [f"  If it's a SELL day (estimate at a flat open, VIX {vix_close:.1f}):"] + condor_plan(last_close, vix_close, accounts)
+    lines.append("  Backtest 2021-2026 (never seen in training): won 89-93% of trades; +0.4% to +21%/yr at a 2% "
+                 "max loss per trade, depending on real option prices. Tuesday-Friday: same rule each morning.")
+    return lines
+
+
+def evaluate_today(qqq: pd.DataFrame, spy: pd.DataFrame, vix: pd.DataFrame) -> dict:
+    """Probability that today (the last row, which must hold today's open) is a big-move day."""
+    fitted = load_model(qqq.iloc[:-1], spy.iloc[:-1], vix.iloc[:-1])
+    p_today = float(predict(fitted["model"], fitted["cols"], features(qqq, vix, spy).iloc[[-1]]).iloc[0])
+    return {"prob": p_today, "threshold": fitted["threshold"], "calm": p_today <= fitted["threshold"]}
 
 
 def main():
@@ -126,9 +174,9 @@ def main():
     if args.save_model:
         import joblib
         qqq, spy, vix = history_local()
-        fitted = train(qqq, spy, vix, todays_rule())
+        fitted = train(qqq, spy, vix)
         joblib.dump(fitted, MODEL_PATH)
-        print(f"saved {MODEL_PATH} (trained through {fitted['trained_through']}, threshold {fitted['threshold']:.3f})")
+        print(f"saved {MODEL_PATH} (trained through {fitted['trained_through']}, calm threshold {fitted['threshold']:.3f})")
         return
 
     qqq, spy, vix = history_local() if args.source == "local" else history_yf()
@@ -138,55 +186,22 @@ def main():
     # Today's bar is still forming: keep only its open (the model never looks at today's close/high/low).
     for df in (qqq, spy):
         df.loc[today, ["high", "low", "close", "volume"]] = np.nan
-    rule = todays_rule()
-    verdict = evaluate_today(qqq, spy, vix, rule)
-    pick = verdict["pick"]
+    verdict = evaluate_today(qqq, spy, vix)
+    spot, vix_open = float(qqq.at[today, "open"]), float(vix["open"].iloc[-1])
     lines = [f"0DTE QQQ CHECK {today.date()} - probability of a big move {verdict['prob']:.0%} "
-             f"(trade threshold {verdict['threshold']:.0%})"]
-    if not verdict["flagged"]:
-        lines.append("No trade today: not flagged as volatile.")
+             f"(calm if <= {verdict['threshold']:.0%})"]
+    if verdict["calm"]:
+        lines.append(f"CALM DAY - sell an iron condor (QQQ opened ${spot:,.2f}):")
+        lines += condor_plan(spot, vix_open, accounts_from_env())
     else:
-        spot = float(qqq.at[today, "open"])
-        expiry = today.date()
-        wanted = legs(pick["structure"], spot, spot >= float(qqq["close"].iloc[-2]))
-        if args.source == "local":      # no live chain: name the contracts, estimate nothing
-            chain = pd.DataFrame([{"contractSymbol": f"QQQ {expiry:%y%m%d} {'C' if c else 'P'} {k}", "strike": k,
-                                   "bid": float("nan"), "ask": float("nan"), "call": c} for c, k in wanted])
-        else:
-            chain = chain_schwab(expiry) if args.source == "schwab" else chain_yf(expiry.isoformat())
-        rows = []
-        for is_call, k in wanted:
-            side = chain[(chain.call == is_call)]
-            best = side.iloc[(side.strike - k).abs().argsort()[:1]]
-            rows.append(best.iloc[0])
-        unit = sum(r.ask * 100 + 0.65 for r in rows)
-        lines.append(f"VOLATILE DAY FLAGGED - structure: {pick['structure']} (QQQ opened ${spot:,.2f})")
-        for r in rows:
-            lines.append(f"  BUY {r.contractSymbol}  {'CALL' if r.call else 'PUT'} ${r.strike:g} exp {expiry}  "
-                         f"bid ${r.bid:.2f} / ask ${r.ask:.2f}")
-        if np.isfinite(unit):
-            lines.append(f"  Cost per set: {money(unit)} incl. $0.65/contract fees")
-            for acct in accounts_from_env():
-                n = contracts(unit, acct)
-                lines.append(f"  {acct.name} ({money(acct.value)}): {n} set(s) = {money(n * unit)} "
-                             f"(cap {acct.options_risk:.2%} of account)" + ("" if n else " - can't afford one set"))
-        else:
-            for acct in accounts_from_env():
-                lines.append(f"  {acct.name} ({money(acct.value)}): spend at most {money(acct.options_dollars)} "
-                             f"({acct.options_risk:.2%} of the account); contracts = that / (ask x 100 + $0.65)")
-        lines.append(f"  BUY now (by 9:45 AM ET) with limit orders at the ask; SELL by {SELL_BY} today, "
-                     "never hold to expiry.")
-    t = rule["test"].get("informed", {})
-    lines.append(f"Reality check: this rule turned $1,500 into ${t.get('final_per_1500', float('nan')):,.0f} over "
-                 "2021-2026 at informed pricing (see results/zero_dte/RESULTS.md). Not financial advice.")
+        lines.append("No trade today: not calm enough for a condor.")
     text = "\n".join(lines)
     print(text)
-    if verdict["flagged"]:
+    if verdict["calm"]:
         if args.text_out:
-            Path(args.text_out).write_text(f"Subject: 0DTE QQQ alert {today.date()}\n\n{text}")
+            Path(args.text_out).write_text(f"Subject: 0DTE QQQ condor {today.date()}\n\n{text}")
         if not args.no_email and email_configured():
-            send_email(f"0DTE QQQ alert {today.date()}", text)
-
+            send_email(f"0DTE QQQ condor {today.date()}", text)
 
 if __name__ == "__main__":
     main()

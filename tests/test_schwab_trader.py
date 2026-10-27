@@ -12,7 +12,7 @@ from schwab_trader.earnings import (beat_probability, earnings_features, outcome
 from schwab_trader.earnings_backtest import EarningsConfig, build_events, run_earnings_backtest
 from schwab_trader.live_trader import execute, market_is_open, plan_orders
 from schwab_trader.strategy import compute_signal, is_rebalance_day, split_factor, whole_share_targets
-from schwab_trader.weekly_report import render, strategy_section, trade_dates
+from schwab_trader.weekly_report import render, trade_dates
 
 NO_COSTS = Costs(slippage_bps=0.0, sec_fee_rate=0.0, cash_buffer=0.0, min_trade_value=0.0)
 
@@ -233,19 +233,64 @@ def test_calendar_holidays_and_order_times():
     assert late["buy"] == dt.date(2026, 10, 27) and late["review"] == dt.date(2026, 11, 2)
 
 
-def test_weekly_report_lists_buy_and_sell_times():
-    n = 300
-    paths = {s: 100 * (1.0 + 0.0001 * i) ** np.arange(n) for i, s in enumerate(
-        ["XLK", "XLF", "XLV", "XLE", "XLI", "XLY", "XLP", "XLU", "XLB", "XLRE", "XLC",
-         "QQQ", "IWM", "EFA", "EEM", "GLD", "TLT", "SPY"])}
-    closes = make_prices(paths, start="2025-08-01")["close"]
+def _pool_prices(n=300, start="2025-08-01"):
+    from schwab_trader.active_strategy import POOL
+    paths = {sym: 100 * (1.0 + 0.0001 * i) ** np.arange(n) for i, sym in enumerate(POOL)}
+    paths["SPY"] = 100 * 1.0005 ** np.arange(n)
+    return make_prices(paths, start=start)["close"]
+
+
+def test_weekly_report_lists_buy_and_sell_times_for_each_account():
     from schwab_trader.sizing import accounts_from_env
+    from schwab_trader.weekly_report import active_section
     accounts = accounts_from_env()
-    strat = strategy_section(closes, accounts, previous={"XLF": "2026-01-05"})
-    subject, text, page = render(strat, None, accounts)
-    assert strat["picks"] and subject.startswith("Weekly picks")
-    assert "BUY " + strat["buy_at"] in text and "9:35 AM ET" in text and "SELL XLF" in text
-    assert "You:" in text and "Dad:" in text                          # sized for both accounts
+    active = active_section(_pool_prices(), accounts)
+    subject, text, page = render(active, None, accounts)
+    assert subject.startswith("Weekly picks") and "MARKET TREND: UPTREND" in text
+    assert "9:35 AM ET" in text and "YOU - HOLD THESE" in text and "DAD - HOLD THESE" in text
+    assert all(len(a["plan"]) == 3 for a in active["accounts"].values())
+
+
+def test_active_strategy_skips_unaffordable_and_checks_trend():
+    from schwab_trader.active_strategy import market_trend, target_weights
+    closes = _pool_prices()
+    best = closes.columns[closes.iloc[-22].div(closes.iloc[-253]).argmax()]
+    price = lambda s: 5000.0 if s == best else 50.0                     # top name costs $5,000 a share
+    small = target_weights(closes, 1500, price)
+    big = target_weights(closes, 150_000, price)
+    assert best not in small and best in big and len(small) == 3
+    down = closes.copy()
+    down["SPY"] = 100 * 0.999 ** np.arange(len(down))
+    assert market_trend(down) == "downtrend"
+    for col in down.columns.drop("SPY"):                               # everything falling over 12 months
+        down[col] = 100 * 0.999 ** np.arange(len(down))
+    assert target_weights(down, 1500, lambda s: 50.0) == {}            # downtrend rule: only rising names
+    assert len(target_weights(down, 1500, lambda s: 50.0, regime="none")) == 3
+
+
+def test_condor_loses_at_most_its_max_loss():
+    from schwab_trader.condor_research import condor_strikes, run_condor
+    assert condor_strikes(400.0, 0.01, 0.01) == (404, 408, 396, 392)
+    idx = pd.bdate_range("2025-01-06", periods=2)
+    flags = pd.Series([False, True], index=idx)
+    for close, win in ((400.0, True), (450.0, False), (350.0, False)):
+        q = pd.DataFrame({"open": [400.0, 400.0], "close": [400.0, close]}, index=idx)
+        eq, tr = run_condor(q, pd.Series(20.0, index=idx), flags, 0.01, 0.005, 0.01, pd.Series(1.0, index=idx),
+                            idx[0], idx[-1], 1_500_000)
+        t = tr.iloc[0]
+        assert bool(t.win) == win and t.pnl >= -t.max_loss - 1e-6 and t.max_loss <= 0.01 * 1_500_000
+
+
+def test_pullback_buys_dips_in_uptrends_only():
+    from schwab_trader.pullback import PullbackConfig, indicators, signals
+    n = 300
+    up = 100 * 1.003 ** np.arange(n)
+    up[-3:] = up[-4] * np.array([0.97, 0.94, 0.92])                     # sharp 3-day dip in an uptrend
+    down = 100 * 0.997 ** np.arange(n)
+    down[-3:] = down[-4] * np.array([0.97, 0.94, 0.92])
+    close = pd.DataFrame({"UP": up, "DOWN": down}, index=pd.bdate_range("2024-01-01", periods=n))
+    entry, exit_ = signals(close, indicators(close), PullbackConfig(momentum_top=0))
+    assert entry["UP"].iloc[-1] and not entry["DOWN"].iloc[-1]
 
 
 # ------------------------------------------------------------- live trader
@@ -381,10 +426,10 @@ def test_scorecard_long_weights_fn_has_no_lookahead():
 def test_accounts_and_share_plans():
     from schwab_trader.sizing import accounts_from_env, contracts, share_plan
     you, dad = accounts_from_env()
-    assert (you.value, you.margin) == (1500, False) and dad.strategy_dollars == 150_000 and dad.margin
+    assert (you.value, you.margin, you.options_risk) == (1500, False, 0) and dad.strategy_dollars == 150_000
     plan = share_plan({"XLE": 0.5, "XLK": 0.5}, {"XLE": 69.33, "XLK": 183.23}, dad)
     assert sum(d for _, d in plan.values()) <= 150_000 and plan["XLE"][0] > 1000
-    assert contracts(250.0, you) == 0 and contracts(250.0, dad) == 15   # $30 vs $3,750 options budgets
+    assert contracts(250.0, you) == 0 and contracts(250.0, dad) == 120  # no options vs a $30,000 cap
 
 
 # ------------------------------------------------------------ 0DTE / vol model

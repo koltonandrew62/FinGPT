@@ -1,0 +1,202 @@
+{
+  "none": {
+    "name": "A: momentum, ignores trend",
+    "beats_spy_in_every_trend_and_period": true,
+    "2011-2021": {
+      "final": 64405.68675285782,
+      "cagr": 0.41953231144420267,
+      "max_drawdown": -0.3986958624632271,
+      "spy_cagr": 0.12294252928770244,
+      "spy_max_drawdown": -0.34104746704498434,
+      "by_trend": {
+        "uptrend": {
+          "days": 2326,
+          "strategy": 21.509895490388054,
+          "spy": 1.0706040055651176,
+          "strategy_per_yr": 0.4012538444297584,
+          "spy_per_yr": 0.08204696696141967
+        },
+        "downtrend": {
+          "days": 374,
+          "strategy": 0.9003804554417576,
+          "spy": 0.6742001141488538,
+          "strategy_per_yr": 0.5412811658502859,
+          "spy_per_yr": 0.4151441680034358
+        }
+      }
+    },
+    "2021-2026": {
+      "final": 6398.163921148347,
+      "cagr": 0.3358460696372254,
+      "max_drawdown": -0.3806450111902725,
+      "spy_cagr": 0.10791620214913578,
+      "spy_max_drawdown": -0.2536057440706705,
+      "by_trend": {
+        "uptrend": {
+          "days": 960,
+          "strategy": 1.4883234469649729,
+          "spy": 0.4377816560166925,
+          "strategy_per_yr": 0.27035629316235466,
+          "spy_per_yr": 0.10000433410631349
+        },
+        "downtrend": {
+          "days": 294,
+          "strategy": 0.7064775256344791,
+          "spy": 0.16029243158368,
+          "strategy_per_yr": 0.5810417861378352,
+          "spy_per_yr": 0.13590898978419697
+        }
+      }
+    }
+  },
+  "defensive": {
+    "name": "B: downtrend -> defensive assets",
+    "beats_spy_in_every_trend_and_period": false,
+    "2011-2021": {
+      "final": 41986.57829555343,
+      "cagr": 0.3639995075515512,
+      "max_drawdown": -0.2580267800484739,
+      "spy_cagr": 0.12294252928770244,
+      "spy_max_drawdown": -0.34104746704498434,
+      "by_trend": {
+        "uptrend": {
+          "days": 2326,
+          "strategy": 24.406359915726316,
+          "spy": 1.0706040055651176,
+          "strategy_per_yr": 0.41975094124376744,
+          "spy_per_yr": 0.08204696696141967
+        },
+        "downtrend": {
+          "days": 374,
+          "strategy": 0.09763476908446167,
+          "spy": 0.6742001141488538,
+          "strategy_per_yr": 0.0647811966975318,
+          "spy_per_yr": 0.4151441680034358
+        }
+      }
+    },
+    "2021-2026": {
+      "final": 3152.728316674829,
+      "cagr": 0.15932932892690976,
+      "max_drawdown": -0.4841411566363706,
+      "spy_cagr": 0.10791620214913578,
+      "spy_max_drawdown": -0.2536057440706705,
+      "by_trend": {
+        "uptrend": {
+          "days": 960,
+          "strategy": 1.311599966228798,
+          "spy": 0.4377816560166925,
+          "strategy_per_yr": 0.24602592483651242,
+          "spy_per_yr": 0.10000433410631349
+        },
+        "downtrend": {
+          "days": 294,
+          "strategy": -0.0948388400587511,
+          "spy": 0.16029243158368,
+          "strategy_per_yr": -0.0818620830366894,
+          "spy_per_yr": 0.13590898978419697
+        }
+      }
+    }
+  },
+  "cash": {
+    "name": "C: downtrend -> cash",
+    "beats_spy_in_every_trend_and_period": false,
+    "2011-2021": {
+      "final": 34353.800101018875,
+      "cagr": 0.3387114032265337,
+      "max_drawdown": -0.24179385233810569,
+      "spy_cagr": 0.12294252928770244,
+      "spy_max_drawdown": -0.34104746704498434,
+      "by_trend": {
+        "uptrend": {
+          "days": 2326,
+          "strategy": 22.53352741491559,
+          "spy": 1.0706040055651176,
+          "strategy_per_yr": 0.4080214037207128,
+          "spy_per_yr": 0.08204696696141967
+        },
+        "downtrend": {
+          "days": 374,
+          "strategy": -0.030433559909846197,
+          "spy": 0.6742001141488538,
+          "strategy_per_yr": -0.020609216256886387,
+          "spy_per_yr": 0.4151441680034358
+        }
+      }
+    },
+    "2021-2026": {
+      "final": 2885.676184853023,
+      "cagr": 0.13896282477777988,
+      "max_drawdown": -0.4443721346768903,
+      "spy_cagr": 0.10791620214913578,
+      "spy_max_drawdown": -0.2536057440706705,
+      "by_trend": {
+        "uptrend": {
+          "days": 960,
+          "strategy": 1.1266602484343893,
+          "spy": 0.4377816560166925,
+          "strategy_per_yr": 0.21904785529706627,
+          "spy_per_yr": 0.10000433410631349
+        },
+        "downtrend": {
+          "days": 294,
+          "strategy": -0.09946307656784747,
+          "spy": 0.16029243158368,
+          "strategy_per_yr": -0.0858840085225141,
+          "spy_per_yr": 0.13590898978419697
+        }
+      }
+    }
+  },
+  "absolute": {
+    "name": "D: downtrend -> rising names only",
+    "beats_spy_in_every_trend_and_period": true,
+    "2011-2021": {
+      "final": 64405.68675285782,
+      "cagr": 0.41953231144420267,
+      "max_drawdown": -0.3986958624632271,
+      "spy_cagr": 0.12294252928770244,
+      "spy_max_drawdown": -0.34104746704498434,
+      "by_trend": {
+        "uptrend": {
+          "days": 2326,
+          "strategy": 21.509895490388054,
+          "spy": 1.0706040055651176,
+          "strategy_per_yr": 0.4012538444297584,
+          "spy_per_yr": 0.08204696696141967
+        },
+        "downtrend": {
+          "days": 374,
+          "strategy": 0.9003804554417576,
+          "spy": 0.6742001141488538,
+          "strategy_per_yr": 0.5412811658502859,
+          "spy_per_yr": 0.4151441680034358
+        }
+      }
+    },
+    "2021-2026": {
+      "final": 6398.163921148347,
+      "cagr": 0.3358460696372254,
+      "max_drawdown": -0.3806450111902725,
+      "spy_cagr": 0.10791620214913578,
+      "spy_max_drawdown": -0.2536057440706705,
+      "by_trend": {
+        "uptrend": {
+          "days": 960,
+          "strategy": 1.4883234469649729,
+          "spy": 0.4377816560166925,
+          "strategy_per_yr": 0.27035629316235466,
+          "spy_per_yr": 0.10000433410631349
+        },
+        "downtrend": {
+          "days": 294,
+          "strategy": 0.7064775256344791,
+          "spy": 0.16029243158368,
+          "strategy_per_yr": 0.5810417861378352,
+          "spy_per_yr": 0.13590898978419697
+        }
+      }
+    }
+  }
+}

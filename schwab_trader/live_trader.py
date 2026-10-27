@@ -1,4 +1,5 @@
-"""Run the weekly rotation on a Charles Schwab account. DRY RUN unless --live.
+"""Run the weekly strategy (active_strategy.py: trend-checked momentum top 3 over 59
+stocks + 17 ETFs) on a Charles Schwab account. DRY RUN unless --live.
 
 One-time setup
   1. Register at https://developer.schwab.com, create an app with the
@@ -14,7 +15,7 @@ Every run (Monday after 9:35 ET, matching the backtest's Monday-open fills)
   python -m schwab_trader.live_trader               # show the plan, send nothing
   python -m schwab_trader.live_trader --live        # send orders after you type YES
 
-Safety rails: manages only the strategy's ETFs (anything else you own is left
+Safety rails: manages only the strategy's stocks/ETFs (anything else you own is left
 alone), never uses margin (buys are capped by settled-or-available cash), whole
 shares and marketable LIMIT day orders only, sells fill before buys, one
 rebalance per week unless --force, and every action is logged to
@@ -31,9 +32,10 @@ import time
 
 import pandas as pd
 
-from .config import BENCHMARK, DEFAULT_CONFIG, STATE_DIR, Costs, StrategyConfig
+from .active_strategy import LABEL, POOL, market_trend, momentum, target_weights
+from .config import BENCHMARK, STATE_DIR, Costs
 from .data import drop_unfinished_today, fetch_schwab
-from .strategy import compute_signal, whole_share_targets
+from .strategy import whole_share_targets
 
 TOKEN_PATH = STATE_DIR / "token.json"
 TRADE_LOG = STATE_DIR / "trades.log"
@@ -207,8 +209,6 @@ def main(argv=None):
     ap.add_argument("--force", action="store_true", help="rebalance even if already done this week")
     ap.add_argument("--max-capital", type=float, default=None, help="cap the dollars the bot may manage")
     args = ap.parse_args(argv)
-    cfg: StrategyConfig = DEFAULT_CONFIG
-
     client = make_client()
     acct = account_hash(client)
     account = read_account(client, acct)
@@ -216,16 +216,24 @@ def main(argv=None):
         print("Note: margin account. Under $25k the pattern-day-trader rule applies; this bot never day-trades "
               "and never borrows, but a CASH account is the simpler choice.")
 
+    symbols = list(dict.fromkeys(list(POOL) + [BENCHMARK]))
     start = (dt.date.today() - dt.timedelta(days=600)).isoformat()
-    frames = {s: drop_unfinished_today(df) for s, df in fetch_schwab(client, list(cfg.symbols) + [BENCHMARK], start).items()}
+    frames = {s: drop_unfinished_today(df) for s, df in fetch_schwab(client, symbols, start).items()}
     closes = pd.DataFrame({s: f["close"] for s, f in frames.items()}).sort_index()
-    sig = compute_signal(closes, cfg)
-    quotes = get_quotes(client, set(sig.weights) | (set(account["positions"]) & set(cfg.symbols)))
-    orders, info = plan_orders(sig.weights, account, quotes, cfg.symbols, max_capital=args.max_capital)
+    managed_now = {s: q for s, q in account["positions"].items() if s in POOL}
+    held_quotes = get_quotes(client, set(managed_now)) if managed_now else {}
+    budget = account["cash"] + sum(q * (held_quotes[s]["bid"] + held_quotes[s]["ask"]) / 2
+                                   for s, q in managed_now.items())
+    if args.max_capital is not None:
+        budget = min(budget, args.max_capital)
+    ranked = list(momentum(closes).index[:15])
+    quotes = {**held_quotes, **get_quotes(client, set(ranked) - set(held_quotes))}
+    weights = target_weights(closes, budget, lambda s: quotes.get(s, {}).get("ask", float("nan")))
+    orders, info = plan_orders(weights, account, quotes, POOL, max_capital=args.max_capital)
 
-    print(f"Signal as of {sig.asof.date()} ({cfg.label()})")
-    print("  ranking: " + ", ".join(f"{s} {v:+.3f}" for s, v in sig.scores.head(6).items()))
-    print(f"  target: {info['target'] or 'all cash'}   kept in cash by trend filter: {sig.risk_off or 'none'}")
+    print(f"Signal as of {closes.index[-1].date()} ({LABEL}); market {market_trend(closes)}")
+    print("  ranking: " + ", ".join(f"{s} {v:+.0%}" for s, v in momentum(closes).head(6).items()))
+    print(f"  target: {info['target'] or 'all cash'}")
     print(f"  account cash ${account['cash']:,.2f}, strategy budget ${info['budget']:,.2f}, "
           f"current strategy holdings {info['managed'] or 'none'}")
     if not orders:

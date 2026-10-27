@@ -1,0 +1,28 @@
+{
+  "selected": {
+    "label": "etfs mom-top10 rsi2<5 exit-rsi70 hold<=10 max2",
+    "pool": "etfs",
+    "momentum_top": 10,
+    "entry_rsi": 5,
+    "exit_rule": "rsi70",
+    "max_hold": 10,
+    "max_positions": 2,
+    "design_win_rate": 0.84,
+    "design_trades": 25,
+    "design_cagr": 0.012003564313906923,
+    "design_final": 1704.7085054890808,
+    "design_maxdd": -0.03487861177871188,
+    "design_avg_trade": 0.01199772699615791,
+    "test_win_rate": 0.6428571428571429,
+    "test_trades": 14,
+    "test_cagr": -0.004589205652571926,
+    "test_final": 1465.9369604888218,
+    "test_maxdd": -0.10578550620958271,
+    "test_avg_trade": -0.002397783701285461
+  },
+  "variants_with_80pct_design": 3,
+  "variants_with_80pct_test": 1,
+  "spy_design_cagr": 0.12294252928770244,
+  "spy_test_cagr": 0.10791620214913578,
+  "spy_test_final": 2508.112413811585
+}

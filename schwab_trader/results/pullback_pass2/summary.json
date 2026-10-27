@@ -1,0 +1,29 @@
+{
+  "selected": {
+    "label": "stocks+etfs mom-top10 rsi2<10 exit-rsi70 hold<=20 max3",
+    "pool": "stocks+etfs",
+    "momentum_top": 10,
+    "entry_rsi": 10,
+    "exit_rule": "rsi70",
+    "max_hold": 20,
+    "max_positions": 3,
+    "market_filter": false,
+    "design_win_rate": 0.700139470013947,
+    "design_trades": 717,
+    "design_cagr": 0.18025499839726744,
+    "design_final": 8909.001565459257,
+    "design_maxdd": -0.32538322922432705,
+    "design_avg_trade": 0.008531939031570042,
+    "test_win_rate": 0.6576576576576577,
+    "test_trades": 333,
+    "test_cagr": 0.13695605065598127,
+    "test_final": 2847.51653780529,
+    "test_maxdd": -0.13106763029472646,
+    "test_avg_trade": 0.007649493895943992
+  },
+  "variants_with_80pct_design": 0,
+  "variants_with_80pct_test": 0,
+  "spy_design_cagr": 0.12294252928770244,
+  "spy_test_cagr": 0.10791620214913578,
+  "spy_test_final": 2508.112413811585
+}

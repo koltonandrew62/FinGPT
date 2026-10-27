@@ -184,12 +184,20 @@ def run_options_backtest(spy: pd.DataFrame, vix: pd.DataFrame, cfg: OptionsConfi
     return eq, pd.DataFrame(trades), ruined_on
 
 
-GRID = [OptionsConfig(signal=s, frequency=f, dte=d, hold=h, otm=m, risk=r, take_profit=tp, stop_loss=sl)
-        for s, f, (d, h), m, r, (tp, sl) in itertools.product(
-            ["calls", "trend", "reversal"], ["daily", "weekly"],
-            [(0, 0), (1, 1), (5, 5), (21, 5), (21, 21), (42, 5), (42, 21)],
-            [0.0, 0.005, 0.01, 0.02], [0.05, 0.10, 0.25, 0.50], [(0.0, 0.0), (1.0, 0.5)])
-        if not (d == 0 and tp)]   # 0DTE exits at the close; daily bars can't see intraday targets
+SMALL_ACCOUNT_RISKS = [0.05, 0.10, 0.25, 0.50]
+LARGE_ACCOUNT_RISKS = [0.0025, 0.005, 0.01, 0.02, 0.05, 0.10]
+
+
+def make_grid(risks) -> list:
+    return [OptionsConfig(signal=s, frequency=f, dte=d, hold=h, otm=m, risk=r, take_profit=tp, stop_loss=sl)
+            for s, f, (d, h), m, r, (tp, sl) in itertools.product(
+                ["calls", "trend", "reversal"], ["daily", "weekly"],
+                [(0, 0), (1, 1), (5, 5), (21, 5), (21, 21), (42, 5), (42, 21)],
+                [0.0, 0.005, 0.01, 0.02], risks, [(0.0, 0.0), (1.0, 0.5)])
+            if not (d == 0 and tp)]   # 0DTE exits at the close; daily bars can't see intraday targets
+
+
+GRID = make_grid(SMALL_ACCOUNT_RISKS)
 DESIGN = ("2005-02-01", "2021-10-22")
 TEST = ("2021-10-25", "2026-10-23")
 _DATA = None
@@ -206,16 +214,17 @@ def _data():
 
 
 def evaluate(args):
-    cfg, window = args
+    cfg, window, cash = args
     spy, vix, fair = _data()
-    eq, trades, ruined = run_options_backtest(spy, vix, cfg, *window, fair=fair)
+    eq, trades, ruined = run_options_backtest(spy, vix, cfg, *window, initial_cash=cash, fair=fair)
     m = performance(eq)
     return {"label": cfg.label(), **asdict(cfg), **{k: m[k] for k in ("final_value", "cagr", "max_drawdown")},
             "trades": len(trades), "win_rate": float((trades["return"] > 0).mean()) if len(trades) else np.nan,
             "ruined": ruined is not None, "ruined_on": None if ruined is None else ruined.date().isoformat()}
 
 
-def bootstrap(eq: pd.Series, years: float = 5.0, paths: int = 2000, block: int = 21, seed: int = 7) -> dict:
+def bootstrap(eq: pd.Series, years: float = 5.0, paths: int = 2000, block: int = 21, seed: int = 7,
+              start: float = 1500.0) -> dict:
     """Resample the strategy's daily returns in 1-month blocks to see the spread of
     5-year outcomes, not just the one path history happened to take."""
     rets = eq.pct_change().dropna().to_numpy()
@@ -225,21 +234,27 @@ def bootstrap(eq: pd.Series, years: float = 5.0, paths: int = 2000, block: int =
     for p in range(paths):
         starts = rng.integers(0, len(rets) - block, size=n // block + 1)
         path = np.concatenate([rets[s:s + block] for s in starts])[:n]
-        finals[p] = 1500.0 * np.prod(1.0 + path)
-    cagr = (finals / 1500.0) ** (1 / years) - 1
-    return {"median_final": float(np.median(finals)), "p_lose_90pct": float((finals < 150).mean()),
-            "p_lose_money": float((finals < 1500).mean()), "p_cagr_200pct": float((cagr >= 2.0).mean()),
+        finals[p] = start * np.prod(1.0 + path)
+    cagr = (finals / start) ** (1 / years) - 1
+    return {"median_final": float(np.median(finals)), "p_lose_90pct": float((finals < 0.1 * start).mean()),
+            "p_lose_money": float((finals < start).mean()), "p_cagr_200pct": float((cagr >= 2.0).mean()),
             "p_cagr_1000pct": float((cagr >= 10.0).mean()), "p95_final": float(np.percentile(finals, 95))}
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--phase", choices=["design", "test"], required=True)
+    ap.add_argument("--cash", type=float, default=1500.0, help="starting account size (e.g. 1500000)")
     args = ap.parse_args()
+    global OUT_DIR
+    large = args.cash >= 100_000
+    grid = make_grid(LARGE_ACCOUNT_RISKS if large else SMALL_ACCOUNT_RISKS)
+    if large:
+        OUT_DIR = RESULTS_DIR / "options_1.5M"
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     if args.phase == "design":
         with Pool() as pool:
-            design = pd.DataFrame(pool.map(evaluate, [(cfg, DESIGN) for cfg in GRID]))
+            design = pd.DataFrame(pool.map(evaluate, [(cfg, DESIGN, args.cash) for cfg in grid]))
         design.sort_values("cagr", ascending=False).to_csv(OUT_DIR / "design_grid.csv", index=False, float_format="%.4f")
         pick = design.sort_values(["cagr", "final_value"], ascending=False).iloc[0]   # max return, as asked
         (OUT_DIR / "selected_config.json").write_text(json.dumps(
@@ -253,15 +268,16 @@ def main():
     pick = json.loads((OUT_DIR / "selected_config.json").read_text())
     cfg = OptionsConfig(**{k: pick[k] for k in OptionsConfig.__dataclass_fields__})
     spy, vix, fair = _data()
-    eq, trades, ruined = run_options_backtest(spy, vix, cfg, *TEST, fair=fair)
-    eq_design, _, _ = run_options_backtest(spy, vix, cfg, *DESIGN, fair=fair)
+    eq, trades, ruined = run_options_backtest(spy, vix, cfg, *TEST, initial_cash=args.cash, fair=fair)
+    eq_design, _, _ = run_options_backtest(spy, vix, cfg, *DESIGN, initial_cash=args.cash, fair=fair)
     bench = spy["close"].loc[TEST[0]:TEST[1]]
-    bench = 1500.0 * bench / spy["open"].loc[TEST[0]:].iloc[0]
+    bench = args.cash * bench / spy["open"].loc[TEST[0]:].iloc[0]
     stress = {p: performance(run_options_backtest(spy, vix, OptionsConfig(**{**asdict(cfg), "pricing": p}), *TEST,
-                                                  fair=fair)[0])["final_value"] for p in ("fair", "mid", "vix")}
-    grid_all = [OptionsConfig(**{**asdict(c), "pricing": p}) for c in GRID for p in ("fair", "mid", "vix")]
+                                                  initial_cash=args.cash, fair=fair)[0])["final_value"]
+              for p in ("fair", "mid", "vix")}
+    grid_all = [OptionsConfig(**{**asdict(c), "pricing": p}) for c in grid for p in ("fair", "mid", "vix")]
     with Pool() as pool:
-        test_grid = pd.DataFrame(pool.map(evaluate, [(c, TEST) for c in grid_all]))
+        test_grid = pd.DataFrame(pool.map(evaluate, [(c, TEST, args.cash) for c in grid_all]))
     test_grid.sort_values("cagr", ascending=False).to_csv(OUT_DIR / "test_grid.csv", index=False, float_format="%.4f")
     by_pricing = {p: {"variants": int((g := test_grid[test_grid.pricing == p]).shape[0]),
                       "made_money": int((g.cagr > 0).sum()), "wiped_out": int(g.ruined.sum()),
@@ -272,7 +288,7 @@ def main():
                "win_rate": float((trades["return"] > 0).mean()) if len(trades) else None,
                "ruined_on": None if ruined is None else ruined.date().isoformat()},
                "spy_test": performance(bench), "final_value_by_pricing": stress, "fair_multipliers": fair,
-               "bootstrap_from_design_returns": bootstrap(eq_design),
+               "start_cash": args.cash, "bootstrap_from_design_returns": bootstrap(eq_design, start=args.cash),
                "yearly": pd.DataFrame({"options": yearly_returns(eq), "spy": yearly_returns(bench)}).to_dict("index"),
                "grid_test_by_pricing": by_pricing}
     (OUT_DIR / "test_summary.json").write_text(json.dumps(summary, indent=2, default=str))

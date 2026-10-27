@@ -39,9 +39,8 @@ OUT = RESULTS_DIR / "zero_dte"
 DESIGN = ("2005-02-01", "2021-10-22")
 TEST = ("2021-10-25", "2026-10-23")
 STRUCTURES = ["straddle", "strangle0.5", "strangle1", "follow_gap", "fade_gap"]
-# Simulated with a $1.5M account so whole-contract rounding never decides the result
-# (a 2% cap on $1,500 cannot buy even one QQQ strangle); dollar figures in the summary
-# are scaled back to a $1,500 start.
+# Simulated with at least a $1.5M account so whole-contract rounding never decides the
+# result; dollar figures are reported for the --cash account size (default $1.5M).
 SIM_CASH = 1_500_000.0
 PER_1500 = 1500.0 / SIM_CASH
 
@@ -112,8 +111,8 @@ def auc(score: pd.Series, label: pd.Series) -> float:
     return float((ranks[lab].sum() - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg))
 
 
-def main():
-    OUT.mkdir(parents=True, exist_ok=True)
+def context() -> dict:
+    """Data, detector probabilities and pricing multipliers shared by the 0DTE studies."""
     px = load_prices(["QQQ", "SPY"])
     q = pd.DataFrame({k: px[k]["QQQ"] for k in ("open", "high", "low", "close", "volume")})
     spy = pd.DataFrame({k: px[k]["SPY"] for k in ("open", "close")})
@@ -157,6 +156,23 @@ def main():
         "vix": pd.Series(vix_q, index=q.index), "informed": (informed_sigma / (vix["open"] / 100)).fillna(fair_q),
     }
     report["iv_multipliers"] = {"fair": fair_q, "mid": (fair_q + vix_q) / 2, "vix": vix_q}
+    return {"q": q, "spy": spy, "vix": vix, "X": X, "move": move, "y": y, "design_mask": design_mask,
+            "test_mask": test_mask, "probs": probs, "mults": mults, "report": report}
+
+
+def main():
+    import argparse
+    global SIM_CASH, PER_1500
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--cash", type=float, default=1_500_000.0, help="account size to report results for")
+    args = ap.parse_args()
+    SIM_CASH, PER_1500 = max(args.cash, 1_500_000.0), args.cash / max(args.cash, 1_500_000.0)
+    risks = [0.0025, 0.005, 0.01, 0.02, 0.05, 0.10] if args.cash >= 100_000 else [0.02, 0.05, 0.10, 0.25]
+    OUT.mkdir(parents=True, exist_ok=True)
+    ctx = context()
+    q, vix, X, probs, mults, report = ctx["q"], ctx["vix"], ctx["X"], ctx["probs"], ctx["mults"], ctx["report"]
+    design_mask, test_mask = ctx["design_mask"], ctx["test_mask"]
+    report["start_cash"] = args.cash
 
     # --- design-period selection (walk-forward probabilities, mid pricing)
     def flags_for(kind, rate_, window_mask):
@@ -165,13 +181,13 @@ def main():
         return (p >= thr) & window_mask
 
     rows = []
-    grid = list(itertools.product(["simple", "complex"], [0.1, 0.2, 0.3], STRUCTURES, [0.02, 0.05, 0.10, 0.25]))
+    grid = list(itertools.product(["simple", "complex"], [0.1, 0.2, 0.3], STRUCTURES, risks))
     for kind, rate_, structure, risk in grid:
         eq, tr = run_0dte(q, vix["open"], flags_for(kind, rate_, design_mask), structure, risk, mults["mid"], *DESIGN,
                           SIM_CASH)
         m = performance(eq)
         rows.append({"model": kind, "flag_rate": rate_, "structure": structure, "risk": risk,
-                     "final_per_1500": m["final_value"] * PER_1500, "cagr": m["cagr"], "max_drawdown": m["max_drawdown"],
+                     "final_value": m["final_value"] * PER_1500, "cagr": m["cagr"], "max_drawdown": m["max_drawdown"],
                      "trades": len(tr), "lost_90pct": bool((eq < 0.1 * SIM_CASH).any())})
     design = pd.DataFrame(rows).sort_values("cagr", ascending=False)
     design.to_csv(OUT / "design_grid.csv", index=False, float_format="%.4f")
@@ -197,9 +213,9 @@ def main():
             chosen[rng.choice(test_days, size=int(flags.sum()), replace=False)] = True
             rand.append(run_0dte(q, vix["open"], chosen, pick.structure, pick.risk, mult, *TEST, SIM_CASH)[0].iloc[-1])
         m = performance(eq)
-        tests[name] = {"final_per_1500": m["final_value"] * PER_1500, "cagr": m["cagr"], "max_drawdown": m["max_drawdown"],
+        tests[name] = {"final_value": m["final_value"] * PER_1500, "cagr": m["cagr"], "max_drawdown": m["max_drawdown"],
                        "trades": len(tr), "win_rate": float((tr["return"] > 0).mean()) if len(tr) else None,
-                       "random_days_median_final_per_1500": float(np.median(rand)) * PER_1500,
+                       "random_days_median_final": float(np.median(rand)) * PER_1500,
                        "pct_random_runs_beaten": float(np.mean(np.array(rand) < eq.iloc[-1]))}
         if name == "mid":
             eq.to_csv(OUT / "test_equity_mid.csv", float_format="%.2f")
@@ -224,7 +240,7 @@ def main():
         for structure, risk in itertools.product(STRUCTURES + ["strangle2"], [0.05, 0.10, 0.25, 0.50]):
             eq, tr = run_0dte(q, vix["open"], f & test_mask, structure, risk, mults["fair"], *TEST, SIM_CASH)
             tuned.append({"rule": " & ".join(combo), "structure": structure, "risk": risk,
-                          "test_cagr": performance(eq)["cagr"], "test_final_per_1500": eq.iloc[-1] * PER_1500,
+                          "test_cagr": performance(eq)["cagr"], "test_final": eq.iloc[-1] * PER_1500,
                           "trades": len(tr)})
     tuned = pd.DataFrame(tuned).sort_values("test_cagr", ascending=False)
     tuned.to_csv(OUT / "tuned_on_test_grid.csv", index=False, float_format="%.4f")
@@ -236,15 +252,15 @@ def main():
     for name in ("fair", "mid", "informed"):
         eq_d, tr_d = run_0dte(q, vix["open"], f & design_mask, best.structure, best.risk, mults[name], *DESIGN, SIM_CASH)
         m = performance(eq_d)
-        oos[name] = {"final_per_1500": m["final_value"] * PER_1500, "cagr": m["cagr"], "max_drawdown": m["max_drawdown"],
+        oos[name] = {"final_value": m["final_value"] * PER_1500, "cagr": m["cagr"], "max_drawdown": m["max_drawdown"],
                      "trades": len(tr_d), "lost_90pct": bool((eq_d < 0.1 * SIM_CASH).any())}
     eq_t_mid, _ = run_0dte(q, vix["open"], f & test_mask, best.structure, best.risk, mults["mid"], *TEST, SIM_CASH)
     eq_t_inf, _ = run_0dte(q, vix["open"], f & test_mask, best.structure, best.risk, mults["informed"], *TEST, SIM_CASH)
     report["tuned_on_test"] = {
         "combinations_searched": len(tuned), "over_200pct_in_test_fair": int((tuned.test_cagr >= 2.0).sum()),
         "best": best.to_dict(),
-        "best_same_window_mid_pricing_final_per_1500": float(eq_t_mid.iloc[-1]) * PER_1500,
-        "best_same_window_informed_pricing_final_per_1500": float(eq_t_inf.iloc[-1]) * PER_1500,
+        "best_same_window_mid_pricing_final": float(eq_t_mid.iloc[-1]) * PER_1500,
+        "best_same_window_informed_pricing_final": float(eq_t_inf.iloc[-1]) * PER_1500,
         "best_rule_on_2005_2021": oos,
     }
     (OUT / "summary.json").write_text(json.dumps(report, indent=2, default=str))

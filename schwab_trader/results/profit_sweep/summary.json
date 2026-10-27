@@ -1,0 +1,144 @@
+{
+  "5y test (2021-10..2026-10)": {
+    "shares only": {
+      "start": "2021-10-25",
+      "end": "2026-10-23",
+      "final_value": 6398.163921148347,
+      "total_return": 3.246268038755054,
+      "cagr": 0.3358460696372254,
+      "volatility": 0.39747060646770743,
+      "sharpe": 0.9279434020970593,
+      "max_drawdown": -0.3806450111902725,
+      "options_share": 0.0
+    },
+    "spy": {
+      "start": "2021-10-25",
+      "end": "2026-10-23",
+      "final_value": 2508.112413811585,
+      "total_return": 0.6682471737460214,
+      "cagr": 0.10791620214913578,
+      "volatility": 0.17196927314312732,
+      "sharpe": 0.6838928821705366,
+      "max_drawdown": -0.2536057440706705
+    },
+    "half profits -> 2-month SPY calls [mid pricing]": {
+      "start": "2021-10-25",
+      "end": "2026-10-23",
+      "final_value": 4970.016098338629,
+      "total_return": 2.3133440655590856,
+      "cagr": 0.2711056891291006,
+      "volatility": 0.3071513210204381,
+      "sharpe": 0.9365303681687569,
+      "max_drawdown": -0.35937557896345096,
+      "options_share": 0.4293048639149124
+    },
+    "half profits -> 0DTE QQQ on volatile days [mid pricing]": {
+      "start": "2021-10-25",
+      "end": "2026-10-23",
+      "final_value": 4970.016098338629,
+      "total_return": 2.3133440655590856,
+      "cagr": 0.2711056891291006,
+      "volatility": 0.3071513210204381,
+      "sharpe": 0.9365303681687569,
+      "max_drawdown": -0.35937557896345096,
+      "options_share": 0.4293048639149124
+    },
+    "half profits -> 2-month SPY calls [informed pricing]": {
+      "start": "2021-10-25",
+      "end": "2026-10-23",
+      "final_value": 4970.016098338629,
+      "total_return": 2.3133440655590856,
+      "cagr": 0.2711056891291006,
+      "volatility": 0.3071513210204381,
+      "sharpe": 0.9365303681687569,
+      "max_drawdown": -0.35937557896345096,
+      "options_share": 0.4293048639149124
+    },
+    "half profits -> 0DTE QQQ on volatile days [informed pricing]": {
+      "start": "2021-10-25",
+      "end": "2026-10-23",
+      "final_value": 4970.016098338629,
+      "total_return": 2.3133440655590856,
+      "cagr": 0.2711056891291006,
+      "volatility": 0.3071513210204381,
+      "sharpe": 0.9365303681687569,
+      "max_drawdown": -0.35937557896345096,
+      "options_share": 0.4293048639149124
+    },
+    "200%/yr target": {
+      "final_value": 362041.526480202,
+      "cagr": 2.0
+    }
+  },
+  "10y (2016-10..2026-10, stock list has hindsight before 2021)": {
+    "shares only": {
+      "start": "2016-10-24",
+      "end": "2026-10-23",
+      "final_value": 37176.62268675616,
+      "total_return": 22.914786132057174,
+      "cagr": 0.37379930440907594,
+      "volatility": 0.3818661069178551,
+      "sharpe": 1.0245927209589487,
+      "max_drawdown": -0.4516880582771675,
+      "options_share": 0.0
+    },
+    "spy": {
+      "start": "2016-10-24",
+      "end": "2026-10-23",
+      "final_value": 5299.4665457968695,
+      "total_return": 2.5365535855554007,
+      "cagr": 0.1346987135956801,
+      "volatility": 0.1801960779640607,
+      "sharpe": 0.7934404901222244,
+      "max_drawdown": -0.34104746704498434
+    },
+    "half profits -> 2-month SPY calls [mid pricing]": {
+      "start": "2016-10-24",
+      "end": "2026-10-23",
+      "final_value": 14305.200448024394,
+      "total_return": 8.536800298682929,
+      "cagr": 0.2530849305957792,
+      "volatility": 0.2411404245221322,
+      "sharpe": 1.0584657389336236,
+      "max_drawdown": -0.28851916087735163,
+      "options_share": 0.5215142193658109
+    },
+    "half profits -> 0DTE QQQ on volatile days [mid pricing]": {
+      "start": "2016-10-24",
+      "end": "2026-10-23",
+      "final_value": 12322.787017608332,
+      "total_return": 7.215191345072222,
+      "cagr": 0.23452345345115377,
+      "volatility": 0.32056318186614347,
+      "sharpe": 0.8165439715645313,
+      "max_drawdown": -0.41205927028694855,
+      "options_share": 0.4445383991688932
+    },
+    "half profits -> 2-month SPY calls [informed pricing]": {
+      "start": "2016-10-24",
+      "end": "2026-10-23",
+      "final_value": 14305.200448024394,
+      "total_return": 8.536800298682929,
+      "cagr": 0.2530849305957792,
+      "volatility": 0.2411404245221322,
+      "sharpe": 1.0584657389336236,
+      "max_drawdown": -0.28851916087735163,
+      "options_share": 0.5215142193658109
+    },
+    "half profits -> 0DTE QQQ on volatile days [informed pricing]": {
+      "start": "2016-10-24",
+      "end": "2026-10-23",
+      "final_value": 297239.21320050914,
+      "total_return": 197.1594754670061,
+      "cagr": 0.6974455670725646,
+      "volatility": 0.783226984066285,
+      "sharpe": 0.9871274389029783,
+      "max_drawdown": -0.6121844971624029,
+      "options_share": 0.9769719650048859
+    },
+    "200%/yr target": {
+      "final_value": 88174778.23187281,
+      "cagr": 2.0
+    }
+  }
+}

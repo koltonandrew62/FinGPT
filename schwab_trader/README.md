@@ -5,28 +5,35 @@ weekly 0-100 stock scorecard, an earnings play book, a volatile-day detector for
 QQQ options, a Sunday-evening email sized for two accounts ($1,500 and ~$1.5M), and a
 Schwab order bot that runs in dry-run mode until you say otherwise.
 
-**Results (details in [results/RESULTS.md](results/RESULTS.md)).** Over the last 5 years
-(Oct 2021 → Oct 2026), $1,500 in the default rule grew to **$3,507 (18.6%/yr)** vs.
-**$2,508 (10.8%/yr)** for the S&P 500, with a smaller worst drawdown (−19% vs −25%).
-Two caveats you should not skip:
+**The strategy (details in [results/STRATEGY_RESULTS.md](results/STRATEGY_RESULTS.md)).**
+Every week, hold the 3 strongest of 59 large US stocks and 17 ETFs by 12-month return
+(skipping the latest month), checking the market trend first: in a downtrend (S&P 500
+below its 200-day average) only names still rising are bought. Over the last 5 years
+$1,500 became **$6,398 (33.6%/yr)** vs **$2,508 (10.8%/yr)** for the S&P 500, and it beat
+the S&P on both uptrend and downtrend days. The price: a −38% worst drop (−45% at
+$150,000), and only about half of positions close at a profit. Nothing tested reached
+200%/yr; the best honest single years were +104% to +126%.
 
-- The rule chosen *before* looking at those 5 years **lost to the S&P** ($1,924). The
-  default was picked afterwards from the variants that beat SPY in both 2005–2021 and
-  2021–2026, so its numbers are optimistic. Paper-trade it first.
-- Nothing came close to the 150%/yr goal ($1,500 → $145,660), and nothing honest will
-  with unlevered ETFs.
+For the $1.5M margin account there is also a high-accuracy options rule: sell a 0DTE
+QQQ iron condor on days the volatility detector rates calm (won 89–93% of trades in
+2021–2026; +0.4% to +21%/yr depending on real option prices).
 
 ## What it does
 
 Every week (Friday close → Monday 9:35 AM ET):
-1. Ranks 17 ETFs (11 S&P sectors, QQQ, IWM, EFA, EEM, GLD, TLT) by 12-month return
-   skipping the latest month ("12-1 momentum").
-2. Holds the top 2 in equal dollar amounts, whole shares only, no margin, no options.
-3. Sells what dropped out, buys what came in; median holding ≈ 2 weeks.
+1. Checks the market trend (SPY vs. its 200-day average).
+2. Ranks 59 stocks + 17 ETFs by 12-1 momentum and holds the top 3 the account can
+   afford, in equal dollar amounts, whole shares only, no margin.
+3. Emails the picks, shares and dollars for each account, the next morning's 0DTE plan
+   for accounts that trade options, and earnings beats/misses.
 
 | File | Purpose |
 |---|---|
-| `strategy.py` | Signal + whole-share sizing (shared by everything below) |
+| `active_strategy.py` | **The strategy in use**: trend-checked momentum top 3 |
+| `share_competition.py`, `regime_research.py` | How it was chosen; up/downtrend test |
+| `pullback.py`, `condor_research.py` | High-win-rate alternatives (dip-buying 70%; calm-day condors 89–93%) |
+| `profit_sweep.py` | Half of profits moved into options |
+| `strategy.py` | ETF rotation signal + whole-share sizing |
 | `backtest.py`, `research.py` | Backtest engine and the design/test/robust protocol |
 | `weekly_report.py`, `notify.py` | Weekly picks with buy/sell dates & times, sized per account → email |
 | `sizing.py` | How much to buy for each account in `ACCOUNTS` |
@@ -35,7 +42,7 @@ Every week (Friday close → Monday 9:35 AM ET):
 | `vol_model.py`, `zero_dte_research.py`, `vol_alert.py` | Volatile-day detector, 0DTE QQQ study, morning alert ([results](results/zero_dte/RESULTS.md)) |
 | `options_backtest.py` | SPY calls/puts from 0DTE to 2 months ([results](results/options/RESULTS.md)) |
 | `import_robinhood.py` | Load saved Robinhood price results into `data/` (`--source local`) |
-| `live_trader.py` | Places the trades on Schwab (dry run by default) |
+| `live_trader.py` | Places the strategy's trades on Schwab (dry run by default) |
 | `calendar_utils.py` | NYSE holidays, so dates/times in the report are real sessions |
 
 ## Install
@@ -135,14 +142,16 @@ not to own. Details: [results/scorecard/RESULTS.md](results/scorecard/RESULTS.md
 
 ## Volatile-day detector and 0DTE QQQ
 
-`vol_alert.py` runs after the 9:30 open and, if today looks volatile, emails the exact
-QQQ contracts expiring today, how many to buy per account and to sell by 3:50 PM ET. The
-detector is genuinely predictive (AUC 0.72–0.74 on 2021–2026 data it never saw; flagged
-days moved twice as much). The option trades on those days lost money over 2005–2021
-and made money over 2021–2026 only if real 0DTE prices are below VIX-level pricing.
-Tuning technical rules on the 2021–2026 window produced 200%+ on paper (even $60 billion)
-and lost 99.99% on 2005–2021. It is **not** scheduled; run it by hand if you want it.
-Details: [results/zero_dte/RESULTS.md](results/zero_dte/RESULTS.md).
+The detector is genuinely predictive (AUC 0.72–0.74 on 2021–2026 data it never saw;
+flagged days moved twice as much). *Buying* 0DTE options on volatile days won only
+40–47% of trades and lost money over 2005–2021, so it is used the other way round:
+`vol_alert.py` runs after the 9:30 open and, on days rated among the calmest 30%,
+recommends *selling* a 1%-wide QQQ iron condor for accounts with `options_risk > 0`
+(won 89–93% of trades in 2021–2026). The weekly email includes the same check as a
+table for the next session at different opening gaps. Tuning technical rules on the
+2021–2026 window produced 200%+ on paper (even $60 billion) and lost 99.99% on
+2005–2021. Details: [results/zero_dte/RESULTS.md](results/zero_dte/RESULTS.md),
+[results/STRATEGY_RESULTS.md](results/STRATEGY_RESULTS.md).
 
 ## Options study (0DTE through 2-month expiries)
 

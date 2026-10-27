@@ -2,10 +2,10 @@
 
 Accounts come from the ACCOUNTS environment variable, one per comma:
     name:value:strategy_share:options_risk:cash|margin
-e.g. ACCOUNTS="You:1500:1.0:0.02:cash,Dad:1500000:0.10:0.0025:margin"
+e.g. ACCOUNTS="You:1500:1.0:0:cash,Dad:1500000:0.10:0.02:margin"
 
   strategy_share  fraction of the account the stock/ETF strategies may run
-  options_risk    most of the account to spend on one options trade
+  options_risk    most of the account one options trade may lose (0 = no options in this account)
   cash|margin     margin accounts (>= $2,000 at Schwab) can short; cash accounts can only buy puts
 """
 from __future__ import annotations
@@ -15,7 +15,9 @@ from dataclasses import dataclass
 
 from .strategy import whole_share_targets
 
-DEFAULT_ACCOUNTS = "You:1500:1.0:0.02:cash,Dad:1500000:0.10:0.0025:margin"
+# Your account trades shares only; Dad's runs the share strategy with 10% of the account
+# and the 0DTE condor with at most 2% of it at risk per trade (the size backtested).
+DEFAULT_ACCOUNTS = "You:1500:1.0:0:cash,Dad:1500000:0.10:0.02:margin"
 
 
 @dataclass(frozen=True)

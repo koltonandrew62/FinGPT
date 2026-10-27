@@ -53,7 +53,8 @@ def run_backtest(prices: dict, cfg: StrategyConfig, start, end, initial_cash: fl
                  costs: Costs = Costs(), weights_fn=None, splits: dict | None = None) -> BacktestResult:
     """`weights_fn(history_closes) -> {symbol: weight}` (best first) replaces the
     ETF rotation signal, e.g. for the stock scorecard; `splits` overrides the
-    ETF split table for whole-share sizing."""
+    ETF split table for whole-share sizing. A weights_fn with `wants_budget = True`
+    is called as weights_fn(history, account_value, real_price_at_open)."""
     weights_fn = weights_fn or (lambda history: compute_signal(history, cfg).weights)
     opens, closes = prices["open"], prices["close"]
     all_dates = closes.index
@@ -71,11 +72,14 @@ def run_backtest(prices: dict, cfg: StrategyConfig, start, end, initial_cash: fl
         first_day = i == 0
         if first_day or is_rebalance_day(all_dates[pos - 1], day, cfg.rebalance):
             history = closes.iloc[:pos]                     # through the previous close only
-            weights = weights_fn(history)
             o = opens.loc[day]
+            value = cash + sum(u * o[s] for s, u in units.items())
+            if getattr(weights_fn, "wants_budget", False):  # e.g. skip stocks a small account can't afford
+                weights = weights_fn(history, value, lambda s: o[s] * split_factor(s, day, splits))
+            else:
+                weights = weights_fn(history)
             factors = {s: split_factor(s, day, splits) for s in set(units) | set(weights)}
             real_px = {s: o[s] * factors[s] for s in factors}
-            value = cash + sum(u * o[s] for s, u in units.items())
             target = whole_share_targets(weights, value, real_px, costs.cash_buffer)
             current = {s: int(round(u / factors[s])) for s, u in units.items()}
 

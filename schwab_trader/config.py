@@ -40,6 +40,10 @@ UNIVERSES = {
 }
 ALL_SYMBOLS = tuple(dict.fromkeys(UNIVERSES["sectors+"] + (BENCHMARK,)))
 
+# Options are only traded on these broad index ETFs, never on individual stocks
+# (puts on the scorecard's weakest stocks lost money in the backtest).
+OPTIONS_UNDERLYINGS = ("SPY", "QQQ")
+
 # Share splits as (first date trading at the new price, ratio). Price history is
 # split-adjusted, but a $1,500 account buys whole shares at the real (unadjusted)
 # price, so sizing needs these. Verified against raw vs. split-adjusted bars.

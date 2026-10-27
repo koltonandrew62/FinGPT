@@ -1,0 +1,15 @@
+strategy,design_cagr,design_maxdd,test_final,test_cagr,test_maxdd,test_trades,beat_spy_both
+stocks+ETFs momentum top3,0.4195,-0.3987,6398.1639,0.3358,-0.3806,349,True
+scorecard v2 top2,0.5448,-0.5302,6306.9765,0.3319,-0.4524,205,True
+stock momentum top3,0.4257,-0.3918,6232.2596,0.3289,-0.4120,360,True
+stocks+ETFs momentum top2,0.4902,-0.4446,6089.3005,0.3219,-0.4955,269,True
+stock momentum top2,0.4975,-0.4443,5957.4567,0.3161,-0.4700,263,True
+ETF rotation top1,0.0492,-0.3335,5509.5386,0.2971,-0.2609,86,False
+scorecard v2 top3,0.4780,-0.4237,4865.7990,0.2654,-0.4116,343,True
+stock momentum top5,0.3318,-0.3702,3983.7581,0.2150,-0.2861,557,True
+ETF rotation top2,0.0625,-0.2878,3506.7592,0.1857,-0.1933,225,False
+ETF rotation top3,0.0634,-0.2811,3116.3756,0.1573,-0.1584,360,False
+scorecard v2 top1,0.5487,-0.5578,3063.8214,0.1427,-0.5838,111,True
+stocks+ETFs momentum top1,0.5881,-0.5803,3018.1445,0.1393,-0.5501,101,True
+stock momentum top1,0.5881,-0.5803,3017.4502,0.1392,-0.5535,99,True
+scorecard v2 top5,0.3723,-0.3679,2281.9723,0.0872,-0.4098,485,False

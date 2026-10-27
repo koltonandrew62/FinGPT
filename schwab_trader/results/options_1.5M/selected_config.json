@@ -1,0 +1,19 @@
+{
+  "label": "calls daily 42dte hold21 otm0 risk0.1 [mid]",
+  "signal": "calls",
+  "frequency": "daily",
+  "dte": 42,
+  "hold": 21,
+  "otm": 0.0,
+  "risk": 0.1,
+  "take_profit": 0.0,
+  "stop_loss": 0.0,
+  "pricing": "mid",
+  "final_value": 6209026.254589698,
+  "cagr": 0.08812189012102545,
+  "max_drawdown": -0.6142245445148216,
+  "trades": 191,
+  "win_rate": 0.5497382198952879,
+  "ruined": false,
+  "ruined_on": NaN
+}
