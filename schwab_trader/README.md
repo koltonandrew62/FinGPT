@@ -1,8 +1,9 @@
 # schwab_trader
 
-A weekly, rules-based ETF rotation for a small (~$1,500) Charles Schwab account,
-with a backtest, a weekly email + desktop-notification report, an earnings play
-book, and a Schwab order bot that runs in dry-run mode until you say otherwise.
+A weekly, rules-based ETF rotation for a Charles Schwab account, with backtests, a
+weekly 0-100 stock scorecard, an earnings play book, a volatile-day detector for 0DTE
+QQQ options, a Sunday-evening email sized for two accounts ($1,500 and ~$1.5M), and a
+Schwab order bot that runs in dry-run mode until you say otherwise.
 
 **Results (details in [results/RESULTS.md](results/RESULTS.md)).** Over the last 5 years
 (Oct 2021 → Oct 2026), $1,500 in the default rule grew to **$3,507 (18.6%/yr)** vs.
@@ -27,8 +28,13 @@ Every week (Friday close → Monday 9:35 AM ET):
 |---|---|
 | `strategy.py` | Signal + whole-share sizing (shared by everything below) |
 | `backtest.py`, `research.py` | Backtest engine and the design/test/robust protocol |
-| `weekly_report.py`, `notify.py` | Weekly picks with buy/sell dates & times → email + desktop |
+| `weekly_report.py`, `notify.py` | Weekly picks with buy/sell dates & times, sized per account → email |
+| `sizing.py` | How much to buy for each account in `ACCOUNTS` |
+| `scorecard.py`, `scorecard_research.py` | Weekly 0-100 stock score, reject rule, put/avoid list ([results](results/scorecard/RESULTS.md)) |
 | `earnings.py`, `earnings_backtest.py` | Earnings play book: 8 quarters of SEC filings, cash-flow-led score, drift backtest |
+| `vol_model.py`, `zero_dte_research.py`, `vol_alert.py` | Volatile-day detector, 0DTE QQQ study, morning alert ([results](results/zero_dte/RESULTS.md)) |
+| `options_backtest.py` | SPY calls/puts from 0DTE to 2 months ([results](results/options/RESULTS.md)) |
+| `import_robinhood.py` | Load saved Robinhood price results into `data/` (`--source local`) |
 | `live_trader.py` | Places the trades on Schwab (dry run by default) |
 | `calendar_utils.py` | NYSE holidays, so dates/times in the report are real sessions |
 
@@ -41,28 +47,35 @@ python -m schwab_trader.backtest             # 5-year backtest vs SPY
 python -m pytest tests/test_schwab_trader.py
 ```
 
-## Weekly email + desktop notification
+## Weekly email
+
+**Already set up:** a scheduled Claude task runs every **Sunday at ~6:30 PM ET**. It pulls
+prices and the earnings calendar from the connected Robinhood account (read-only), runs
+`weekly_report --source local --earnings-json ...` and emails the result through the
+connected Gmail. Manage or stop it under scheduled tasks in the Claude app.
+
+To run it yourself instead (e.g. from your own computer with cron):
 
 ```bash
 export SMTP_USER=you@gmail.com SMTP_PASSWORD='<gmail app password>' EMAIL_TO=you@gmail.com
 export SEC_USER_AGENT="Your Name you@gmail.com"     # SEC requires a contact for its free API
+export ACCOUNTS="You:1500:1.0:0.02:cash,Dad:1500000:0.10:0.0025:margin"
 python -m schwab_trader.weekly_report
 ```
 
 Gmail needs an **App Password** (Google Account → Security → 2-Step Verification → App
-passwords); your normal password will not work. The report lists, for every pick, a
-**BUY date/time** (next session, 9:35 AM ET) and a **SELL date/time** (next weekly check
-for the rotation; a fixed exit date for earnings trades), plus this week's earnings
-beats/misses, next week's reporters with their beat probability, and new 10-Q/10-K
-filings scored by the cash-flow model. Desktop pop-ups use macOS Notification Center,
-Windows toast, or `notify-send` on Linux (`pip install plyer` also works).
+passwords). Each email has:
+- the ETF rotation's holdings with a **BUY date/time** (next session, 9:35 AM ET) and a
+  **SELL date/time** (next weekly check), plus shares and dollars for every account and
+  the worst backtest drop in dollars;
+- the **0-100 stock scorecard**: top 10, the 5 buys sized per account (flagged when they
+  report earnings that week), rejected stocks with the component that failed, and the
+  put/avoid list;
+- earnings beats/misses for the last 7 days and who reports in the next 7.
 
-Schedule it for Friday 5 PM ET:
-- **macOS/Linux** (`crontab -e`; cron uses your machine's time zone):
-  `0 17 * * 5 cd /path/to/FinGPT && /usr/bin/env python3 -m schwab_trader.weekly_report >> ~/.schwab_trader/weekly.log 2>&1`
-  (put the `export` lines in a small script cron calls, since cron does not read your shell profile).
-- **Windows** (Task Scheduler): `schtasks /create /sc weekly /d FRI /st 17:00 /tn WeeklyPicks /tr "cmd /c cd /d C:\path\to\FinGPT && python -m schwab_trader.weekly_report"`
-  and set the variables with `setx`.
+`ACCOUNTS` entries are `name:value:strategy_share:options_risk:cash|margin`. The default
+gives the $1.5M account 10% ($150,000) in the strategies and caps options at 0.25%
+($3,750) a trade, because neither has a live track record; change it if you disagree.
 
 ## Trading on Schwab
 
@@ -109,6 +122,27 @@ SEC_USER_AGENT="Your Name you@gmail.com" python -m schwab_trader.earnings_backte
 
 It has **not been run on real data yet** (SEC was unreachable from the environment that
 built this); it is unit-tested on synthetic filings.
+
+## Stock scorecard
+
+Every stock in the watchlist gets a weekly 0-100 score; any component below 25 rejects
+it as a buy; the weakest (trend and momentum both failing) form the put/avoid list. The
+first version (seven classic technical components) did **not** predict returns; the
+current one keeps only momentum and volatility, which did. Over the last 5 years its
+weekly top 5 made 19.9%/yr vs SPY's 10.8% at $1.5M, with a −40% worst drop. Buying puts
+on the put list lost ~4% a trade, and shorting it made ~0%, so treat it as a list of stocks
+not to own. Details: [results/scorecard/RESULTS.md](results/scorecard/RESULTS.md).
+
+## Volatile-day detector and 0DTE QQQ
+
+`vol_alert.py` runs after the 9:30 open and, if today looks volatile, emails the exact
+QQQ contracts expiring today, how many to buy per account and to sell by 3:50 PM ET. The
+detector is genuinely predictive (AUC 0.72–0.74 on 2021–2026 data it never saw; flagged
+days moved twice as much). The option trades on those days lost money over 2005–2021
+and made money over 2021–2026 only if real 0DTE prices are below VIX-level pricing.
+Tuning technical rules on the 2021–2026 window produced 200%+ on paper (even $60 billion)
+and lost 99.99% on 2005–2021. It is **not** scheduled; run it by hand if you want it.
+Details: [results/zero_dte/RESULTS.md](results/zero_dte/RESULTS.md).
 
 ## Options study (0DTE through 2-month expiries)
 
