@@ -45,6 +45,7 @@ Every week (Friday close → Monday 9:35 AM ET):
 | `sizing.py` | How much to buy for each account in `ACCOUNTS` |
 | `daily_report.py`, `daily_research.py` | Dad's daily plan email and its research ([results](results/daily/RESULTS.md)) |
 | `patterns.py` | Trends, chart patterns, "similar past mornings", Asia → US impact |
+| `accuracy_research.py` | Tunes each email section toward a 70–80% hit rate ([results](results/accuracy/RESULTS.md)) |
 | `scorecard.py`, `scorecard_research.py` | Weekly 0-100 stock score, reject rule, put/avoid list ([results](results/scorecard/RESULTS.md)) |
 | `earnings.py`, `earnings_backtest.py` | Earnings play book: 8 quarters of SEC filings, cash-flow-led score, drift backtest |
 | `vol_model.py`, `zero_dte_research.py`, `vol_alert.py` | Volatile-day detector, 0DTE QQQ study, morning alert ([results](results/zero_dte/RESULTS.md)) |
@@ -99,9 +100,9 @@ peak.
 ## Dad's daily plan (Sunday–Friday, 8:30 AM ET)
 
 `daily_report.py` builds a plan for the $1.5M margin account every morning before the
-open. A scheduled task in the Claude app runs it from read-only Robinhood data and saves
-it as a **Gmail draft** for you to review and send; the email itself never names who it
-is for or the account size:
+open. A scheduled task in the Claude app runs it from read-only Robinhood data and emails
+it Sunday–Friday around 8:30 AM ET; the email itself never names who it is for or the
+account size:
 
 - market trends (SPY, QQQ, sectors) and the 5-day "similar past mornings" forecast;
 - Asia overnight (US-listed Japan/China/Hong Kong/Korea/Taiwan/Australia/India funds in
@@ -111,6 +112,12 @@ is for or the account size:
   sell dates; **regular stock picks** (dip-buys); a **put-spread options play** on each
   new pick; the **QQQ** 0DTE condor plan and QQQ put spreads; chart patterns spotted at
   the close with their track record; the week's earnings calendar.
+
+Every section shows its track record; the rules were tuned toward a 70–80% hit rate
+(`accuracy_research.py`, [results](results/accuracy/RESULTS.md)): stock picks now sell
+with a +3% limit order or after 20 sessions (77–78% of trades won in 2021–2026), chart
+patterns are shown as trades (69–80%), Asia gives an opening call when it moves 1%+
+(S&P 91%, Nasdaq 93%), and the earnings calendar flags likely beats (92%).
 
 Half the account goes to EPS picks (5 slots of $150,000), half to dip-buys (3 slots of
 $250,000); each options play risks at most 1% ($15,000), condors 2%. Whole plan,

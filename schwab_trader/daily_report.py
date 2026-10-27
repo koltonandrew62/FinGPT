@@ -33,6 +33,8 @@ from .pullback import POOLS, indicators, rsi, run_pullback, signals
 from .sizing import Account, money
 
 SUMMARY = RESULTS_DIR / "daily" / "summary.json"
+ACCURACY = RESULTS_DIR / "accuracy" / "summary.json"      # accuracy_research.py: the rules in this email
+EPS_HISTORY = RESULTS_DIR / "daily" / "eps_history.json"
 ACCOUNT = 1_500_000.0
 DIP_SHARE, EPS_SHARE = 0.5, 0.5       # the two share strategies split the account
 EPS_SLOTS = 5
@@ -169,7 +171,7 @@ def friday_expiry(start: dt.date, sessions: int) -> dt.date:
 
 
 # -------------------------------------------------------------- sections
-def market_section(px, vix, asia_live, nxt, summary) -> list[str]:
+def market_section(px, vix, asia_live, nxt, summary, acc) -> list[str]:
     lines = ["MARKET TRENDS"]
     for sym, name in (("SPY", "S&P 500 (SPY)"), ("QQQ", "Nasdaq 100 (QQQ)")):
         c = px["close"][sym].dropna()
@@ -192,29 +194,29 @@ def market_section(px, vix, asia_live, nxt, summary) -> list[str]:
     asia2.loc[pd.Timestamp(nxt)] = asia_live if asia_live is not None else 0.0
     X = market_features(px2, vix, asia2)
     Y = market_outcomes(px)
-    an = summary.get("analog_forecaster", {})
-    lines.append(f"  PATTERN MEMORY - the most similar past mornings since 2010 (trend, momentum, VIX, Asia overnight):")
-    for target, label in (("spy_5d", "SPY over the next 5 days"),):
-        k = an.get(target, {}).get("k", 50)
-        f = analog_forecast(X, Y[target], pd.Timestamp(nxt), k)
-        if not np.isfinite(f["p_up"]):
-            continue
-        rec = an.get(target, {})
-        conf = rec.get("cut", 0.6)
-        tag = ("leans UP" if f["p_up"] >= conf else "leans DOWN" if f["p_up"] <= 1 - conf else "no clear lean")
-        hist = (f" (when it leans this hard it was right {rec['test_accuracy_confident']:.0%} of {rec['test_confident_days']} "
-                f"days in 2021-2026; just guessing 'up' was right {rec['test_base_rate_up']:.0%})"
-                if rec.get("test_confident_days") else "")
-        lines.append(f"    {label}: rose on {f['p_up']:.0%} of the {k} closest days, avg {pct(f['avg'], 2)} -> {tag}{hist}")
-    lines.append(f"    closest matches: {', '.join(f['dates'])}")
-    same = [an[t]["test_accuracy_confident"] for t in ("spy_oc", "qqq_oc") if t in an]
-    if same:
-        lines.append(f"    (For today's open-to-close direction of SPY/QQQ the same method had no edge - right only "
-                     f"{min(same):.0%}-{max(same):.0%} of its confident days in 2021-2026 - so it isn't used for that.)")
+    mk = acc["market"]
+    h = mk["horizon"]
+    spy_o, spy_c = px["open"]["SPY"], px["close"]["SPY"]
+    y = spy_c.shift(-(h - 1)) / spy_o - 1
+    f = analog_forecast(X, y, pd.Timestamp(nxt), mk["k"] or 100, gap=h)
+    lines.append(f"  PATTERN MEMORY - the {mk['k']} most similar past mornings since 2010 (trend, momentum, VIX, Asia overnight):")
+    if np.isfinite(f["p_up"]):
+        cut = mk["cut"] or 0.65
+        tag = "leans UP" if f["p_up"] >= cut else "leans DOWN" if f["p_up"] <= 1 - cut else "no clear lean"
+        lines.append(f"    SPY over the next {h} sessions: rose on {f['p_up']:.0%} of them (avg {pct(f['avg'], 2)}) -> {tag}. "
+                     f"Track record when it leans: right {mk['test_accuracy']:.0%} of {mk['test_days']} days in 2021-2026 "
+                     f"({mk['design_accuracy']:.0%} in 2011-2021); always guessing 'up' was right {mk['test_base_rate']:.0%}.")
+        lines.append(f"    closest matches: {', '.join(f['dates'])}")
+    sma50, sma200 = spy_c.rolling(50).mean(), spy_c.rolling(200).mean()
+    trend_up = spy_c.iloc[-1] > sma200.iloc[-1] and sma50.iloc[-1] > sma50.iloc[-11]
+    lines.append(f"    Trend check: SPY is {'above' if spy_c.iloc[-1] > sma200.iloc[-1] else 'below'} its 200-day average and its "
+                 f"50-day average is {'rising' if sma50.iloc[-1] > sma50.iloc[-11] else 'falling'}"
+                 + (" - in that state SPY was higher 20 sessions later 66% of the time (2021-2026; any day 64%)."
+                    if trend_up else "."))
     return lines
 
 
-def overnight_section(px, moves, summary) -> tuple[list[str], float | None]:
+def overnight_section(px, moves, summary, acc) -> tuple[list[str], float | None]:
     lines = ["", "OVERNIGHT: ASIA, AFTER-HOURS AND PRE-MARKET (latest price vs yesterday's close)"]
     asia = [(s, ASIA[s], moves[s]) for s in ASIA if s in moves]
     composite = float(np.mean([m["total"] for _, _, m in asia])) if asia else None
@@ -239,10 +241,21 @@ def overnight_section(px, moves, summary) -> tuple[list[str], float | None]:
         stk = exp[[s for s in STOCKS if s in exp.index]]
         lines.append("    stocks most affected: " + ", ".join(f"{s} {pct(v)}"
                      for s, v in stk.reindex(stk.abs().sort_values(ascending=False).index).head(8).items()))
-        cont = summary.get("asia_continuation_test")
-        if cont:
-            lines.append(f"    after big Asian moves (1%+), the US day kept going Asia's way only {cont:.0%} of the "
-                         "time (2021-2026): Asia moves the open, not the rest of the day.")
+        ac = acc["asia"]
+        th = ac["threshold"]
+        good = {k: v for k, v in ac["by_symbol"].items() if v["test"] >= 0.70}
+        if abs(composite) >= th:
+            way = "UP" if composite > 0 else "DOWN"
+            names = {"SPY": "S&P 500", "QQQ": "Nasdaq 100", **SECTORS}
+            calls = sorted(good.items(), key=lambda kv: -kv[1]["test"])
+            lines.append(f"    OPENING CALL - Asia moved {pct(composite)} (more than {th:.0%}), so these should open {way}: " +
+                         ", ".join(f"{names[k]} (right {v['test']:.0%})" for k, v in calls) +
+                         " - track record on such days in 2021-2026.")
+        else:
+            lines.append(f"    No opening call: Asia moved less than {th:.0%}. (When it moves {th:.0%}+, the S&P 500 opened the same "
+                         f"way {ac['by_symbol']['SPY']['test']:.0%} of the time and the Nasdaq 100 {ac['by_symbol']['QQQ']['test']:.0%}.)")
+        lines.append("    Asia sets the open, not the rest of the day: after big Asian moves the US day kept going Asia's way "
+                     "only about half the time.")
     for s in ("SPY", "QQQ"):
         if s in moves:
             m = moves[s]
@@ -254,23 +267,75 @@ def overnight_section(px, moves, summary) -> tuple[list[str], float | None]:
         for s, m in movers:
             lines.append(f"    {s:5s} {pct(m['total']):>7s} (after-hours {pct(m['post'])}, overnight {pct(m['overnight'])}, "
                          f"pre-market {pct(m['pre'])}) ${m['price']:,.2f}")
+        gf = {(r["gap"], r["window"]): r["fill_rate"] for r in acc.get("gap_fill", [])}
+        big = gf.get(("2.0%-4.0%", "test"))
+        if big is not None:
+            lines.append(f"    Gaps of 2-4% without earnings news stayed open (didn't trade back to yesterday's close) "
+                         f"{1 - big:.0%} of the time in 2021-2026; gaps under 1% closed {gf.get(('0.5%-1.0%', 'test'), 0):.0%} of the time.")
     return lines, composite
 
 
-def eps_section(px, calendar, moves, nxt, summary, cash) -> tuple[list[str], list[dict], list[str]]:
-    pick = summary["eps_pick"]
-    cfg = EpsConfig(**pick["config"])
+def replay(px, entries: list[dict], target: float, hold: int, slots: int) -> list[dict]:
+    """Replay past entries (dicts with symbol, entry, priority) with a +target limit sell
+    and a `hold`-session limit, keeping at most `slots` open. Returns the positions still
+    open after the last close, each with its entry price and time-limit session index."""
+    idx = px["close"].index
+    o, h = px["open"], px["high"]
+    active = []
+    for e in sorted(entries, key=lambda e: (e["entry"], e.get("priority", 0))):
+        i0 = idx.get_loc(e["entry"])
+        active = [a for a in active if a["exit_i"] is None or a["exit_i"] >= i0]
+        if len(active) >= slots or any(a["symbol"] == e["symbol"] for a in active):
+            continue
+        px0 = o.at[e["entry"], e["symbol"]]
+        if not np.isfinite(px0):
+            continue
+        tgt = px0 * (1 + target)
+        exit_i = None
+        for i in range(i0, min(i0 + hold, len(idx))):
+            if h.iat[i, h.columns.get_loc(e["symbol"])] >= tgt:
+                exit_i = i
+                break
+        if exit_i is None and i0 + hold - 1 <= len(idx) - 1:
+            exit_i = i0 + hold - 1
+        active.append({**e, "px0": px0, "target_px": tgt, "i0": i0, "exit_i": exit_i})
+    return [a for a in active if a["exit_i"] is None]
+
+
+def position_lines(kind: str, pos: list[dict], target: float, hold: int, nxt: dt.date, idx, upcoming) -> tuple[list[str], list[str]]:
+    lines, sells = [], []
+    for a in pos:
+        held = len(idx) - a["i0"]                              # sessions held through the last close
+        last_day = trading_days_after(idx[-1].date(), max(hold - held, 1))[-1]
+        warn = earnings_between(a["symbol"], nxt, last_day, upcoming)
+        if hold - held <= 1:
+            lines.append(f"  SELL {a['symbol']:5s} at the close {order_time(nxt).replace('9:35 AM', '3:55 PM')} if you own it "
+                         f"and the +{target:.0%} limit (${a['target_px']:,.2f}) hasn't filled ({kind} bought {a['entry'].date()})")
+            sells.append(a["symbol"])
+        else:
+            lines.append(f"  HOLD {a['symbol']:5s} if you own it ({kind} bought {a['entry'].date()} at ~${a['px0']:,.2f}): keep the "
+                         f"limit sell at ${a['target_px']:,.2f} (+{target:.0%}); otherwise sell at the close on {last_day:%a %b %d}. "
+                         f"If you don't own it, skip it - its entry has passed.{warn}")
+    return lines, sells
+
+
+def eps_section(px, calendar, moves, nxt, acc, cash, upcoming=()) -> tuple[list[str], list[dict], list[str]]:
+    pick = acc["eps"]
+    rule, ex = pick["rule"], pick["exit"]
+    target, hold = ex["target"], ex["hold"]
     c, o = px["close"], px["open"]
     idx = c.index
     last = idx[-1]
-    sma50 = c.rolling(50).mean()
     future = [pd.Timestamp(d) for d in trading_days_after(last.date(), 30)]
     cal_idx = idx.append(pd.DatetimeIndex(future))
     slot = cash / EPS_SLOTS
-    lines = ["", f"EPS PICKS - rule: {pick['label']} (buy at 9:35 AM ET, sell at 9:35 AM ET {cfg.hold} sessions later)",
-             f"  backtest: won {pick['design_win_rate']:.0%} of {pick['design_trades']} trades 2011-2021, "
-             f"{pick['test_win_rate']:.0%} of {pick['test_trades']} in 2021-2026 (avg {pct(pick['test_avg'])} a trade)"]
-    holds, buys, sells, report_rows = [], [], [], []
+    lines = ["", f"EPS PICKS - after a company reports, buy at the next open if the stock opened at least "
+             f"{rule['min_gap']:.0%} higher and closed above its open; sell with a limit order at +{target:.0%} or at the "
+             f"close {hold} sessions later",
+             f"  backtest: won {pick['design']['win_rate']:.0%} of {pick['design']['trades']} trades 2011-2021, "
+             f"{pick['test']['win_rate']:.0%} of {pick['test']['trades']} in 2021-2026 (avg {pct(pick['test']['avg'])} a trade, "
+             f"worst {pct(pick['test']['worst'], 0)})"]
+    past, buys, report_rows = [], [], []
     for r in calendar:
         s = r["symbol"]
         if s not in STOCKS or not np.isfinite(r["actual"]) or s not in c:
@@ -280,91 +345,83 @@ def eps_section(px, calendar, moves, nxt, summary, cash) -> tuple[list[str], lis
             continue
         surp = surprise(r["actual"], r["estimate"])
         beat = "BEAT" if r["actual"] > r["estimate"] else "MISS" if r["actual"] < r["estimate"] else "INLINE"
-        prev_i = cal_idx.get_loc(rd) - 1
-        prev_close = c[s].iloc[prev_i] if prev_i < len(idx) else np.nan
-        trend_ok = (not cfg.trend) or (prev_i < len(idx) and c[s].iloc[prev_i] > sma50[s].iloc[prev_i])
+        i = cal_idx.get_loc(rd)
         if rd <= last:
-            gap = o.at[rd, s] / prev_close - 1
+            gap = o.at[rd, s] / c[s].iloc[i - 1] - 1
             held_up = c.at[rd, s] > o.at[rd, s]
         else:
             gap = moves.get(s, {}).get("total", float("nan")) if rd == pd.Timestamp(nxt) else float("nan")
             held_up = None
-        entry = rd if cfg.entry == "gap_open" else (cal_idx[cal_idx.get_loc(rd) + 1])
-        eps_ok = cfg.min_surprise is None or (np.isfinite(surp) and surp >= cfg.min_surprise)
-        trend_ok = trend_ok and eps_ok
-        qualifies = trend_ok and np.isfinite(gap) and gap >= cfg.min_gap and (cfg.entry == "gap_open" or held_up)
-        exit_day = cal_idx[cal_idx.get_loc(entry) + cfg.hold]
-        row = {"symbol": s, "report": f"{r['date']} {r['timing']}", "beat": beat, "surprise": surp,
-               "gap": gap, "entry": entry, "exit": exit_day}
+        eps_ok = rule.get("min_surprise") is None or (np.isfinite(surp) and surp >= rule["min_surprise"])
+        qualifies = bool(eps_ok and np.isfinite(gap) and gap >= rule["min_gap"] and held_up)
+        entry = cal_idx[i + 1]
         if rd >= pd.Timestamp(nxt) - pd.Timedelta(days=4) or rd == last:
-            report_rows.append(row | {"qualifies": qualifies, "pending": rd > last})
-        if entry == pd.Timestamp(nxt) and (qualifies or (cfg.entry == "gap_open" and rd == pd.Timestamp(nxt) and trend_ok)):
-            buys.append(row | {"conditional": cfg.entry == "gap_open"})
-        elif qualifies and entry <= last < exit_day:
-            (sells if exit_day == pd.Timestamp(nxt) else holds).append(row)
+            report_rows.append({"symbol": s, "report": f"{r['date']} {r['timing']}", "beat": beat, "surprise": surp,
+                                "gap": gap, "pending": rd > last})
+        if qualifies and entry <= last:
+            past.append({"symbol": s, "entry": entry, "priority": -gap})
+        elif qualifies and entry == pd.Timestamp(nxt):
+            buys.append({"symbol": s, "gap": gap})
     if report_rows:
         lines.append("  Latest reports (59 stocks):")
         for r in sorted(report_rows, key=lambda r: r["report"]):
             g = f"{'pre-market' if r['pending'] else 'opened'} {pct(r['gap'])}"
             lines.append(f"    {r['symbol']:5s} {r['report']:13s} {r['beat']:6s} EPS surprise {pct(r['surprise'])}, {g}")
-    free = EPS_SLOTS - len(holds)
-    buys = sorted(buys, key=lambda b: -np.nan_to_num(b["gap"], nan=-1))[:max(free, 0)]
+    held = replay(px, past, target, hold, EPS_SLOTS)
+    pl, sells = position_lines("EPS pick", held, target, hold, nxt, idx, upcoming)
     plays = []
-    for b in buys:
+    for b in sorted(buys, key=lambda b: -b["gap"])[:max(EPS_SLOTS - len(held), 0)]:
         price = moves.get(b["symbol"], {}).get("price", float(c[b["symbol"]].iloc[-1]))
         n = int(slot // price)
-        cond = (f" only if it opens at least {cfg.min_gap:.0%} above yesterday's close (now {pct(b['gap'])})"
-                if b["conditional"] and cfg.min_gap > -1 else "")
-        lines.append(f"  BUY  {b['symbol']:5s} {n:,} sh ~${price:,.2f} = {money(n * price)} at {order_time(b['entry'].date())}{cond}"
-                     f" | SELL {order_time(b['exit'].date())}")
-        plays.append({"symbol": b["symbol"], "price": price, "signal": "eps", "entry": b["entry"].date()})
-    for h in sells:
-        lines.append(f"  SELL {h['symbol']:5s} at {order_time(h['exit'].date())} if you own it (EPS pick from {h['entry'].date()})")
-    for h in holds:
-        lines.append(f"  HOLD {h['symbol']:5s} until {order_time(h['exit'].date())} if you own it (EPS pick from "
-                     f"{h['entry'].date()}; if not, skip it - its entry has passed)")
-    if not (buys or sells or holds):
+        sell_by = trading_days_after(nxt, hold - 1)[-1] if hold > 1 else nxt
+        lines.append(f"  BUY  {b['symbol']:5s} {n:,} sh ~${price:,.2f} = {money(n * price)} at {order_time(nxt)} (opened "
+                     f"{pct(b['gap'])} after its report) | then a good-till-canceled limit SELL at +{target:.0%} above your fill "
+                     f"(~${price * (1 + target):,.2f}); if it hasn't filled, sell at the close on {sell_by:%a %b %d}")
+        plays.append({"symbol": b["symbol"], "price": price, "signal": "eps", "entry": nxt})
+    lines += pl
+    if not (plays or held):
         lines.append("  No EPS trades today.")
-    return lines, plays, [h["symbol"] for h in sells]
+    return lines, plays, sells
 
 
-def dip_section(px, moves, nxt, summary, cash, splits, upcoming=()) -> tuple[list[str], list[dict], list[str]]:
+def dip_section(px, moves, nxt, acc, cash, upcoming=()) -> tuple[list[str], list[dict], list[str]]:
+    pick = acc["dip"]
+    target, hold, rsi_max = pick["exit"]["target"], pick["exit"]["hold"], pick["rsi_max"]
     syms = list(POOLS[DIP.pool])
     close = px["close"][syms]
-    eq, trips = run_pullback(px, DIP, close.index[-520], close.index[-1], cash, splits)
-    held = eq.attrs["held"]
     ind = indicators(close)
-    entry, exit_ = signals(close, ind, DIP, px["close"].get("SPY"))
-    last = close.index[-1]
-    n_last = len(close.index) - 1
-    stats = summary.get("dip_pick", {})
-    lines = ["", "REGULAR STOCK PICKS - buy sharp 1-3 day dips in the 10 strongest stocks/ETFs (above their 200-day average, "
-             "2-day RSI under 10); sell when RSI rebounds over 70 or after 20 sessions",
-             f"  backtest: won {stats.get('design_win_rate', 0.70):.0%} of trades 2011-2021, {stats.get('test_win_rate', 0.66):.0%} in "
-             f"2021-2026 ({pct(stats.get('test_cagr', 0.137))}/yr on its own money)"]
-    plays = []
-    sells = [s for s, h in held.items() if exit_.at[last, s] or (n_last + 1 - h["i"]) >= DIP.max_hold]
-    keep = [s for s in held if s not in sells]
-    cands = entry.loc[last]
-    cands = [s for s in ind["rsi2"].loc[last, cands[cands].index.difference(keep)].sort_values().index]
-    slots = DIP.max_positions - len(keep)
+    cfg = DIP.__class__(**{**DIP.__dict__, "entry_rsi": rsi_max})
+    entry, _ = signals(close, ind, cfg)
+    fresh = entry & ~entry.shift(1, fill_value=False)
+    idx = close.index
+    past = []
+    for i in range(max(1, len(idx) - 60), len(idx) - 1):
+        for s in fresh.columns[fresh.iloc[i].to_numpy()]:
+            past.append({"symbol": s, "entry": idx[i + 1], "priority": ind["rsi2"].iat[i, ind["rsi2"].columns.get_loc(s)]})
+    held = replay(px, past, target, hold, DIP.max_positions)
+    lines = ["", f"REGULAR STOCK PICKS - buy sharp 1-3 day dips (2-day RSI under {rsi_max:.0f}) in the 10 strongest stocks/ETFs "
+             f"above their 200-day average; sell with a limit order at +{target:.0%} or at the close {hold} sessions later",
+             f"  backtest: won {pick['design']['win_rate']:.0%} of {pick['design']['trades']} trades 2011-2021, "
+             f"{pick['test']['win_rate']:.0%} of {pick['test']['trades']} in 2021-2026 (avg {pct(pick['test']['avg'])} a trade, "
+             f"worst {pct(pick['test']['worst'], 0)}; {pct(pick['test_portfolio']['cagr'])}/yr on its own money)"]
+    pl, sells = position_lines("dip", held, target, hold, nxt, idx, upcoming)
+    last = idx[-1]
+    cands = fresh.loc[last]
+    cands = [s for s in ind["rsi2"].loc[last, cands[cands].index].sort_values().index if s not in {a["symbol"] for a in held}]
     slot = cash / DIP.max_positions
-    for s in sells:
-        lines.append(f"  SELL {s:5s} at {order_time(nxt)} if you own it (dip bought {held[s]['since'].date()})")
-    for s in cands[:max(slots, 0)]:
+    plays = []
+    for s in cands[:max(DIP.max_positions - len(held), 0)]:
         price = moves.get(s, {}).get("price", float(px["close"][s].iloc[-1]))
         n = int(slot // price)
-        lines.append(f"  BUY  {s:5s} {n:,} sh ~${price:,.2f} = {money(n * price)} at {order_time(nxt)} "
-                     f"(2-day RSI {ind['rsi2'].at[last, s]:.0f}) | SELL when the 2-day RSI closes above 70, by "
-                     f"{order_time(trading_days_after(nxt, DIP.max_hold)[-1])} at the latest"
-                     + earnings_between(s, nxt, nxt + dt.timedelta(days=10), upcoming))
+        sell_by = trading_days_after(nxt, hold - 1)[-1]
+        lines.append(f"  BUY  {s:5s} {n:,} sh ~${price:,.2f} = {money(n * price)} at {order_time(nxt)} (2-day RSI "
+                     f"{ind['rsi2'].at[last, s]:.0f}) | then a good-till-canceled limit SELL at +{target:.0%} above your fill "
+                     f"(~${price * (1 + target):,.2f}); if it hasn't filled, sell at the close on {sell_by:%a %b %d}"
+                     + earnings_between(s, nxt, sell_by, upcoming))
         plays.append({"symbol": s, "price": price, "signal": "dip", "entry": nxt})
-    for s in keep:
-        lines.append(f"  HOLD {s:5s} if you own it (dip bought {held[s]['since'].date()}; 2-day RSI "
-                     f"{ind['rsi2'].at[last, s]:.0f}; if not, skip it - its entry has passed)"
-                     + earnings_between(s, nxt, nxt + dt.timedelta(days=7), upcoming))
-    if not (sells or keep or cands[:max(slots, 0)]):
-        lines.append("  No dip-buys today: none of the 10 strongest names has dipped hard enough.")
+    lines += pl
+    if not (plays or held):
+        lines.append(f"  No dip-buys today: none of the 10 strongest names has dipped hard enough (2-day RSI under {rsi_max:.0f}).")
     return lines, plays, sells
 
 
@@ -464,44 +521,72 @@ def qqq_section(px, vix_frame, moves, nxt, summary) -> list[str]:
     return lines
 
 
-def patterns_section(px, top: int = 12) -> list[str]:
+def patterns_section(px, acc, top: int = 12) -> list[str]:
     stocks = [s for s in STOCKS if s in px["close"]]
     frames = pattern_frames(px, stocks)
-    fwd = {5: forward_returns(px, stocks, 5), 20: forward_returns(px, stocks, 20)}
-    stats = pattern_stats(frames, fwd)            # all history up to yesterday = the program's memory
-    base = stats.loc["(every stock, every day)"]
+    rules = acc["patterns"]
     last = px["close"].index[-1]
-    lines = ["", f"PATTERNS SPOTTED at the {last.date()} close (what each pattern did next across 59 stocks since 2010;"
-             f" any stock rose over 5 days {base.win_5d:.0%} of the time):"]
+    lines = ["", f"PATTERNS SPOTTED at the {last.date()} close - each as a trade: buy at the next open, sell with a limit "
+             "order at the target or at the close when time runs out (track record across the 59 stocks):"]
     hits = []
     for name, f in frames.items():
+        r = rules.get(name)
+        if not r or r["design_win_rate"] < 0.70:
+            continue
         on = f.loc[last]
-        for s in on[on].index:
-            st = stats.loc[name]
-            hits.append((abs(st.win_5d - base.win_5d), s, name, st))
-    for _, s, name, st in sorted(hits, key=lambda x: -x[0])[:top]:
-        lean = "bullish" if st.win_5d > base.win_5d + 0.02 else "bearish" if st.win_5d < base.win_5d - 0.02 else "neutral"
-        lines.append(f"  {s:5s} {name}: rose over 5 days {st.win_5d:.0%} of {int(st.n_5d):,} times (avg {pct(st.avg_5d)}), "
-                     f"20 days {st.win_20d:.0%} -> {lean}")
+        for sym in on[on].index:
+            hits.append((r["test_win_rate"], sym, name, r))
+    for _, sym, name, r in sorted(hits, key=lambda x: -x[0])[:top]:
+        flat = " (about break-even on average)" if r["test_avg"] <= 0.001 else ""
+        lines.append(f"  {sym:5s} {name}: {r['label']} -> won {r['test_win_rate']:.0%} of {r['test_trades']:,} trades in 2021-2026 "
+                     f"({r['design_win_rate']:.0%} in 2011-2021), avg {pct(r['test_avg'])}{flat}")
     if not hits:
-        lines.append("  none")
+        lines.append("  none of the tested patterns today")
     return lines
 
 
-def calendar_section(calendar, nxt) -> list[str]:
+def beat_record(past: list[dict]) -> dict:
+    """{symbol: list of 1/0 beats, oldest first} from the saved history plus recent reports."""
+    rows = {}
+    if EPS_HISTORY.exists():
+        for r in json.loads(EPS_HISTORY.read_text()):
+            e, a = (r.get("eps") or {}).get("estimate"), (r.get("eps") or {}).get("actual")
+            if e not in (None, "") and a not in (None, ""):
+                rows[(r["symbol"], r["report"]["date"])] = float(a) > float(e)
+    for r in past:
+        if np.isfinite(r["actual"]) and np.isfinite(r["estimate"]) and r["date"]:
+            rows[(r["symbol"], r["date"])] = r["actual"] > r["estimate"]
+    out = {}
+    for (sym, d), b in sorted(rows.items(), key=lambda kv: kv[0][1]):
+        out.setdefault(sym, []).append(int(b))
+    return out
+
+
+def calendar_section(calendar, nxt, acc=None, past=()) -> list[str]:
     lines = ["", "EARNINGS COMING UP (59 stocks)"]
+    bt = (acc or {}).get("beats")
+    record = beat_record(list(past)) if bt else {}
     rows = [r for r in calendar if r["symbol"] in STOCKS and not np.isfinite(r["actual"]) and r["date"]
             and r["date"] >= dt.date.today().isoformat()]
     for r in rows[:20]:
-        lines.append(f"  {r['symbol']:5s} {r['date']} {r['timing']:3s} EPS estimate {r['estimate']:.2f}")
+        call = ""
+        hist = record.get(r["symbol"], [])[-bt["n"]:] if bt else []
+        if bt and len(hist) == bt["n"]:
+            k = sum(hist)
+            call = (f" | beat {k} of last {bt['n']} -> likely BEAT (right {bt['test_accuracy']:.0%} in 2021-2026)"
+                    if k / bt["n"] >= bt["min_rate"] else f" | beat {k} of last {bt['n']}")
+        lines.append(f"  {r['symbol']:5s} {r['date']} {r['timing']:3s} EPS estimate {r['estimate']:.2f}{call}")
     if not rows:
         lines.append("  none in the next 7 days")
+    elif bt:
+        lines.append(f"  (All reports beat their estimate {bt['test_base_rate']:.0%} of the time in 2021-2026.)")
     return lines
 
 
 # --------------------------------------------------------------------- main
 def build(ext_paths, past_json, next_json, now: pd.Timestamp | None = None) -> tuple[str, str]:
     summary = json.loads(SUMMARY.read_text())
+    acc = json.loads(ACCURACY.read_text())
     syms = list(dict.fromkeys(list(POOLS["stocks+etfs"]) + ["SPY", "QQQ"] + list(SECTORS)
                               + [s for s in list(ASIA) + list(ASIA_ADRS) if (DATA_DIR / f"{s}.csv").exists()]))
     px = load_prices(syms)
@@ -527,14 +612,14 @@ def build(ext_paths, past_json, next_json, now: pd.Timestamp | None = None) -> t
             + ("" if is_trading_day(now.date()) else f". Markets are closed today ({now:%A}); this plan is for {nxt:%A}."),
             "Sizing: half the account in EPS picks (5 equal slots), half in dip-buys (3 equal slots); "
             "each options play risks at most 1% of the account; 0DTE QQQ condors at most 2%.", ""]
-    over, asia_live = overnight_section(px, moves, summary)
-    mkt = market_section(px, vix, asia_live, nxt, summary)
-    eps_lines, eps_plays, eps_sells = eps_section(px, past, moves, pd.Timestamp(nxt), summary, ACCOUNT * EPS_SHARE)
-    dip_lines, dip_plays, dip_sells = dip_section(px, moves, nxt, summary, ACCOUNT * DIP_SHARE, splits, upcoming)
+    over, asia_live = overnight_section(px, moves, summary, acc)
+    mkt = market_section(px, vix, asia_live, nxt, summary, acc)
+    eps_lines, eps_plays, eps_sells = eps_section(px, past, moves, nxt, acc, ACCOUNT * EPS_SHARE, upcoming)
+    dip_lines, dip_plays, dip_sells = dip_section(px, moves, nxt, acc, ACCOUNT * DIP_SHARE, upcoming)
     opt = options_section(px, eps_plays + dip_plays, nxt, summary, moves, upcoming)
     qqq = qqq_section(px, vix_frame, moves, nxt, summary)
-    pats = patterns_section(px)
-    cal = calendar_section(upcoming, nxt)
+    pats = patterns_section(px, acc)
+    cal = calendar_section(upcoming, nxt, acc, past)
     text = "\n".join(head + mkt + over + eps_lines + dip_lines + opt + qqq + pats + cal)   # ends like the email as sent
     buys = [p["symbol"] for p in eps_plays + dip_plays]
     sells = eps_sells + dip_sells

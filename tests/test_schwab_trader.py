@@ -553,3 +553,20 @@ def test_missing_daily_bar_is_built_from_regular_hours_bars():
     up = [{"symbol": "MRK", "date": "2025-10-29", "timing": "am"}]
     assert "2025-10-29" in earnings_between("MRK", dt.date(2025, 10, 28), dt.date(2025, 11, 7), up)
     assert earnings_between("MRK", dt.date(2025, 10, 30), dt.date(2025, 11, 7), up) == ""
+
+
+def test_replay_closes_at_target_or_time_and_respects_slots():
+    from schwab_trader.accuracy_research import Exit, arrays, simulate
+    from schwab_trader.daily_report import replay
+    idx = pd.bdate_range("2025-01-06", periods=10)        # B's 20-session limit hasn't come yet
+    o = pd.DataFrame({"A": 100.0, "B": 50.0, "C": 20.0}, index=idx)
+    h = o * 1.01
+    h.iloc[3, 0] = 104.0                                  # A reaches +3% on its 4th session
+    px = {"open": o, "high": h, "low": o * 0.99, "close": o}
+    entries = [{"symbol": "A", "entry": idx[0]}, {"symbol": "B", "entry": idx[0]}, {"symbol": "C", "entry": idx[1]}]
+    still = replay(px, entries, 0.03, 20, 2)
+    assert [p["symbol"] for p in still] == ["B"]          # A hit its target, C found no free slot
+    late = replay(px, [{"symbol": "B", "entry": idx[5]}], 0.03, 20, 2)
+    assert late and late[0]["i0"] == 5
+    tr = simulate(px, arrays(px, ["A", "B"]), pd.DataFrame({"symbol": ["A"], "entry": [idx[0]]}), Exit(0.03, None, 20), ["A", "B"])
+    assert tr.iloc[0]["reason"] == "target" and tr.iloc[0]["exit"] == idx[3]
