@@ -227,7 +227,8 @@ def render(active: dict, earnings: dict | None, accounts: list[Account], scoreca
         reports = {r["symbol"]: r["date"] for r in (earnings or {}).get("upcoming", [])}
         for sym, (n, dollars) in acct["plan"].items():
             new = acct["since"][sym] == active["buy_at_date"]
-            when = f"BUY {active['buy_at']}" if new else f"held since {acct['since'][sym]}"
+            when = (f"BUY {active['buy_at']}" if new else
+                    f"HOLD (in the strategy since {acct['since'][sym]}; not owned yet? BUY {active['buy_at']})")
             warn = f"  ! reports earnings {reports[sym]}" if sym in reports else ""
             lines.append(f"  {sym:5s} {n:>6,} sh ~${acct['prices'][sym]:,.2f} = {money(dollars):>9s} | {when} | "
                          f"SELL {active['review_at']} only if it drops out{warn}")
