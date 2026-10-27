@@ -1,0 +1,98 @@
+{
+  "selected": "calls weekly 42dte hold21 otm0 risk0.25 tp1/sl0.5 [mid]",
+  "test": {
+    "start": "2021-10-25",
+    "end": "2026-10-23",
+    "final_value": 1500.0,
+    "total_return": 0.0,
+    "cagr": 0.0,
+    "volatility": 0.0,
+    "sharpe": NaN,
+    "max_drawdown": 0.0,
+    "trades": 0,
+    "win_rate": null,
+    "ruined_on": null
+  },
+  "spy_test": {
+    "start": "2021-10-25",
+    "end": "2026-10-23",
+    "final_value": 2509.366470018491,
+    "total_return": 0.6682471737460214,
+    "cagr": 0.10791620214913578,
+    "volatility": 0.17196927314312735,
+    "sharpe": 0.6838928821705427,
+    "max_drawdown": -0.2536057440706705
+  },
+  "final_value_by_pricing": {
+    "fair": 1500.0,
+    "mid": 1500.0,
+    "vix": 1500.0
+  },
+  "fair_multipliers": {
+    "0": 0.6245051248147983,
+    "1": 0.6967185916390118,
+    "5": 0.747201082846188,
+    "21": 0.8123915715481813,
+    "42": 0.8225552256387435
+  },
+  "bootstrap_from_design_returns": {
+    "median_final": 2959.9836755128945,
+    "p_lose_90pct": 0.0,
+    "p_lose_money": 0.214,
+    "p_cagr_200pct": 0.0,
+    "p_cagr_1000pct": 0.0,
+    "p95_final": 12009.332983832599
+  },
+  "yearly": {
+    "2021": {
+      "options": 0.0,
+      "spy": 0.04260783668093526
+    },
+    "2022": {
+      "options": 0.0,
+      "spy": -0.19481640559204993
+    },
+    "2023": {
+      "options": 0.0,
+      "spy": 0.24286797583871556
+    },
+    "2024": {
+      "options": 0.0,
+      "spy": 0.23304790557741284
+    },
+    "2025": {
+      "options": 0.0,
+      "spy": 0.16352716352716312
+    },
+    "2026": {
+      "options": 0.0,
+      "spy": 0.11445624120131415
+    }
+  },
+  "grid_test_by_pricing": {
+    "fair": {
+      "variants": 1248,
+      "made_money": 45,
+      "wiped_out": 181,
+      "beat_spy": 13,
+      "cagr_200pct_plus": 0,
+      "best_cagr": 1.9471574436483983
+    },
+    "mid": {
+      "variants": 1248,
+      "made_money": 25,
+      "wiped_out": 160,
+      "beat_spy": 2,
+      "cagr_200pct_plus": 0,
+      "best_cagr": 0.28960456531719103
+    },
+    "vix": {
+      "variants": 1248,
+      "made_money": 25,
+      "wiped_out": 136,
+      "beat_spy": 3,
+      "cagr_200pct_plus": 0,
+      "best_cagr": 0.19957731075385876
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "label": "calls weekly 42dte hold21 otm0 risk0.25 tp1/sl0.5 [mid]",
+  "signal": "calls",
+  "frequency": "weekly",
+  "dte": 42,
+  "hold": 21,
+  "otm": 0.0,
+  "risk": 0.25,
+  "take_profit": 1.0,
+  "stop_loss": 0.5,
+  "pricing": "mid",
+  "final_value": 18117.07016344616,
+  "cagr": 0.15968426880609088,
+  "max_drawdown": -0.6185900829006243,
+  "trades": 178,
+  "win_rate": 0.5337078651685393,
+  "ruined": false,
+  "ruined_on": NaN
+}

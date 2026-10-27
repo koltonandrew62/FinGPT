@@ -111,6 +111,10 @@ def main():
         frames = fetch_schwab(make_client(), symbols, args.start)
     else:
         frames = fetch_yfinance(symbols, args.start)
+    try:   # VIX for the options study (Yahoo symbol ^VIX)
+        frames["VIX"] = fetch_yfinance(["^VIX"], args.start)["^VIX"].assign(volume=0)
+    except Exception as exc:
+        print(f"VIX download failed ({exc}); the options study needs data/VIX.csv")
     for sym, df in frames.items():
         save_symbol(sym, df, args.data_dir)
         print(f"{sym}: {len(df)} days {df.index[0].date()} .. {df.index[-1].date()}")

@@ -110,4 +110,27 @@ SEC_USER_AGENT="Your Name you@gmail.com" python -m schwab_trader.earnings_backte
 It has **not been run on real data yet** (SEC was unreachable from the environment that
 built this); it is unit-tested on synthetic filings.
 
+## Options study (0DTE through 2-month expiries)
+
+`options_backtest.py` tests buying SPY calls/puts, the only options trades a $1,500
+account can make at Schwab (spreads and selling need a margin account, $2,000 minimum).
+1,248 variants: always-calls / trend / reversal signals, daily or weekly entries,
+0, 1, 5, 21 and 42 trading days to expiry, ATM to 2% OTM, 5–50% of the account per
+trade, with or without +100%/−50% exits. Same protocol as the ETFs: pick the highest
+return on 2005–2021, test once on 2021–2026.
+
+Historical prices of expired options were not available, so premiums are **modelled**
+(Black-Scholes on VIX with a skew) under three pricing levels: `fair` (no volatility
+premium, the best case for a buyer), `vix`, and `mid` (used for selection). Costs
+include Schwab's $0.65/contract and the bid/ask spread. Results
+([results/options/RESULTS.md](results/options/RESULTS.md)): **no variant reached 200%/yr**
+in either period; under realistic pricing none of the 96 0DTE variants made money over the
+last 5 years and over half lost 90%+; the design-period winner (2-month calls) could not
+even buy one contract with $1,500 at today's SPY price. Don't trade 0DTE with this account.
+
+```bash
+python -m schwab_trader.options_backtest --phase design
+python -m schwab_trader.options_backtest --phase test
+```
+
 Not financial advice. Past and backtested returns do not guarantee future results.

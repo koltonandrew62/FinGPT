@@ -308,3 +308,32 @@ def test_market_is_open():
     client = FakeClient()
     assert market_is_open(client, pd.Timestamp("2026-10-26 10:00", tz="America/New_York"))
     assert not market_is_open(client, pd.Timestamp("2026-10-26 17:00", tz="America/New_York"))
+
+
+# ------------------------------------------------------------------ options
+def test_black_scholes_parity_and_skew():
+    from schwab_trader.options_backtest import bs_price, implied_vol
+    S, K, t, r, q = 500.0, 505.0, 5 / 252, 0.04, 0.014
+    c, p = bs_price(S, K, t, 0.15, r, True, q), bs_price(S, K, t, 0.15, r, False, q)
+    assert c - p == pytest.approx(S * np.exp(-q * t) - K * np.exp(-r * t), abs=1e-9)
+    assert bs_price(S, 490, 0, 0.2, r, True) == 10.0               # expired: intrinsic
+    assert implied_vol(0.15, S, 490, t) > 0.15 > implied_vol(0.15, S, 510, t)
+
+
+def test_0dte_trade_settles_at_close_intrinsic_with_costs():
+    from schwab_trader.options_backtest import COMMISSION, OptionsConfig, half_spread, run_options_backtest
+    idx = pd.bdate_range("2024-01-01", periods=80)
+    close = np.full(80, 100.0)
+    open_ = close.copy()
+    close[-1] = 102.0                                            # last day rallies 2% open -> close
+    spy = pd.DataFrame({"open": open_, "close": close}, index=idx)
+    vix = pd.DataFrame({"open": 15.0, "close": 15.0}, index=idx)
+    cfg = OptionsConfig(signal="calls", dte=0, hold=0, risk=0.5, pricing="vix")
+    fair = {0: 1.0, 1: 1.0, 5: 1.0, 21: 1.0, 42: 1.0}
+    eq, trades, _ = run_options_backtest(spy, vix, cfg, idx[-1], idx[-1], 1500.0, fair=fair)
+    t = trades.iloc[0]
+    assert t.strike == 100 and t.type == "CALL"
+    intrinsic = 2.0
+    expected = t.contracts * ((intrinsic - half_spread(intrinsic)) * 100 - COMMISSION)
+    assert t.proceeds == pytest.approx(expected)
+    assert t.cost <= 0.5 * 1500 and t.contracts == int(t.contracts)   # whole contracts within the budget
