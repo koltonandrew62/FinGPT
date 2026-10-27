@@ -535,15 +535,7 @@ def build(ext_paths, past_json, next_json, now: pd.Timestamp | None = None) -> t
     qqq = qqq_section(px, vix_frame, moves, nxt, summary)
     pats = patterns_section(px)
     cal = calendar_section(upcoming, nxt)
-    combo = summary.get("combined")
-    tail = [""]
-    if combo:
-        grow = lambda final: f"${100 * final / ACCOUNT:,.0f}"
-        tail.append(f"WHOLE PLAN BACKTEST 2021-2026 (all of the above together): {pct(combo['test_cagr'])}/yr - each $100 "
-                    f"grew to {grow(combo['test_final'])} vs {grow(combo['spy_final'])} in the S&P 500; worst drop "
-                    f"{pct(combo['test_maxdd'], 0)}; {combo['test_win_rate']:.0%} of {combo['test_trades']:,} trades won.")
-    tail.append("Not financial advice. Backtests use modelled option prices and the largest stocks of 2021; real results will differ.")
-    text = "\n".join(head + mkt + over + eps_lines + dip_lines + opt + qqq + pats + cal + tail)
+    text = "\n".join(head + mkt + over + eps_lines + dip_lines + opt + qqq + pats + cal)   # ends like the email as sent
     buys = [p["symbol"] for p in eps_plays + dip_plays]
     sells = eps_sells + dip_sells
     actions = ([f"BUY {', '.join(buys)}"] if buys else []) + ([f"SELL {', '.join(sells)}"] if sells else [])
