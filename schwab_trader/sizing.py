@@ -15,9 +15,11 @@ from dataclasses import dataclass
 
 from .strategy import whole_share_targets
 
-# Your account trades shares only; Dad's runs the share strategy with the whole $1.5M
-# and the 0DTE condor with at most 2% of it at risk per trade (the size backtested).
-DEFAULT_ACCOUNTS = "You:1500:1.0:0:cash,Dad:1500000:1.0:0.02:margin"
+# The weekly email is for your account (shares only). Dad's $1.5M has its own daily
+# plan (daily_report.py); add BOTH_ACCOUNTS's Dad entry to ACCOUNTS to size his account
+# in the weekly email too (share strategy with the whole $1.5M, 0DTE condor at 2% risk).
+DEFAULT_ACCOUNTS = "You:1500:1.0:0:cash"
+BOTH_ACCOUNTS = "You:1500:1.0:0:cash,Dad:1500000:1.0:0.02:margin"
 
 
 @dataclass(frozen=True)

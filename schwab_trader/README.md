@@ -43,6 +43,8 @@ Every week (Friday close → Monday 9:35 AM ET):
 | `backtest.py`, `research.py` | Backtest engine and the design/test/robust protocol |
 | `weekly_report.py`, `notify.py` | Weekly picks with buy/sell dates & times, sized per account → email |
 | `sizing.py` | How much to buy for each account in `ACCOUNTS` |
+| `daily_report.py`, `daily_research.py` | Dad's daily plan email and its research ([results](results/daily/RESULTS.md)) |
+| `patterns.py` | Trends, chart patterns, "similar past mornings", Asia → US impact |
 | `scorecard.py`, `scorecard_research.py` | Weekly 0-100 stock score, reject rule, put/avoid list ([results](results/scorecard/RESULTS.md)) |
 | `earnings.py`, `earnings_backtest.py` | Earnings play book: 8 quarters of SEC filings, cash-flow-led score, drift backtest |
 | `vol_model.py`, `zero_dte_research.py`, `vol_alert.py` | Volatile-day detector, 0DTE QQQ study, morning alert ([results](results/zero_dte/RESULTS.md)) |
@@ -93,6 +95,33 @@ and at most 2% ($30,000) at risk per condor in the $1.5M account. Lower
 `strategy_share` (e.g. `Dad:1500000:0.10:0.02:margin` for $150,000) to put less of an
 account in the strategy; at $1.5M the backtested worst drop was about −$3.0M from the
 peak.
+
+## Dad's daily plan (Sunday–Friday, 8:30 AM ET)
+
+`daily_report.py` emails a plan for the $1.5M margin account every morning before the
+open (built by a scheduled task in the Claude app from read-only Robinhood data):
+
+- market trends (SPY, QQQ, sectors) and the 5-day "similar past mornings" forecast;
+- Asia overnight (US-listed Japan/China/Hong Kong/Korea/Taiwan/Australia/India funds in
+  Robinhood's 24-hour market), the US sectors and stocks it moves most at the open, and
+  after-hours / overnight / pre-market moves;
+- **EPS picks** (last night's and this morning's reports, beat/miss, gap) with buy and
+  sell dates; **regular stock picks** (dip-buys); a **put-spread options play** on each
+  new pick; the **QQQ** 0DTE condor plan and QQQ put spreads; chart patterns spotted at
+  the close with their track record; the week's earnings calendar.
+
+Half the account goes to EPS picks (5 slots of $150,000), half to dip-buys (3 slots of
+$250,000); each options play risks at most 1% ($15,000), condors 2%. Whole plan,
+2021–2026: $1.5M → **$4.08M (+22.2%/yr)** vs the S&P's $2.51M, worst drop −11%, 85%
+of 1,625 trades won (mid option pricing). Details: [results/daily/RESULTS.md](results/daily/RESULTS.md).
+
+```bash
+python -m schwab_trader.daily_research               # the research (about 25 minutes)
+python -m schwab_trader.daily_report --extended BARS... --earnings-json PAST NEXT
+```
+
+The weekly email is now for your account only; set `ACCOUNTS` to `BOTH_ACCOUNTS` in
+`sizing.py` to size Dad's account there too.
 
 ## Trading on Schwab
 

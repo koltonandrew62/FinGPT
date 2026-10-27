@@ -246,9 +246,9 @@ def _pool_prices(n=300, start="2025-08-01", with_volume=False):
 
 def test_weekly_report_lists_buy_and_sell_times_for_each_account():
     from schwab_trader.active_strategy import LABEL, LARGE_LABEL
-    from schwab_trader.sizing import accounts_from_env
+    from schwab_trader.sizing import BOTH_ACCOUNTS, accounts_from_env
     from schwab_trader.weekly_report import active_section
-    accounts = accounts_from_env()
+    accounts = accounts_from_env(BOTH_ACCOUNTS)
     closes, volumes = _pool_prices(with_volume=True)
     active = active_section(closes, accounts, volumes)
     subject, text, page = render(active, None, accounts)
@@ -444,8 +444,9 @@ def test_scorecard_long_weights_fn_has_no_lookahead():
 
 # ------------------------------------------------------------------- sizing
 def test_accounts_and_share_plans():
-    from schwab_trader.sizing import accounts_from_env, contracts, share_plan
-    you, dad = accounts_from_env()
+    from schwab_trader.sizing import BOTH_ACCOUNTS, accounts_from_env, contracts, share_plan
+    assert [a.name for a in accounts_from_env()] == ["You"]          # the weekly email: your account only
+    you, dad = accounts_from_env(BOTH_ACCOUNTS)
     assert (you.value, you.margin, you.options_risk) == (1500, False, 0) and dad.strategy_dollars == 1_500_000
     plan = share_plan({"XLE": 0.5, "XLK": 0.5}, {"XLE": 69.33, "XLK": 183.23}, dad)
     assert sum(d for _, d in plan.values()) <= 1_500_000 and plan["XLE"][0] > 10_000
@@ -480,3 +481,75 @@ def test_zero_dte_legs_and_straddle_payoff():
     t = tr.iloc[0]
     assert t.proceeds == pytest.approx(t.contracts * ((10.0 - half_spread(10.0)) * 100 - COMMISSION))  # call leg only
     assert eq.iloc[-1] == pytest.approx(10_000.0 - t.cost + t.proceeds)
+
+
+# ----------------------------------------------------------- Dad's daily plan
+def test_trend_labels_and_analogs_use_only_the_past():
+    from schwab_trader.patterns import FEATURES, analog_forecast, trend_label
+    up = pd.Series(100 * 1.002 ** np.arange(300), index=pd.bdate_range("2024-01-01", periods=300))
+    assert trend_label(up) == {"short": "up", "medium": "up", "long": "up"}
+    assert trend_label(up[::-1].set_axis(up.index)) == {"short": "down", "medium": "down", "long": "down"}
+    rng = np.random.default_rng(3)
+    idx = pd.bdate_range("2015-01-01", periods=800)
+    X = pd.DataFrame(rng.standard_normal((800, len(FEATURES))), index=idx, columns=FEATURES)
+    y = pd.Series(rng.standard_normal(800), index=idx)
+    day = idx[600]
+    a = analog_forecast(X, y, day, k=25)
+    y2 = y.copy()
+    y2.iloc[596:] = 99.0                                   # outcomes from 5 sessions before `day` on
+    assert analog_forecast(X, y2, day, k=25) == a and 0 <= a["p_up"] <= 1
+
+
+def test_option_trades_never_lose_more_than_their_risk():
+    from schwab_trader.daily_research import OptConfig, option_trade
+    spread = OptConfig("dip", "put_spread", 0.04, 0.05, 10, 0.0)
+    win = option_trade(spread, 100.0, np.full(11, 101.0), 0.30, 0.04, 1.0)
+    loss = option_trade(spread, 100.0, np.full(11, 70.0), 0.30, 0.04, 1.0)
+    assert win["pnl"] > 0 and loss["pnl"] < 0 and loss["ret"] >= -1.05
+    call = option_trade(OptConfig("dip", "call", 0.0, 0, 21, 0.0, 5), 100.0, np.full(22, 50.0), 0.30, 0.04, 1.0)
+    assert -1.01 <= call["ret"] < 0
+
+
+def test_eps_rules_and_reaction_days():
+    from schwab_trader.daily_research import EpsConfig, eps_trades, reaction_day
+    idx = pd.bdate_range("2025-01-06", periods=40)
+    assert reaction_day(idx, "2025-01-08", "pm") == pd.Timestamp("2025-01-09")
+    assert reaction_day(idx, "2025-01-08", "am") == pd.Timestamp("2025-01-08")
+    c = pd.DataFrame({"AAA": 100.0}, index=idx)
+    o = c.copy()
+    o.loc[idx[10], "AAA"], c.loc[idx[10:], "AAA"] = 105.0, 107.0      # gaps up 5% and holds
+    px = {"open": o, "close": c}
+    ev = pd.DataFrame({"symbol": ["AAA"], "day": [idx[10]], "surprise": [0.1]})
+    gap = eps_trades(px, ev, EpsConfig("gap_open", 0.04, 5))
+    assert gap.iloc[0]["entry"] == idx[10] and gap.iloc[0]["exit"] == idx[15]
+    nxt = eps_trades(px, ev, EpsConfig("next_open", 0.02, 3))
+    assert nxt.iloc[0]["entry"] == idx[11] and nxt.iloc[0]["exit"] == idx[14]
+    assert eps_trades(px, ev, EpsConfig("gap_open", 0.06, 5)).empty         # gap too small
+
+
+def test_overnight_moves_split_by_session():
+    from schwab_trader.daily_report import friday_expiry, overnight_moves, strike
+    t = pd.to_datetime(["2025-10-27T19:30Z", "2025-10-27T21:00Z", "2025-10-28T02:00Z", "2025-10-28T12:00Z"], utc=True)
+    ext = {"SPY": pd.DataFrame({"close": [100.0, 101.0, 102.01, 100.9899], "session": ["reg", "post", "overnight", "pre"]}, index=t)}
+    m = overnight_moves(ext)["SPY"]
+    assert abs(m["post"] - 0.01) < 1e-9 and abs(m["overnight"] - 0.01) < 1e-9 and abs(m["pre"] + 0.01) < 1e-9
+    assert abs(m["total"] - 0.009899) < 1e-9 and not m["opened"]
+    assert strike(87.3) == 87 and strike(212.0) == 212.5 and strike(517.0) == 515
+    assert friday_expiry(dt.date(2026, 10, 28), 10).weekday() == 4
+
+
+def test_missing_daily_bar_is_built_from_regular_hours_bars():
+    from schwab_trader.daily_report import complete_daily, earnings_between
+    idx = pd.bdate_range("2025-10-20", periods=5)                          # through Fri Oct 24
+    frame = pd.DataFrame({"SPY": [100.0] * 5}, index=idx)
+    px = {"open": frame.copy(), "high": frame.copy(), "low": frame.copy(), "close": frame.copy(),
+          "volume": frame * 0 + 1e6}
+    t = pd.date_range("2025-10-27 13:30", periods=13, freq="30min", tz="UTC")  # Mon 9:30 AM - 3:30 PM ET
+    ext = {"SPY": pd.DataFrame({"open": np.linspace(101, 103, 13), "high": 104.0, "low": 100.5,
+                                "close": np.linspace(101.5, 103.5, 13), "volume": 1e5, "session": "reg"}, index=t)}
+    out = complete_daily(px, ext, pd.Timestamp("2025-10-27 20:00", tz="America/New_York"))
+    row = {k: out[k].loc["2025-10-27", "SPY"] for k in ("open", "high", "low", "close")}
+    assert row == {"open": 101.0, "high": 104.0, "low": 100.5, "close": 103.5}
+    up = [{"symbol": "MRK", "date": "2025-10-29", "timing": "am"}]
+    assert "2025-10-29" in earnings_between("MRK", dt.date(2025, 10, 28), dt.date(2025, 11, 7), up)
+    assert earnings_between("MRK", dt.date(2025, 10, 30), dt.date(2025, 11, 7), up) == ""

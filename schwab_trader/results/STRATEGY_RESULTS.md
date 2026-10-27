@@ -59,6 +59,13 @@ the same trend check at the full **$1.5M** (`regime_research.py`):
 By calendar year (2021–2026): +15%, −31%, +84%, +38%, −5%, +126%. Two stocks at about
 $750,000 each is concentrated; lower `strategy_share` in `ACCOUNTS` to run it on less.
 
+## Dad's daily plan (highest win rate, $1.5M)
+
+Dip-buys + EPS picks + put spreads on each pick + QQQ put spreads and 0DTE condors,
+all together on 2021–2026: $1.5M → **$4.08M (+22.2%/yr)**, worst drop −11%, **85% of
+1,625 trades won** (S&P: $2.51M). Put spreads 8% below the price won 95–96%; the share
+picks 56–68%. See [daily/RESULTS.md](daily/RESULTS.md).
+
 ## Win rates ("accuracy") — the 80% question
 
 | Strategy | Trades won (2021–2026) | Return |

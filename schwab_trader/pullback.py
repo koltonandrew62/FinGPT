@@ -117,7 +117,9 @@ def run_pullback(prices: dict, cfg: PullbackConfig, start, end, initial_cash: fl
                 held[s] = {"units": n * f, "cost": n * fill, "i": i}
         c = close.loc[day]
         equity.append(cash + sum(h["units"] * c[s] for s, h in held.items()))
-    return pd.Series(equity, index=days), pd.DataFrame(trips)
+    eq = pd.Series(equity, index=days)
+    eq.attrs["held"] = {s: {"since": idx[h["i"]], "i": h["i"], "shares": h["units"]} for s, h in held.items()}
+    return eq, pd.DataFrame(trips)
 
 
 GRID = [PullbackConfig(pool=p, momentum_top=m, entry_rsi=r, exit_rule=x, max_positions=n)

@@ -289,6 +289,8 @@ def render(active: dict, earnings: dict | None, accounts: list[Account], scoreca
                 lines.append(f"  {r['symbol']:5s} {r['date']}  EPS estimate {r['estimate']:.2f}")
             else:
                 lines.append(f"  {r['symbol']}")
+    if not any(a.name == "Dad" for a in accounts):
+        lines += ["", "Dad's $1.5M account gets its own daily plan by email (Sunday-Friday 8:30 AM ET)."]
     lines += ["", "Not financial advice. Backtested results do not guarantee future returns."]
     text = "\n".join(lines)
     page = (f"<html><body style=\"font-family:Menlo,Consolas,monospace;font-size:13px;color:#111;background:#fff\">"
