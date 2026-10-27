@@ -62,9 +62,12 @@ $750,000 each is concentrated; lower `strategy_share` in `ACCOUNTS` to run it on
 ## Dad's daily plan (highest win rate, $1.5M)
 
 Dip-buys + EPS picks + put spreads on each pick + QQQ put spreads and 0DTE condors,
-all together on 2021–2026: $1.5M → **$4.08M (+22.2%/yr)**, worst drop −11%, **85% of
-1,625 trades won** (S&P: $2.51M). Put spreads 8% below the price won 95–96%; the share
-picks 56–68%. See [daily/RESULTS.md](daily/RESULTS.md).
+all together on 2021–2026, on every S&P 500 / Nasdaq-100 / Dow 30 stock with
+point-in-time S&P membership: $1.5M → **$3.27M (+17.0%/yr)**, worst drop −15%, **89% of
+2,586 trades won** (S&P: $2.51M). Put spreads 8% below the price won 94%; dip-buys 85%
+(with a −15% stop), EPS picks 80% but only break-even on average. (The earlier $4.08M
+used October 2021's 59 largest stocks, which had hindsight built in.) See
+[daily/RESULTS.md](daily/RESULTS.md).
 
 ## Win rates ("accuracy") — the 80% question
 

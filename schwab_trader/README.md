@@ -97,46 +97,79 @@ and at most 2% ($30,000) at risk per condor in the $1.5M account. Lower
 account in the strategy; at $1.5M the backtested worst drop was about −$3.0M from the
 peak.
 
-## Dad's daily plan (Sunday–Friday, 8:30 AM ET)
+## Dad's daily plan (Sunday–Friday, 8:30 AM ET) and the 9:40 AM open check
 
 `daily_report.py` builds a plan for the $1.5M margin account every morning before the
-open. A scheduled task in the Claude app runs it from read-only Robinhood data and emails
-it Sunday–Friday around 8:30 AM ET; the email itself never names who it is for or the
-account size:
+open, covering **every S&P 500, Nasdaq-100 and Dow 30 company** (`universe.py`, 522
+stocks). A scheduled task in the Claude app runs it from read-only Robinhood data and
+emails it Sunday–Friday around 8:30 AM ET; the email itself never names who it is for
+or the account size:
 
-- market trends (SPY, QQQ, sectors) and the 5-day "similar past mornings" forecast;
+- market trends (SPY, QQQ, sectors) and the "similar past mornings" forecast;
 - Asia overnight (US-listed Japan/China/Hong Kong/Korea/Taiwan/Australia/India funds in
   Robinhood's 24-hour market), the US sectors and stocks it moves most at the open, and
   after-hours / overnight / pre-market moves;
 - **EPS picks** (last night's and this morning's reports, beat/miss, gap) with buy and
   sell dates; **regular stock picks** (dip-buys); a **put-spread options play** on each
-  new pick; the **QQQ** 0DTE condor plan and QQQ put spreads; chart patterns spotted at
-  the close with their track record; the week's earnings calendar.
+  new pick, with the lowest credit worth taking; the **QQQ** 0DTE condor plan and QQQ put
+  spreads; chart patterns spotted at the close with their track record; the track record
+  of the email's own picks and what it has learned; the next 3 days' earnings calendar.
 
-Every section shows its track record; the rules were tuned toward a 70–80% hit rate
-(`accuracy_research.py`, [results](results/accuracy/RESULTS.md)): stock picks now sell
-with a +3% limit order or after 20 sessions (77–78% of trades won in 2021–2026), chart
-patterns are shown as trades (69–80%), Asia gives an opening call when it moves 1%+
-(S&P 91%, Nasdaq 93%), and the earnings calendar flags likely beats (92%).
+Every section shows its track record; the rules aim for a 70–80% hit rate with a
+safety limit (no backtest trade worse than −20%), chosen on 2011–2021 and tested on
+2021–2026 with point-in-time S&P membership (`accuracy_research.py`,
+[results](results/accuracy/RESULTS.md)): dip-buys sell at +2% with a −15% stop or after
+20 sessions and skip stocks with earnings due (85% of trades won in 2021–2026), EPS
+picks the same with an S&P trend filter (80%, but only break-even on average), chart
+patterns as trades (71–81%), an Asia opening call when it moves 1%+ (S&P 91%, Nasdaq 93%),
+and "likely beat" flags (88%).
 
 Half the account goes to EPS picks (5 slots of $150,000), half to dip-buys (3 slots of
 $250,000); each options play risks at most 1% ($15,000), condors 2%. Whole plan,
-2021–2026: $1.5M → **$4.08M (+22.2%/yr)** vs the S&P's $2.51M, worst drop −11%, 85%
-of 1,625 trades won (mid option pricing). Details: [results/daily/RESULTS.md](results/daily/RESULTS.md).
+2021–2026: $1.5M → **$3.27M (+17.0%/yr)** vs the S&P's $2.51M, worst drop −15%, 89% of
+2,586 trades won (mid option pricing). Details: [results/daily/RESULTS.md](results/daily/RESULTS.md).
+
+**Journal and learning.** Every recommendation goes into
+`results/journal/recommendations.csv` and is scored with the same rules once it
+finishes (`journal.py`); the daily and weekly emails show that real track record.
+`learning.py` re-learns every morning which buying conditions keep producing losers and
+skips them, but only when that kind of learning helped in a year-by-year test on unseen
+years (so far it hasn't: [results/learning/RESULTS.md](results/learning/RESULTS.md));
+a rule whose real picks win significantly less often than its backtest gets half size.
+
+**Holdings.** Send an email with the subject `Holdings` (from one of the plan addresses
+or yours) with one line per position, e.g. `AAPL 1200`; the next plan then says exactly
+what is held instead of "if you own it".
+
+**9:40 AM open check (Monday–Friday).** A second scheduled task reads the real open:
+it decides the 0DTE QQQ condor with the actual QQQ open and VIX, prices its four legs
+and the morning's put spreads from **real Robinhood option quotes**, says whether the
+credit is worth taking, records the real prices in the journal, and emails only when
+there's something to do.
 
 ```bash
-python -m schwab_trader.daily_research               # the research (about 25 minutes)
-python -m schwab_trader.daily_report --extended BARS... --earnings-json PAST NEXT
+python -m schwab_trader.accuracy_research --reuse-market   # rules for each email section
+python -m schwab_trader.daily_research --revalidate        # options rules + whole plan
+python -m schwab_trader.learning                           # learning, tested year by year
+python -m schwab_trader.routine plan                       # the scheduled run: calls to make,
+python -m schwab_trader.routine daily                      #   then the email (+ journal)
+python -m schwab_trader.routine open-plan                  # 9:40 check: open-legs, open-quotes, open-build
 ```
 
-The weekly email is now for your account only; set `ACCOUNTS` to `BOTH_ACCOUNTS` in
+`routine.py` finds the saved Robinhood results by itself (by time and content), imports
+them, builds any session Robinhood's daily bars don't have yet from 30-minute bars,
+fixes stock splits in the saved history, and says exactly which call to repeat if
+something is missing.
+
+The weekly email is for your account only; set `ACCOUNTS` to `BOTH_ACCOUNTS` in
 `sizing.py` to size Dad's account there too.
 
 ## Trading on Schwab
 
-1. Create an app at <https://developer.schwab.com> with **Accounts and Trading
-   Production** + **Market Data Production**, callback `https://127.0.0.1:8182`.
-   Approval can take several days.
+1. At <https://developer.schwab.com> (API product **Trader API – Individual**) create an
+   app with **Accounts and Trading Production** (places the trades) + **Market Data
+   Production** (quotes and prices), callback `https://127.0.0.1:8182`. Use the App Key
+   and Secret once the app shows "Ready For Use" (approval can take several days).
 2. `export SCHWAB_API_KEY=... SCHWAB_APP_SECRET=...` (and `SCHWAB_ACCOUNT_NUMBER=...` if
    you have more than one account).
 3. Monday after 9:35 AM ET:

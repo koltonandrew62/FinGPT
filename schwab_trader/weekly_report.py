@@ -23,7 +23,7 @@ import pandas as pd
 from .active_strategy import (BACKTEST, LARGE_ACCOUNT, POOL, WORST_DROP, label_for, market_trend, momentum,
                               scorecard_ranking, target_weights_for)
 from .calendar_utils import first_trading_day_of_week, next_trading_day, order_time
-from .config import BENCHMARK, DATA_DIR, STATE_DIR
+from .config import BENCHMARK, DATA_DIR, RESULTS_DIR, STATE_DIR
 from .data import COLUMNS, drop_unfinished_today, fetch_schwab, fetch_yfinance, load_prices
 from .earnings import BULLISH, analyze, beat_probability, recent_filings, surprise_history
 from .earnings_backtest import EarningsConfig
@@ -291,6 +291,14 @@ def render(active: dict, earnings: dict | None, accounts: list[Account], scoreca
                 lines.append(f"  {r['symbol']}")
     if not any(a.name == "Dad" for a in accounts):
         lines += ["", "Dad's $1.5M account gets its own daily plan by email (Sunday-Friday 8:30 AM ET)."]
+        try:
+            import json as _json
+            from .journal import record_lines
+            acc_path = RESULTS_DIR / "accuracy" / "summary.json"
+            acc = _json.loads(acc_path.read_text()) if acc_path.exists() else None
+            lines += ["DAILY PLAN TRACK RECORD"] + record_lines(acc)
+        except Exception as exc:                  # the weekly email must not fail on this
+            lines.append(f"  (track record unavailable: {exc})")
     lines += ["", "Not financial advice. Backtested results do not guarantee future returns."]
     text = "\n".join(lines)
     page = (f"<html><body style=\"font-family:Menlo,Consolas,monospace;font-size:13px;color:#111;background:#fff\">"

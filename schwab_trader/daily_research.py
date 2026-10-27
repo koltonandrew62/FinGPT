@@ -25,6 +25,8 @@ stock list is October 2021's largest companies, so 2011-2021 has hindsight.
 
     python -m schwab_trader.daily_research [EPS_JSON]     # everything (about 25 minutes)
     python -m schwab_trader.daily_research --combined     # only the whole-plan backtest
+    python -m schwab_trader.daily_research --revalidate   # refresh the options rules and the whole plan on the
+                                                          # current stock list and the email's share rules
 """
 from __future__ import annotations
 
@@ -40,21 +42,21 @@ import pandas as pd
 from .backtest import performance
 from .config import DATA_DIR, RESULTS_DIR, SPLITS, Costs
 from .data import load_prices
-from .earnings_backtest import EARNINGS_UNIVERSE
 from .options_backtest import COMMISSION, MULTIPLIER, bs_price, fair_multipliers, implied_vol, rate
 from .patterns import (ASIA, FEATURES, SECTORS, analog_forecast, asia_impact, asia_overnight, forward_returns,
                        market_features, market_outcomes, pattern_frames, pattern_stats)
-from .pullback import POOLS, PullbackConfig, indicators, signals
+from .pullback import INDEX, POOLS, PullbackConfig, indicators, signals
 from .strategy import split_factor
+from .universe import sp500_mask, was_member
 
 OUT = RESULTS_DIR / "daily"
 DESIGN = ("2011-02-01", "2021-10-22")
 TEST = ("2021-10-25", "2026-10-23")
-STOCKS = tuple(EARNINGS_UNIVERSE)
+STOCKS = INDEX                    # S&P 500 + Nasdaq-100 + Dow 30
 CASH = 1_500_000.0
 SLIP = Costs().slippage_bps / 1e4
 # the regular stock picks: pullback.py pass 2's selected rule (70% / 66% of trades won)
-DIP = PullbackConfig(pool="stocks+etfs", momentum_top=10, entry_rsi=10, exit_rule="rsi70", max_hold=20, max_positions=3)
+DIP = PullbackConfig(pool="index+etfs", momentum_top=10, entry_rsi=10, exit_rule="rsi70", max_hold=20, max_positions=3)
 
 
 def in_window(idx, w) -> np.ndarray:
@@ -72,6 +74,29 @@ def load_eps(path) -> pd.DataFrame:
         rows.append({"symbol": r["symbol"], "date": pd.Timestamp(rep["date"]), "timing": rep.get("timing") or "am",
                      "estimate": num(eps.get("estimate")), "actual": num(eps.get("actual"))})
     return pd.DataFrame(rows).drop_duplicates(["symbol", "date"]).sort_values(["symbol", "date"])
+
+
+def merge_eps_history(paths, out=None, symbols=None) -> int:
+    """Merge saved get_earnings_calendar results (and the existing history) into
+    results/daily/eps_history.json, keeping one row per company and report date."""
+    out = out or OUT / "eps_history.json"
+    symbols = set(symbols or STOCKS)
+    rows = json.loads(out.read_text()) if out.exists() else []
+    for p in paths:
+        t = open(p).read()
+        payload = json.loads(t[t.index("{"):] if t.lstrip()[:1] != "[" else t)
+        data = payload.get("data", payload) if isinstance(payload, dict) else payload
+        rows += data.get("results", []) if isinstance(data, dict) else data
+    keep = {}
+    for r in rows:
+        d = (r.get("report") or {}).get("date")
+        if d and r.get("symbol") in symbols:
+            k = (r["symbol"], d)
+            if k not in keep or (r.get("eps") or {}).get("actual") not in (None, ""):
+                keep[k] = r
+    merged = sorted(keep.values(), key=lambda r: (r["symbol"], r["report"]["date"]))
+    out.write_text(json.dumps(merged, separators=(",", ":")))
+    return len(merged)
 
 
 def surprise(actual: float, estimate: float) -> float:
@@ -411,7 +436,7 @@ def options_portfolio(trades: pd.DataFrame, idx, w, cash: float, risk: float, ma
 
 
 # =========================================================== 3 + 4. Asia, patterns
-def asia_and_patterns(px: dict) -> dict:
+def asia_and_patterns(px: dict, analogs: bool = True) -> dict:
     asia = asia_overnight(px)
     us = [s for s in list(SECTORS) + ["SPY", "QQQ"] + list(STOCKS) if s in px["close"]]
     impact = {name: asia_impact(px, us, asia["asia"], *w).round(4) for name, w in (("design", DESIGN), ("test", TEST))}
@@ -425,7 +450,7 @@ def asia_and_patterns(px: dict) -> dict:
     # analog forecaster: choose k and the confidence cut on 2016-2021 (walk-forward),
     # then score 2021-2026 once; accuracy only on days it is confident
     analog = {}
-    for target in ("spy_oc", "qqq_oc", "spy_5d"):
+    for target in (("spy_oc", "qqq_oc", "spy_5d") if analogs else ()):
         y = Y[target]
         design_days = X.index[in_window(X.index, ("2016-01-04", DESIGN[1]))]
         test_days = X.index[in_window(X.index, TEST)]
@@ -522,10 +547,97 @@ def rerun_combined():
     print(json.dumps(summary["combined"], indent=1, default=str))
 
 
+def revalidate():
+    """Re-check the saved options rules and the whole plan on the current stock list,
+    with the email's share rules (results/accuracy/summary.json), without re-running
+    the options grid (the rules stay as chosen; their numbers are refreshed)."""
+    from .accuracy_research import Exit, arrays, dip_entries, eps_entries, filtered, portfolio, research_setup, simulate
+    from .backtest import buy_and_hold
+    acc = json.loads((RESULTS_DIR / "accuracy" / "summary.json").read_text())
+    px, syms, eligible, _, events, check = research_setup(
+        list(SECTORS) + [a for a in ASIA if (DATA_DIR / f"{a}.csv").exists()])
+    summary = json.loads((OUT / "summary.json").read_text())
+    summary["earnings_day_check"] = check
+    arr = arrays(px, syms)
+    d, e = acc["dip"], acc["eps"]
+    dex, eex = Exit(**d["exit"]), Exit(**e["exit"])
+    dip_ent = filtered(px, dip_entries(px, d["rsi_max"], d["momentum_top"], eligible), d["spy_trend"],
+                       dex.hold if d["no_earnings"] else None, events)
+    r = e["rule"]
+    eps_ent = filtered(px, eps_entries(px, events, EpsConfig(r["entry"], r["min_gap"], 1, False, r.get("min_surprise")))[["symbol", "entry"]],
+                       e["spy_trend"], None)
+    dip_tr, eps_tr = simulate(px, arr, dip_ent, dex, syms), simulate(px, arr, eps_ent, eex, syms)
+    qqq = signal_entries(px, eps_ent.assign(entry=pd.DatetimeIndex(eps_ent["entry"])))
+    entries = {"dip": dip_ent[dip_ent.symbol.isin(STOCKS)].reset_index(drop=True), "eps": eps_ent.reset_index(drop=True),
+               "qqq_dip": qqq["qqq_dip"], "qqq_weekly": qqq["qqq_weekly"]}
+    vol = calm_vol(px["close"][list(dict.fromkeys([s for s in STOCKS if s in px["close"]] + ["QQQ"]))])
+    splits = {**SPLITS, **json.loads((DATA_DIR / "splits.json").read_text())}
+    mults = pricing_multipliers(px, vol, entries)
+    summary["option_pricing"] = mults
+    print("pricing:", mults, flush=True)
+    trades = {}
+    for group, pick in summary["options_pick"].items():
+        cfg = OptConfig(**pick["config"])
+        f = mults["fair"][cfg.signal]
+        res = {"config": asdict(cfg), "label": cfg.label()}
+        for lvl, m in (("fair", f), ("mid", f * (1 + mults["premium"]) / 2), ("rich", f * mults["premium"])):
+            tr = run_options(px, entries[cfg.signal], cfg, vol, m, splits)
+            if lvl == "mid":
+                tr.to_csv(OUT / f"options_trades_{group}_mid.csv", index=False, float_format="%.4f")
+                trades[group] = tr
+            for name, w in (("design", DESIGN), ("test", TEST)):
+                st = trade_stats(tr, w, "ret")
+                m_ = performance(options_portfolio(tr, px["close"].index, w, CASH, 0.01, 5))
+                res[f"{name}_{lvl}"] = st | {"final": m_["final_value"], "cagr": m_["cagr"], "max_drawdown": m_["max_drawdown"],
+                                             "worst_trade": float(tr[in_window(pd.DatetimeIndex(tr["entry"]), w)]["ret"].min())}
+        summary["options_pick"][group] = res
+        print(group, json.dumps({k: v for k, v in res.items() if k.startswith("test")}, default=str), flush=True)
+    combined = {}
+    for name, w in (("design", DESIGN), ("test", TEST)):
+        dip_eq, eps_eq = portfolio(px, dip_tr, w, 3, CASH / 2), portfolio(px, eps_tr, w, 5, CASH / 2)
+        total = dip_eq + eps_eq.reindex(dip_eq.index).ffill()
+        parts = {"dip shares": float(dip_eq.iloc[-1] - dip_eq.iloc[0]), "EPS shares": float(eps_eq.iloc[-1] - eps_eq.iloc[0])}
+        wins = n = 0
+        for tr in (dip_tr, eps_tr):
+            t = tr[in_window(pd.DatetimeIndex(tr["entry"]), w)]
+            wins, n = wins + int((t["return"] > 0).sum()), n + len(t)
+        for group, tr in trades.items():
+            ov = options_portfolio(tr, px["close"].index, w, CASH, 0.01, 5)
+            total = total + (ov - CASH).reindex(total.index).ffill().fillna(0)
+            parts[f"{group} options"] = float(ov.iloc[-1] - CASH)
+            t = tr[in_window(pd.DatetimeIndex(tr["entry"]), w)]
+            wins, n = wins + int((t["ret"] > 0).sum()), n + len(t)
+        ce, ct = condor_overlay(w)
+        total = total + (ce - CASH).reindex(total.index).ffill().fillna(0)
+        parts["QQQ 0DTE condors"] = float(ce.iloc[-1] - CASH)
+        wins, n = wins + int(ct.win.sum()), n + len(ct)
+        m = performance(total)
+        spy = performance(buy_and_hold(px, "SPY", *w, CASH))
+        combined |= {f"{name}_final": m["final_value"], f"{name}_cagr": m["cagr"], f"{name}_maxdd": m["max_drawdown"],
+                     f"{name}_trades": n, f"{name}_win_rate": wins / n if n else np.nan, f"{name}_parts": parts,
+                     f"{name}_spy_final": spy["final_value"], f"{name}_spy_cagr": spy["cagr"]}
+        if name == "test":
+            total.to_csv(OUT / "combined_test_equity.csv", float_format="%.2f")
+    combined["spy_final"] = combined["test_spy_final"]
+    summary["combined"] = combined
+    print("combined:", json.dumps(combined, indent=1, default=str), flush=True)
+    ap = asia_and_patterns(px, analogs=False)
+    for name, df in ap["impact"].items():
+        df.to_csv(OUT / f"asia_impact_{name}.csv", float_format="%.4f")
+    for name, df in ap["patterns"].items():
+        df.to_csv(OUT / f"patterns_{name}.csv", float_format="%.4f")
+    t = ap["impact"]["test"]
+    summary["asia_continuation_test"] = float(t.loc[["SPY", "QQQ"], "continuation_rate"].mean())
+    summary["asia_beta_test"] = t.loc[["SPY", "QQQ"], ["beta", "corr"]].to_dict()
+    (OUT / "summary.json").write_text(json.dumps(summary, indent=2, default=str))
+
+
 # ===================================================================== main
 def main():
     if "--combined" in sys.argv:
         return rerun_combined()
+    if "--revalidate" in sys.argv:
+        return revalidate()
     eps_path = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("-") else str(OUT / "eps_history.json")
     OUT.mkdir(parents=True, exist_ok=True)
     syms = list(dict.fromkeys(list(POOLS["stocks+etfs"]) + ["SPY", "QQQ"] + list(SECTORS) + [a for a in ASIA if (DATA_DIR / f"{a}.csv").exists()]))

@@ -570,3 +570,123 @@ def test_replay_closes_at_target_or_time_and_respects_slots():
     assert late and late[0]["i0"] == 5
     tr = simulate(px, arrays(px, ["A", "B"]), pd.DataFrame({"symbol": ["A"], "entry": [idx[0]]}), Exit(0.03, None, 20), ["A", "B"])
     assert tr.iloc[0]["reason"] == "target" and tr.iloc[0]["exit"] == idx[3]
+
+
+# ------------------------------------------------- universe, journal, learning, routine
+def test_sp500_membership_is_point_in_time():
+    from schwab_trader.universe import sp500_mask, stocks, was_member
+    idx = pd.DatetimeIndex(["2020-06-01", "2021-01-04", "2026-10-01"])
+    m = sp500_mask(idx, ["TSLA", "AAPL", "SPY"])
+    assert list(m["TSLA"]) == [False, True, True]          # joined the index in December 2020
+    assert m["AAPL"].all() and m["SPY"].all()              # non-stocks are never filtered
+    assert list(was_member(["TSLA", "TSLA"], ["2020-06-01", "2021-06-01"])) == [False, True]
+    assert {"AAPL", "MSFT", "NVDA"} <= set(stocks(with_data=False)) and len(stocks(with_data=False)) > 500
+
+
+def test_safety_selection_prefers_variants_without_big_losses():
+    from schwab_trader.accuracy_research import select_safe
+    rows = pd.DataFrame({"design_trades": [600, 600, 600], "design_avg": [0.012, 0.008, 0.004],
+                         "design_win_rate": [0.80, 0.78, 0.72], "design_worst": [-0.35, -0.18, -0.12]})
+    pick, safe = select_safe(rows, 500)
+    assert safe and pick.design_avg == 0.008               # best average among worst-trade >= -20%
+    pick, safe = select_safe(rows.assign(design_worst=-0.4), 500)
+    assert not safe and pick.design_avg == 0.012           # falls back to the plain 70% rule
+
+
+def test_journal_records_once_and_scores_share_and_option_trades(tmp_path):
+    from schwab_trader import journal
+    path = tmp_path / "rec.csv"
+    idx = pd.bdate_range("2026-01-05", periods=6)
+    o = pd.DataFrame({"AAA": 100.0, "QQQ": 500.0}, index=idx)
+    h, l, c = o * 1.005, o * 0.995, o.copy()
+    h.iloc[2, 0] = 103.0                                     # +2% target fills on session 3
+    c.iloc[1, 1] = 490.0                                     # QQQ closes at 490 on the spread's expiry
+    px = {"open": o, "high": h, "low": l, "close": c}
+    rows = [{"plan_date": "2026-01-05", "kind": "dip", "symbol": "AAA", "ref_price": 100, "target": 0.02, "stop": 0.15, "hold": 20},
+            {"plan_date": "2026-01-05", "kind": "qqq_put_spread", "symbol": "QQQ", "model_credit": 1.0,
+             "legs": {"expiry": "2026-01-06", "short_put": 495, "long_put": 485}}]
+    assert journal.record(rows, path) == 2 and journal.record(rows, path) == 0
+    df = journal.evaluate(px, path)
+    share = df[df.kind == "dip"].iloc[0]
+    assert share.status == "closed" and share.reason == "target" and share["return"] == pytest.approx(1.02 * 0.9995 - 1)
+    opt = df[df.kind == "qqq_put_spread"].iloc[0]
+    assert opt["return"] == pytest.approx((1.0 - 5.0) / 9.0)  # owed $5 of the $10 spread on a $1 credit
+    tr = journal.track_record(df)
+    assert tr["dip"]["wins"] == 1 and tr["qqq_put_spread"]["wins"] == 0
+
+
+def test_learning_adopts_only_conditions_that_hurt_in_both_halves():
+    from schwab_trader.learning import learn, size_factor, walk_forward
+    rng = np.random.default_rng(0)
+    n = 2000
+    entry = pd.bdate_range("2012-01-02", periods=n)
+    bad = rng.random(n) < 0.2                                # losing condition, all the way through
+    early = (rng.random(n) < 0.2) & (np.arange(n) < n // 2)  # hurt only in the first half
+    p_win = np.where(bad, 0.6, 0.85) - np.where(early, 0.3, 0)
+    ret = np.where(rng.random(n) < p_win, 0.02, -0.05)
+    f = pd.DataFrame({"entry": entry, "exit": entry + pd.Timedelta(days=10), "return": ret, "vix_high": bad,
+                      "asia_down": early})
+    rules = learn(f)
+    assert "vix_high" in rules and "asia_down" not in rules
+    wf = walk_forward(f, first_year=2015)
+    assert wf["all_years"]["win_kept"] > wf["all_years"]["win_all"] and wf["use_live"]
+    assert size_factor({"closed": 12, "wins": 6}, 0.85)[0] == 0.5    # 50% live vs 85% backtest
+    assert size_factor({"closed": 12, "wins": 10}, 0.85)[0] == 1.0
+
+
+def test_routine_tells_results_apart():
+    from schwab_trader.routine import kind_of
+    bar = {"begins_at": "2026-10-27T13:30:00Z"}
+    assert kind_of({"data": {"results": [{"symbol": "A", "interval": "day", "bars": [bar]}]}}) == "daily"
+    assert kind_of({"data": {"results": [{"symbol": "A", "interval": "30minute", "bounds": "24_5", "bars": [bar]}]}}) == "extended"
+    assert kind_of({"data": {"results": [{"symbol": "A", "interval": "5minute", "bounds": "regular", "bars": [bar]}]}}) == "intraday"
+    assert kind_of({"data": {"results": [{"instrument_id": "x", "symbol": "VIX", "interval": "day", "bars": [bar]}]}}) == "index_daily"
+    assert kind_of({"data": {"results": [{"symbol": "A", "eps": {}, "report": {}}]}}) == "earnings"
+    assert kind_of({"data": {"instruments": [{"id": "x"}]}}) == "option_instruments"
+    assert kind_of({"data": {"results": [{"quote": {"instrument_id": "x"}}]}}) == "option_quotes"
+
+
+def test_import_rescales_history_after_a_split():
+    from schwab_trader.import_robinhood import rescale_for_split
+    idx = pd.bdate_range("2026-01-05", periods=6)
+    old = pd.DataFrame({"open": 200.0, "high": 202.0, "low": 198.0, "close": 200.0, "volume": 1000}, index=idx[:4])
+    new = pd.DataFrame({"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.0, "volume": 2000}, index=idx[2:])
+    fixed = rescale_for_split(old, new)
+    assert fixed["close"].iloc[0] == pytest.approx(100.0) and fixed["volume"].iloc[0] == 2000
+    assert rescale_for_split(old, old.iloc[2:]).equals(old)       # no split: unchanged
+
+
+def test_holdings_file_parses_symbols_and_shares(tmp_path):
+    from schwab_trader.daily_report import holdings_from
+    p = tmp_path / "h.txt"
+    p.write_text("Holdings as of Oct 27\nAAPL 1,200\nmsft: 300\nBRK.B 50\ncash 25000 dollars\n")
+    h = holdings_from(p)
+    assert h == {"AAPL": 1200, "MSFT": 300, "BRK.B": 50}     # "Holdings" and "cash" lines are not stocks
+
+
+def test_open_check_prices_the_condor_from_real_quotes(tmp_path, monkeypatch):
+    import json
+    from schwab_trader import journal, routine
+    monkeypatch.setattr(journal, "JOURNAL", tmp_path / "rec.csv")
+    monkeypatch.setattr(routine, "WORK", tmp_path)
+    monkeypatch.setattr(routine, "INLINE", tmp_path / "inline")
+    monkeypatch.setattr(routine, "RESULT_DIRS", [])
+    routine.start("open-plan")
+    today = pd.Timestamp.now(tz="America/New_York").date().isoformat()
+    strikes = [722, 729, 708, 701]
+    state = {"opens": {"QQQ": 715.0, "SPY": 760.0, "VIX": 17.8}, "verdict": {"prob": 0.05, "threshold": 0.08, "calm": True},
+             "condor": {"strikes": strikes, "model_credit": 1.4, "fair_credit": 0.76, "model_max_loss": 565.0},
+             "legs": [["QQQ", today, t, k, "x"] for t, k in zip(["call", "call", "put", "put"], strikes)]}
+    (tmp_path / "open_state.json").write_text(json.dumps(state))
+    inst = {"data": {"instruments": [{"id": f"id{k}", "chain_symbol": "QQQ", "expiration_date": today, "type": t,
+                                      "strike_price": f"{k:.4f}"} for t, k in zip(["call", "call", "put", "put"], strikes)]}}
+    bidask = {722: (1.10, 1.14), 729: (0.30, 0.33), 708: (1.20, 1.24), 701: (0.36, 0.40)}
+    quotes = {"data": {"results": [{"quote": {"instrument_id": f"id{k}", "bid_price": str(b), "ask_price": str(a)}}
+                                   for k, (b, a) in bidask.items()]}}
+    (tmp_path / "inline" / "i.json").write_text(json.dumps(inst))
+    (tmp_path / "inline" / "q.json").write_text(json.dumps(quotes))
+    assert routine.open_build() == 0
+    text = (tmp_path / "open.txt").read_text()
+    assert "mid credit $1.6" in text and "sets with a limit order" in text     # 1.12-0.315+1.22-0.38 = 1.645
+    rec = journal.load()
+    assert rec.iloc[0].kind == "qqq_condor" and rec.iloc[0].real_credit == pytest.approx(1.645)

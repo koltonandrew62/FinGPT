@@ -26,10 +26,13 @@ from .config import ALL_SYMBOLS, BENCHMARK, DATA_DIR, RESULTS_DIR, SPLITS, UNIVE
 from .data import load_prices
 from .earnings_backtest import EARNINGS_UNIVERSE
 from .strategy import split_factor
+from .universe import stocks as index_stocks
 
 STOCKS = tuple(EARNINGS_UNIVERSE)
 ETFS = tuple(UNIVERSES["sectors+"])
-POOLS = {"stocks+etfs": STOCKS + ETFS, "stocks": STOCKS, "etfs": ETFS}
+INDEX = index_stocks()            # S&P 500 + Nasdaq-100 + Dow 30 (those with price files)
+POOLS = {"stocks+etfs": STOCKS + ETFS, "stocks": STOCKS, "etfs": ETFS,
+         "index+etfs": INDEX + tuple(e for e in ETFS if e not in INDEX)}
 OUT = RESULTS_DIR / "pullback"
 
 
@@ -57,11 +60,18 @@ def rsi(close: pd.DataFrame, n: int = 2) -> pd.DataFrame:
     return 100 - 100 / (1 + gain / loss.replace(0, np.nan))
 
 
-def indicators(close: pd.DataFrame) -> dict:
+def indicators(close: pd.DataFrame, eligible: pd.DataFrame | None = None) -> dict:
+    """eligible: optional True/False frame (e.g. S&P 500 membership that day); other
+    stocks are neither ranked nor bought."""
     enough = close.notna().rolling(253).sum() >= 253
     mom = (close.shift(21) / close.shift(252) - 1).where(enough)
-    return {"rsi2": rsi(close), "sma5": close.rolling(5).mean(), "sma200": close.rolling(200).mean(),
-            "mom_rank": mom.rank(axis=1, ascending=False)}
+    if eligible is not None:
+        mom = mom.where(eligible.reindex_like(close).fillna(False).astype(bool))
+    out = {"rsi2": rsi(close), "sma5": close.rolling(5).mean(), "sma200": close.rolling(200).mean(),
+           "mom_rank": mom.rank(axis=1, ascending=False)}
+    if eligible is not None:
+        out["eligible"] = eligible.reindex_like(close).fillna(False).astype(bool)
+    return out
 
 
 def signals(close: pd.DataFrame, ind: dict, cfg: PullbackConfig,
@@ -70,6 +80,8 @@ def signals(close: pd.DataFrame, ind: dict, cfg: PullbackConfig,
     entry = (close > ind["sma200"]) & (ind["rsi2"] < cfg.entry_rsi)
     if cfg.momentum_top:
         entry &= ind["mom_rank"] <= cfg.momentum_top
+    if "eligible" in ind:
+        entry &= ind["eligible"]
     if cfg.market_filter and market is not None:
         entry = entry.mul(market > market.rolling(200).mean(), axis=0).astype(bool)
     exit_ = {"sma5": close > ind["sma5"], "rsi70": ind["rsi2"] > 70, "up_close": close > close.shift(1)}[cfg.exit_rule]
@@ -77,10 +89,11 @@ def signals(close: pd.DataFrame, ind: dict, cfg: PullbackConfig,
 
 
 def run_pullback(prices: dict, cfg: PullbackConfig, start, end, initial_cash: float = 1500.0,
-                 splits: dict | None = None, costs: Costs = Costs(), ind: dict | None = None):
+                 splits: dict | None = None, costs: Costs = Costs(), ind: dict | None = None,
+                 eligible: pd.DataFrame | None = None):
     syms = list(POOLS[cfg.pool])
     close, opens = prices["close"][syms], prices["open"][syms]
-    ind = ind or indicators(close)
+    ind = ind or indicators(close, eligible)
     entry, exit_ = signals(close, {k: v[syms] for k, v in ind.items()}, cfg, prices["close"].get(BENCHMARK))
     idx = close.index
     days = idx[(idx >= pd.Timestamp(start)) & (idx <= pd.Timestamp(end))]

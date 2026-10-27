@@ -1,35 +1,50 @@
 {
+  "universe": {
+    "stocks": 522,
+    "sp500_members_with_prices_2011": 297,
+    "sp500_members_with_prices_now": 503,
+    "earnings_events": 24760,
+    "earnings_day_check": {
+      "checked": 15256,
+      "found_within_1_day": 11253,
+      "hit_rate": 0.7376114315679078
+    }
+  },
   "dip": {
     "rsi_max": 5.0,
+    "momentum_top": 25,
+    "spy_trend": false,
+    "no_earnings": true,
     "exit": {
-      "target": 0.03,
-      "stop": null,
+      "target": 0.02,
+      "stop": 0.15,
       "hold": 20
     },
-    "label": "+3% target, sell by session 20",
+    "label": "+2% target, -15% stop, sell by session 20",
+    "safety_rule_met": true,
     "design": {
-      "trades": 628,
-      "win_rate": 0.7898089171974523,
-      "avg": 0.010949126360351003,
-      "avg_win": 0.02996410657743553,
-      "avg_loss": -0.06050110233414843,
-      "worst": -0.3679691242945152
+      "trades": 1206,
+      "win_rate": 0.8416252072968491,
+      "avg": 0.006076018756714531,
+      "avg_win": 0.020138890554414025,
+      "avg_loss": -0.0686559962938875,
+      "worst": -0.16797157606705204
     },
     "test": {
-      "trades": 336,
-      "win_rate": 0.7738095238095238,
-      "avg": 0.006871003516419835,
-      "avg_win": 0.031152509780265132,
-      "avg_loss": -0.07619730738620882,
-      "worst": -0.31430889793916994
+      "trades": 607,
+      "win_rate": 0.8500823723228995,
+      "avg": 0.0029389280564875095,
+      "avg_win": 0.020281386834817082,
+      "avg_loss": -0.09539853051074391,
+      "worst": -0.1737711395655127
     },
     "design_portfolio": {
-      "cagr": 0.09212148305270662,
-      "max_drawdown": -0.3882572256053243
+      "cagr": 0.11133956494880892,
+      "max_drawdown": -0.18040486197041017
     },
     "test_portfolio": {
-      "cagr": 0.14830786015863362,
-      "max_drawdown": -0.1614783613904458
+      "cagr": 0.11030017961969985,
+      "max_drawdown": -0.23078391876957216
     }
   },
   "eps": {
@@ -40,35 +55,37 @@
       "trend": false,
       "min_surprise": null
     },
+    "spy_trend": true,
     "exit": {
-      "target": 0.03,
-      "stop": null,
+      "target": 0.02,
+      "stop": 0.15,
       "hold": 20
     },
-    "label": "next_open gap>=4%; +3% target, sell by session 20",
+    "label": "next_open gap>=4%; +2% target, -15% stop, sell by session 20",
+    "safety_rule_met": true,
     "design": {
-      "trades": 165,
-      "win_rate": 0.793939393939394,
-      "avg": 0.014116230753126315,
-      "avg_win": 0.029116838271701695,
-      "avg_loss": -0.04368022762726707,
-      "worst": -0.15115426465189052
+      "trades": 600,
+      "win_rate": 0.8316666666666667,
+      "avg": 0.007021907373232239,
+      "avg_win": 0.01986656615750393,
+      "avg_loss": -0.056438337511436794,
+      "worst": -0.1581316300468718
     },
     "test": {
-      "trades": 83,
-      "win_rate": 0.7831325301204819,
-      "avg": 0.011972138577509173,
-      "avg_win": 0.030233143840947142,
-      "avg_loss": -0.053970380429350165,
-      "worst": -0.10992145164531131
+      "trades": 548,
+      "win_rate": 0.801094890510949,
+      "avg": 0.0010892074944280255,
+      "avg_win": 0.020197106827217155,
+      "avg_loss": -0.07586829532295201,
+      "worst": -0.15560114741129882
     },
     "design_portfolio": {
-      "cagr": 0.04391195822961724,
-      "max_drawdown": -0.08087230781636623
+      "cagr": 0.06903018219706847,
+      "max_drawdown": -0.1340610410664963
     },
     "test_portfolio": {
-      "cagr": 0.03733054108264122,
-      "max_drawdown": -0.10770608026744999
+      "cagr": -0.010739538924434133,
+      "max_drawdown": -0.19133368273523832
     }
   },
   "patterns": {
@@ -79,12 +96,12 @@
         "hold": 20
       },
       "label": "+3% target, sell by session 20",
-      "design_win_rate": 0.7406,
-      "design_trades": 2857,
-      "design_avg": 0.007,
-      "test_win_rate": 0.724,
-      "test_trades": 1935,
-      "test_avg": 0.0037
+      "design_win_rate": 0.7477,
+      "design_trades": 18542,
+      "design_avg": 0.0062,
+      "test_win_rate": 0.744,
+      "test_trades": 14428,
+      "test_avg": 0.0052
     },
     "death cross (50d below 200d)": {
       "exit": {
@@ -93,12 +110,12 @@
         "hold": 20
       },
       "label": "+3% target, sell by session 20",
-      "design_win_rate": 0.7918,
-      "design_trades": 461,
-      "design_avg": 0.0133,
-      "test_win_rate": 0.6888,
-      "test_trades": 241,
-      "test_avg": 0.0009
+      "design_win_rate": 0.7543,
+      "design_trades": 2760,
+      "design_avg": 0.0062,
+      "test_win_rate": 0.7581,
+      "test_trades": 1893,
+      "test_avg": 0.0074
     },
     "gap down 2%+ and fell": {
       "exit": {
@@ -107,12 +124,12 @@
         "hold": 20
       },
       "label": "+3% target, sell by session 20",
-      "design_win_rate": 0.8109,
-      "design_trades": 1592,
-      "design_avg": 0.0086,
-      "test_win_rate": 0.7534,
-      "test_trades": 1103,
-      "test_avg": 0.0001
+      "design_win_rate": 0.8076,
+      "design_trades": 10610,
+      "design_avg": 0.0024,
+      "test_win_rate": 0.7971,
+      "test_trades": 7736,
+      "test_avg": 0.0064
     },
     "gap up 2%+ and held": {
       "exit": {
@@ -121,26 +138,26 @@
         "hold": 20
       },
       "label": "+3% target, sell by session 20",
-      "design_win_rate": 0.7847,
-      "design_trades": 1756,
-      "design_avg": 0.0079,
-      "test_win_rate": 0.7965,
-      "test_trades": 1096,
-      "test_avg": 0.0076
+      "design_win_rate": 0.8022,
+      "design_trades": 10765,
+      "design_avg": 0.0071,
+      "test_win_rate": 0.8054,
+      "test_trades": 7830,
+      "test_avg": 0.009
     },
     "golden cross (50d above 200d)": {
       "exit": {
-        "target": 0.03,
+        "target": 0.02,
         "stop": null,
         "hold": 20
       },
-      "label": "+3% target, sell by session 20",
-      "design_win_rate": 0.7253,
-      "design_trades": 455,
-      "design_avg": 0.0071,
-      "test_win_rate": 0.7094,
-      "test_trades": 234,
-      "test_avg": 0.0034
+      "label": "+2% target, sell by session 20",
+      "design_win_rate": 0.7762,
+      "design_trades": 2717,
+      "design_avg": 0.0029,
+      "test_win_rate": 0.768,
+      "test_trades": 1806,
+      "test_avg": -0.0006
     },
     "new 52-week high": {
       "exit": {
@@ -149,12 +166,12 @@
         "hold": 20
       },
       "label": "+2% target, sell by session 20",
-      "design_win_rate": 0.7431,
-      "design_trades": 6107,
-      "design_avg": 0.0023,
-      "test_win_rate": 0.7575,
-      "test_trades": 1777,
-      "test_avg": -0.0003
+      "design_win_rate": 0.7397,
+      "design_trades": 32810,
+      "design_avg": 0.0014,
+      "test_win_rate": 0.7641,
+      "test_trades": 13813,
+      "test_avg": 0.0
     },
     "oversold in downtrend (RSI2<5)": {
       "exit": {
@@ -163,12 +180,12 @@
         "hold": 20
       },
       "label": "+3% target, sell by session 20",
-      "design_win_rate": 0.7707,
-      "design_trades": 3847,
-      "design_avg": 0.0093,
-      "test_win_rate": 0.7395,
-      "test_trades": 3275,
-      "test_avg": 0.0046
+      "design_win_rate": 0.7586,
+      "design_trades": 27092,
+      "design_avg": 0.0047,
+      "test_win_rate": 0.7579,
+      "test_trades": 23701,
+      "test_avg": 0.006
     },
     "pullback to 50-day in uptrend": {
       "exit": {
@@ -177,12 +194,12 @@
         "hold": 20
       },
       "label": "+3% target, sell by session 20",
-      "design_win_rate": 0.7585,
-      "design_trades": 2286,
-      "design_avg": 0.0103,
-      "test_win_rate": 0.715,
-      "test_trades": 1056,
-      "test_avg": 0.0045
+      "design_win_rate": 0.7456,
+      "design_trades": 13724,
+      "design_avg": 0.0072,
+      "test_win_rate": 0.7171,
+      "test_trades": 9375,
+      "test_avg": 0.0034
     },
     "sharp dip in uptrend (RSI2<5)": {
       "exit": {
@@ -191,12 +208,12 @@
         "hold": 20
       },
       "label": "+3% target, sell by session 20",
-      "design_win_rate": 0.7179,
-      "design_trades": 4278,
-      "design_avg": 0.0061,
-      "test_win_rate": 0.7144,
-      "test_trades": 1845,
-      "test_avg": 0.0053
+      "design_win_rate": 0.716,
+      "design_trades": 24737,
+      "design_avg": 0.0042,
+      "test_win_rate": 0.7063,
+      "test_trades": 14092,
+      "test_avg": 0.0031
     },
     "volume surge down day": {
       "exit": {
@@ -205,12 +222,12 @@
         "hold": 20
       },
       "label": "+3% target, sell by session 20",
-      "design_win_rate": 0.7769,
-      "design_trades": 2645,
-      "design_avg": 0.0092,
-      "test_win_rate": 0.771,
-      "test_trades": 1188,
-      "test_avg": 0.0066
+      "design_win_rate": 0.7671,
+      "design_trades": 15486,
+      "design_avg": 0.0037,
+      "test_win_rate": 0.7863,
+      "test_trades": 9284,
+      "test_avg": 0.0077
     },
     "volume surge up day": {
       "exit": {
@@ -219,12 +236,12 @@
         "hold": 20
       },
       "label": "+3% target, sell by session 20",
-      "design_win_rate": 0.7474,
-      "design_trades": 2245,
-      "design_avg": 0.0058,
-      "test_win_rate": 0.7709,
-      "test_trades": 1052,
-      "test_avg": 0.007
+      "design_win_rate": 0.7389,
+      "design_trades": 12296,
+      "design_avg": 0.0024,
+      "test_win_rate": 0.7625,
+      "test_trades": 7793,
+      "test_avg": 0.006
     }
   },
   "market": {
@@ -300,52 +317,52 @@
     "test_coverage": 0.2270916334661354
   },
   "beats": {
-    "n": 8,
+    "n": 4,
     "min_rate": 1.0,
-    "design_accuracy": 0.9425287356321839,
-    "design_coverage": 0.38666666666666666,
-    "design_base_rate": 0.8377777777777777,
-    "test_accuracy": 0.9220183486238532,
-    "test_coverage": 0.39817351598173517,
-    "test_calls": 436,
-    "test_base_rate": 0.8529680365296803
+    "design_accuracy": 0.8619599578503688,
+    "design_coverage": 0.4352212795230452,
+    "design_base_rate": 0.7807842238018803,
+    "test_accuracy": 0.8753687315634219,
+    "test_coverage": 0.48911867259829267,
+    "test_calls": 4068,
+    "test_base_rate": 0.7915113622700493
   },
   "gap_fill": [
     {
       "gap": "0.5%-1.0%",
       "window": "design",
-      "fill_rate": 0.5433325562419863,
-      "cases": 34316
+      "fill_rate": 0.5741259253829802,
+      "cases": 204645
     },
     {
       "gap": "0.5%-1.0%",
       "window": "test",
-      "fill_rate": 0.6025677441345225,
-      "cases": 17603
+      "fill_rate": 0.6300789617808342,
+      "cases": 144247
     },
     {
       "gap": "1.0%-2.0%",
       "window": "design",
-      "fill_rate": 0.37299756503908754,
-      "cases": 15606
+      "fill_rate": 0.395832906307008,
+      "cases": 97574
     },
     {
       "gap": "1.0%-2.0%",
       "window": "test",
-      "fill_rate": 0.4126119112495134,
-      "cases": 10276
+      "fill_rate": 0.4418804996615593,
+      "cases": 81255
     },
     {
       "gap": "2.0%-4.0%",
       "window": "design",
-      "fill_rate": 0.2656792409164545,
-      "cases": 4321
+      "fill_rate": 0.28127478549282575,
+      "cases": 27738
     },
     {
       "gap": "2.0%-4.0%",
       "window": "test",
-      "fill_rate": 0.26486316451714376,
-      "cases": 3179
+      "fill_rate": 0.27971058446341146,
+      "cases": 23081
     }
   ]
 }

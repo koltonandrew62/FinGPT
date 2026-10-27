@@ -4,7 +4,8 @@
     python -m schwab_trader.import_robinhood result1.txt result2.txt ...
 
 Newer bars overwrite older ones for the same date; interpolated (gap-fill) bars are
-skipped. Index results (e.g. VIX) are stored with volume 0.
+skipped; after a stock split the older rows are rescaled to the new basis. Index
+results (e.g. VIX) are stored with volume 0.
 """
 from __future__ import annotations
 
@@ -39,6 +40,22 @@ def parse(path: Path) -> dict[str, pd.DataFrame]:
     return out
 
 
+def rescale_for_split(old: pd.DataFrame, new: pd.DataFrame) -> pd.DataFrame:
+    """Robinhood's bars are split-adjusted as of the day they're fetched. If a split
+    happened since `old` was saved, its prices on the overlapping days differ from
+    `new` by the split ratio: put the older rows on the new basis."""
+    both = old.index.intersection(new.index)
+    if not len(both):
+        return old
+    ratio = (new.loc[both, "close"] / old.loc[both, "close"]).median()
+    if not (abs(ratio - 1) > 0.05 and ((new.loc[both, "close"] / old.loc[both, "close"]) / ratio - 1).abs().max() < 0.02):
+        return old
+    out = old.copy()
+    out[["open", "high", "low", "close"]] *= ratio
+    out["volume"] = (out["volume"] / ratio).round()
+    return out
+
+
 def merge(frames: dict[str, pd.DataFrame], data_dir: Path = DATA_DIR) -> dict[str, str]:
     data_dir.mkdir(parents=True, exist_ok=True)
     summary = {}
@@ -46,6 +63,7 @@ def merge(frames: dict[str, pd.DataFrame], data_dir: Path = DATA_DIR) -> dict[st
         path = data_dir / f"{sym}.csv"
         if path.exists():
             old = pd.read_csv(path, parse_dates=["date"], index_col="date")
+            old = rescale_for_split(old, new)
             new = pd.concat([old[~old.index.isin(new.index)], new]).sort_index()
         new[COLUMNS].to_csv(path)
         summary[sym] = f"{len(new)} rows through {new.index[-1].date()}"
