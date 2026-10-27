@@ -1,0 +1,370 @@
+{
+  "v1": {
+    "score_buckets_test": [
+      {
+        "bucket": "(-0.001, 20.0]",
+        "n": 1199,
+        "avg_4wk": 0.0168,
+        "avg_excess_vs_spy": 0.0026,
+        "pct_beat_spy": 0.4954
+      },
+      {
+        "bucket": "(20.0, 35.0]",
+        "n": 2338,
+        "avg_4wk": 0.0095,
+        "avg_excess_vs_spy": -0.0017,
+        "pct_beat_spy": 0.4816
+      },
+      {
+        "bucket": "(35.0, 50.0]",
+        "n": 2832,
+        "avg_4wk": 0.0063,
+        "avg_excess_vs_spy": -0.003,
+        "pct_beat_spy": 0.4587
+      },
+      {
+        "bucket": "(50.0, 60.0]",
+        "n": 1870,
+        "avg_4wk": 0.0065,
+        "avg_excess_vs_spy": -0.0007,
+        "pct_beat_spy": 0.4674
+      },
+      {
+        "bucket": "(60.0, 70.0]",
+        "n": 2290,
+        "avg_4wk": 0.0057,
+        "avg_excess_vs_spy": -0.0021,
+        "pct_beat_spy": 0.4803
+      },
+      {
+        "bucket": "(70.0, 80.0]",
+        "n": 2673,
+        "avg_4wk": 0.0038,
+        "avg_excess_vs_spy": -0.0034,
+        "pct_beat_spy": 0.4628
+      },
+      {
+        "bucket": "(80.0, 100.0]",
+        "n": 1905,
+        "avg_4wk": 0.0077,
+        "avg_excess_vs_spy": 0.0011,
+        "pct_beat_spy": 0.4625
+      }
+    ],
+    "buy_grade_rejected_vs_not_test": [
+      {
+        "rejected": false,
+        "n": 4607,
+        "avg_4wk": 0.0015,
+        "avg_excess_vs_spy": -0.0048
+      },
+      {
+        "rejected": true,
+        "n": 2261,
+        "avg_4wk": 0.0138,
+        "avg_excess_vs_spy": 0.0045
+      }
+    ],
+    "put_list_test": {
+      "weeks_with_puts": 255,
+      "avg_names": 8.627450980392156,
+      "put_list_avg_4wk": 0.005487078965039893,
+      "universe_avg_4wk": 0.0074037509915207,
+      "spy_avg_4wk": 0.00886078963195361,
+      "pct_weeks_put_list_lagged_universe": 0.5215686274509804,
+      "trades": 2200,
+      "buy_1m_put_avg_return_no_premium": -0.0793705987350744,
+      "buy_1m_put_avg_return_typical_premium": -0.26889100624183376,
+      "buy_1m_put_win_rate_typical_premium": 0.26545454545454544,
+      "short_sale_avg_4wk_return": -0.011923527189656597
+    },
+    "portfolios_test": {
+      "top5 veto $1,500": {
+        "start": "2021-10-25",
+        "end": "2026-10-23",
+        "final_value": 2366.6292149835767,
+        "total_return": 0.577751221719488,
+        "cagr": 0.09561145225194667,
+        "volatility": 0.1573612137414798,
+        "sharpe": 0.6609333890301494,
+        "max_drawdown": -0.19460506086905482,
+        "trades": 875
+      },
+      "top5 no-veto $1,500": {
+        "start": "2021-10-25",
+        "end": "2026-10-23",
+        "final_value": 2212.850888619293,
+        "total_return": 0.47286593045605785,
+        "cagr": 0.0806228111092695,
+        "volatility": 0.1745063655638441,
+        "sharpe": 0.5330621944673108,
+        "max_drawdown": -0.21431783841614704,
+        "trades": 869
+      },
+      "top5 veto $1,500,000": {
+        "start": "2021-10-25",
+        "end": "2026-10-23",
+        "final_value": 2543647.1147390087,
+        "total_return": 0.6891535512241436,
+        "cagr": 0.11068266710966901,
+        "volatility": 0.16830219997343882,
+        "sharpe": 0.710131103561494,
+        "max_drawdown": -0.2276695378148439,
+        "trades": 882
+      },
+      "top5 no-veto $1,500,000": {
+        "start": "2021-10-25",
+        "end": "2026-10-23",
+        "final_value": 2791119.079787459,
+        "total_return": 0.8217834542867737,
+        "cagr": 0.12762220141363545,
+        "volatility": 0.1972017909159919,
+        "sharpe": 0.7099385469316656,
+        "max_drawdown": -0.2293856845768959,
+        "trades": 924
+      }
+    },
+    "spy_test": {
+      "start": "2021-10-25",
+      "end": "2026-10-23",
+      "final_value": 2508.112413811585,
+      "total_return": 0.6682471737460214,
+      "cagr": 0.10791620214913578,
+      "volatility": 0.17196927314312732,
+      "sharpe": 0.6838928821705366,
+      "max_drawdown": -0.2536057440706705
+    },
+    "yearly_test": {
+      "2021": {
+        "top5 veto": 0.09993111012960809,
+        "spy": 0.04260783668093504
+      },
+      "2022": {
+        "top5 veto": -0.04991514778052497,
+        "spy": -0.19481640559204982
+      },
+      "2023": {
+        "top5 veto": -0.04350871776945697,
+        "spy": 0.24286797583871556
+      },
+      "2024": {
+        "top5 veto": 0.2645549566179233,
+        "spy": 0.23304790557741284
+      },
+      "2025": {
+        "top5 veto": 0.11788106224168837,
+        "spy": 0.16352716352716334
+      },
+      "2026": {
+        "top5 veto": 0.19543764461567248,
+        "spy": 0.11445624120131392
+      }
+    },
+    "design_reference_biased": {
+      "top5 veto $1.5M": {
+        "start": "2011-02-01",
+        "end": "2021-10-22",
+        "final_value": 6138399.546579641,
+        "total_return": 3.0221064962852804,
+        "cagr": 0.13861816072802302,
+        "volatility": 0.16927791550336443,
+        "sharpe": 0.8525857425261805,
+        "max_drawdown": -0.2418331677635548
+      },
+      "spy": {
+        "start": "2011-02-01",
+        "end": "2021-10-22",
+        "final_value": 5247.4921198446045,
+        "total_return": 2.4666054624741793,
+        "cagr": 0.12294252928770244,
+        "volatility": 0.16985614081517636,
+        "sharpe": 0.7686035264155606,
+        "max_drawdown": -0.34104746704498434
+      }
+    }
+  },
+  "v2": {
+    "score_buckets_test": [
+      {
+        "bucket": "(-0.001, 20.0]",
+        "n": 605,
+        "avg_4wk": -0.0019,
+        "avg_excess_vs_spy": -0.007,
+        "pct_beat_spy": 0.438
+      },
+      {
+        "bucket": "(20.0, 35.0]",
+        "n": 2831,
+        "avg_4wk": 0.0035,
+        "avg_excess_vs_spy": -0.006,
+        "pct_beat_spy": 0.4493
+      },
+      {
+        "bucket": "(35.0, 50.0]",
+        "n": 4714,
+        "avg_4wk": 0.0051,
+        "avg_excess_vs_spy": -0.0042,
+        "pct_beat_spy": 0.468
+      },
+      {
+        "bucket": "(50.0, 60.0]",
+        "n": 2687,
+        "avg_4wk": 0.0082,
+        "avg_excess_vs_spy": 0.0001,
+        "pct_beat_spy": 0.4771
+      },
+      {
+        "bucket": "(60.0, 70.0]",
+        "n": 1576,
+        "avg_4wk": 0.0112,
+        "avg_excess_vs_spy": 0.0023,
+        "pct_beat_spy": 0.5038
+      },
+      {
+        "bucket": "(70.0, 80.0]",
+        "n": 1108,
+        "avg_4wk": 0.0081,
+        "avg_excess_vs_spy": 0.0008,
+        "pct_beat_spy": 0.4594
+      },
+      {
+        "bucket": "(80.0, 100.0]",
+        "n": 1586,
+        "avg_4wk": 0.0182,
+        "avg_excess_vs_spy": 0.0086,
+        "pct_beat_spy": 0.4937
+      }
+    ],
+    "buy_grade_rejected_vs_not_test": [
+      {
+        "rejected": false,
+        "n": 4255,
+        "avg_4wk": 0.013,
+        "avg_excess_vs_spy": 0.0042
+      },
+      {
+        "rejected": true,
+        "n": 15,
+        "avg_4wk": 0.0144,
+        "avg_excess_vs_spy": 0.0023
+      }
+    ],
+    "put_list_test": {
+      "weeks_with_puts": 237,
+      "avg_names": 4.059071729957806,
+      "put_list_avg_4wk": -0.0012976828878629595,
+      "universe_avg_4wk": 0.007862939920272182,
+      "spy_avg_4wk": 0.009585123522162538,
+      "pct_weeks_put_list_lagged_universe": 0.6033755274261603,
+      "trades": 962,
+      "buy_1m_put_avg_return_no_premium": 0.20849220771257937,
+      "buy_1m_put_avg_return_typical_premium": -0.04405006552011356,
+      "buy_1m_put_win_rate_typical_premium": 0.33471933471933474,
+      "short_sale_avg_4wk_return": -0.0005157298204651912
+    },
+    "portfolios_test": {
+      "top5 veto $1,500": {
+        "start": "2021-10-25",
+        "end": "2026-10-23",
+        "final_value": 2116.932117373048,
+        "total_return": 0.40832696283759895,
+        "cagr": 0.07097019722974296,
+        "volatility": 0.33636810925575755,
+        "sharpe": 0.371945921229194,
+        "max_drawdown": -0.3961527688791646,
+        "trades": 337
+      },
+      "top5 no-veto $1,500": {
+        "start": "2021-10-25",
+        "end": "2026-10-23",
+        "final_value": 2116.932117373048,
+        "total_return": 0.40832696283759895,
+        "cagr": 0.07097019722974296,
+        "volatility": 0.33636810925575755,
+        "sharpe": 0.371945921229194,
+        "max_drawdown": -0.3961527688791646,
+        "trades": 337
+      },
+      "top5 veto $1,500,000": {
+        "start": "2021-10-25",
+        "end": "2026-10-23",
+        "final_value": 3778092.5805866355,
+        "total_return": 1.4803005260446334,
+        "cagr": 0.19949430248775069,
+        "volatility": 0.3573512810740974,
+        "sharpe": 0.6891250644271258,
+        "max_drawdown": -0.39673446569440907,
+        "trades": 402
+      },
+      "top5 no-veto $1,500,000": {
+        "start": "2021-10-25",
+        "end": "2026-10-23",
+        "final_value": 3778092.5805866355,
+        "total_return": 1.4803005260446334,
+        "cagr": 0.19949430248775069,
+        "volatility": 0.3573512810740974,
+        "sharpe": 0.6891250644271258,
+        "max_drawdown": -0.39673446569440907,
+        "trades": 402
+      }
+    },
+    "spy_test": {
+      "start": "2021-10-25",
+      "end": "2026-10-23",
+      "final_value": 2508.112413811585,
+      "total_return": 0.6682471737460214,
+      "cagr": 0.10791620214913578,
+      "volatility": 0.17196927314312732,
+      "sharpe": 0.6838928821705366,
+      "max_drawdown": -0.2536057440706705
+    },
+    "yearly_test": {
+      "2021": {
+        "top5 veto": -0.00916583537114024,
+        "spy": 0.04260783668093504
+      },
+      "2022": {
+        "top5 veto": -0.22487663554203552,
+        "spy": -0.19481640559204982
+      },
+      "2023": {
+        "top5 veto": 0.40651646663673047,
+        "spy": 0.24286797583871556
+      },
+      "2024": {
+        "top5 veto": 0.41823364348427794,
+        "spy": 0.23304790557741284
+      },
+      "2025": {
+        "top5 veto": 0.23759191840894567,
+        "spy": 0.16352716352716334
+      },
+      "2026": {
+        "top5 veto": 0.30816472841368436,
+        "spy": 0.11445624120131392
+      }
+    },
+    "design_reference_biased": {
+      "top5 veto $1.5M": {
+        "start": "2011-02-01",
+        "end": "2021-10-22",
+        "final_value": 52659834.94535583,
+        "total_return": 33.9302547812128,
+        "cagr": 0.39295238671432076,
+        "volatility": 0.2932248866336919,
+        "sharpe": 1.278786074956557,
+        "max_drawdown": -0.35155259212874757
+      },
+      "spy": {
+        "start": "2011-02-01",
+        "end": "2021-10-22",
+        "final_value": 5247.4921198446045,
+        "total_return": 2.4666054624741793,
+        "cagr": 0.12294252928770244,
+        "volatility": 0.16985614081517636,
+        "sharpe": 0.7686035264155606,
+        "max_drawdown": -0.34104746704498434
+      }
+    }
+  }
+}

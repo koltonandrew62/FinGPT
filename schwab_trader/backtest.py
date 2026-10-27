@@ -50,7 +50,11 @@ def performance(equity: pd.Series) -> dict:
 
 
 def run_backtest(prices: dict, cfg: StrategyConfig, start, end, initial_cash: float = 1500.0,
-                 costs: Costs = Costs()) -> BacktestResult:
+                 costs: Costs = Costs(), weights_fn=None, splits: dict | None = None) -> BacktestResult:
+    """`weights_fn(history_closes) -> {symbol: weight}` (best first) replaces the
+    ETF rotation signal, e.g. for the stock scorecard; `splits` overrides the
+    ETF split table for whole-share sizing."""
+    weights_fn = weights_fn or (lambda history: compute_signal(history, cfg).weights)
     opens, closes = prices["open"], prices["close"]
     all_dates = closes.index
     dates = all_dates[(all_dates >= pd.Timestamp(start)) & (all_dates <= pd.Timestamp(end))]
@@ -67,12 +71,12 @@ def run_backtest(prices: dict, cfg: StrategyConfig, start, end, initial_cash: fl
         first_day = i == 0
         if first_day or is_rebalance_day(all_dates[pos - 1], day, cfg.rebalance):
             history = closes.iloc[:pos]                     # through the previous close only
-            sig = compute_signal(history, cfg)
+            weights = weights_fn(history)
             o = opens.loc[day]
-            factors = {s: split_factor(s, day) for s in set(units) | set(sig.weights)}
+            factors = {s: split_factor(s, day, splits) for s in set(units) | set(weights)}
             real_px = {s: o[s] * factors[s] for s in factors}
             value = cash + sum(u * o[s] for s, u in units.items())
-            target = whole_share_targets(sig.weights, value, real_px, costs.cash_buffer)
+            target = whole_share_targets(weights, value, real_px, costs.cash_buffer)
             current = {s: int(round(u / factors[s])) for s, u in units.items()}
 
             orders = {}
@@ -89,7 +93,7 @@ def run_backtest(prices: dict, cfg: StrategyConfig, start, end, initial_cash: fl
                     cash += proceeds - proceeds * costs.sec_fee_rate
                     units[s] = units.get(s, 0.0) + qty * factors[s]
                     trades.append((day, s, "SELL", -qty, fill))
-            for s in sig.weights:                                         # buys in rank order
+            for s in weights:                                             # buys in rank order
                 qty = orders.get(s, 0)
                 if qty > 0:
                     fill = real_px[s] * (1 + slip)
@@ -99,7 +103,7 @@ def run_backtest(prices: dict, cfg: StrategyConfig, start, end, initial_cash: fl
                         units[s] = units.get(s, 0.0) + qty * factors[s]
                         trades.append((day, s, "BUY", qty, fill))
             units = {s: u for s, u in units.items() if abs(u) > 1e-9}
-            holdings.append({"date": day, **{s: int(round(u / factors.get(s, split_factor(s, day))))
+            holdings.append({"date": day, **{s: int(round(u / factors.get(s, split_factor(s, day, splits))))
                                              for s, u in units.items()}, "cash": round(cash, 2)})
 
         c = closes.loc[day]

@@ -1,0 +1,114 @@
+{
+  "big_move_cutoff": 0.011515867934755692,
+  "simple_detector": {
+    "auc_design_walk_forward": 0.75809952850007,
+    "auc_test": 0.7232775919732441,
+    "test_avg_move_flagged": 0.0141865030968272,
+    "test_avg_move_not_flagged": 0.007469617956686945,
+    "test_share_of_flagged_days_that_were_big": 0.5244444444444445
+  },
+  "complex_detector": {
+    "auc_design_walk_forward": 0.7382911527290367,
+    "auc_test": 0.7369390030259595,
+    "test_avg_move_flagged": 0.013372312936775349,
+    "test_avg_move_not_flagged": 0.006871118842531261,
+    "test_share_of_flagged_days_that_were_big": 0.5114942528735632
+  },
+  "iv_multipliers": {
+    "fair": 0.8139705748693199,
+    "mid": 1.0586777576211208,
+    "vix": 1.3033849403729219
+  },
+  "design": {
+    "variants": 120,
+    "made_money": 0,
+    "lost_90pct": 111,
+    "best_rule_was_not_trading": false,
+    "selected": {
+      "model": "complex",
+      "flag_rate": 0.1,
+      "structure": "follow_gap",
+      "risk": 0.02,
+      "final_per_1500": 641.317426391022,
+      "cagr": -0.04954927850545798,
+      "max_drawdown": -0.6290222301702553,
+      "trades": 348,
+      "lost_90pct": false
+    }
+  },
+  "test": {
+    "fair": {
+      "final_per_1500": 7451.972770415252,
+      "cagr": 0.3785031250563098,
+      "max_drawdown": -0.1256628609059829,
+      "trades": 174,
+      "win_rate": 0.46551724137931033,
+      "random_days_median_final_per_1500": 1567.462539106107,
+      "pct_random_runs_beaten": 1.0
+    },
+    "mid": {
+      "final_per_1500": 2348.1689461194273,
+      "cagr": 0.0938949956278512,
+      "max_drawdown": -0.1962542018039216,
+      "trades": 174,
+      "win_rate": 0.4367816091954023,
+      "random_days_median_final_per_1500": 699.8071646454518,
+      "pct_random_runs_beaten": 1.0
+    },
+    "vix": {
+      "final_per_1500": 1136.8467697677752,
+      "cagr": -0.053997175035798484,
+      "max_drawdown": -0.3784128934021055,
+      "trades": 174,
+      "win_rate": 0.39655172413793105,
+      "random_days_median_final_per_1500": 417.96272021156517,
+      "pct_random_runs_beaten": 1.0
+    },
+    "informed": {
+      "final_per_1500": 5249.756533748829,
+      "cagr": 0.2851203569396821,
+      "max_drawdown": -0.14058786534759082,
+      "trades": 174,
+      "win_rate": 0.45977011494252873,
+      "random_days_median_final_per_1500": 1640.7063065901473,
+      "pct_random_runs_beaten": 1.0
+    }
+  },
+  "tuned_on_test": {
+    "combinations_searched": 2880,
+    "over_200pct_in_test_fair": 118,
+    "best": {
+      "rule": "vix>20 & complex_top10%",
+      "structure": "strangle0.5",
+      "risk": 0.5,
+      "test_cagr": 32.35001504482516,
+      "test_final_per_1500": 60560424142.744865,
+      "trades": 167
+    },
+    "best_same_window_mid_pricing_final_per_1500": 0.2846027408180511,
+    "best_same_window_informed_pricing_final_per_1500": 4268043.575643501,
+    "best_rule_on_2005_2021": {
+      "fair": {
+        "final_per_1500": 0.04605096728814361,
+        "cagr": -0.46285264983844276,
+        "max_drawdown": -0.9999998089330412,
+        "trades": 113,
+        "lost_90pct": true
+      },
+      "mid": {
+        "final_per_1500": 0.032717629579827864,
+        "cagr": -0.47372291080739615,
+        "max_drawdown": -0.9999931706515242,
+        "trades": 79,
+        "lost_90pct": true
+      },
+      "informed": {
+        "final_per_1500": 0.0407936212869547,
+        "cagr": -0.46673296955639176,
+        "max_drawdown": -0.9999881370028344,
+        "trades": 103,
+        "lost_90pct": true
+      }
+    }
+  }
+}

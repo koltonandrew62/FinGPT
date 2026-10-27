@@ -1,0 +1,2881 @@
+rule,structure,risk,test_cagr,test_final_per_1500,trades
+vix>20 & complex_top10%,strangle0.5,0.5000,32.3500,60560424142.7449,167
+vix>20 & complex_top10%,straddle,0.5000,31.6147,54179880791.1383,167
+complex_top10%,straddle,0.5000,26.7413,24145639449.7146,174
+below_sma50 & complex_top10%,straddle,0.5000,23.5158,13024448357.5613,146
+complex_top10%,strangle0.5,0.5000,22.1214,9722181378.4057,174
+below_sma50 & complex_top10%,strangle0.5,0.5000,21.9791,9426933236.6191,146
+bb_wide & complex_top10%,strangle0.5,0.5000,19.8017,5734117114.4423,127
+vix>20 & complex_top10%,strangle0.5,0.2500,19.0590,4782026424.4173,167
+bb_wide & complex_top10%,straddle,0.5000,18.3872,4033950041.3105,127
+complex_top10%,strangle0.5,0.2500,16.1807,2206388804.7383,174
+vix>20 & complex_top10%,strangle1,0.2500,14.1600,1181170240.9173,167
+gap>0.5% & complex_top10%,straddle,0.5000,13.7616,1034071709.9697,131
+below_sma50 & bb_wide,straddle,0.5000,13.1169,827393703.3144,284
+below_sma50 & complex_top10%,strangle0.5,0.2500,12.5125,664973597.2851,146
+gap>0.5% & complex_top10%,strangle0.5,0.5000,12.3221,619469734.3443,131
+below_sma50,straddle,0.2500,11.8391,515152521.9644,419
+bb_wide & complex_top10%,strangle0.5,0.2500,11.1414,389726385.1360,127
+vix>20 & complex_top10%,straddle,0.2500,10.2388,264983964.0622,167
+complex_top10%,strangle1,0.2500,9.7678,213979696.0301,174
+bb_wide & complex_top10%,strangle1,0.2500,9.7278,210035331.3858,127
+below_sma50 & bb_wide,straddle,0.2500,9.5003,188717121.2348,284
+complex_top10%,straddle,0.2500,9.4992,188621900.2873,174
+below_sma50 & complex_top10%,strangle1,0.2500,8.9771,146207168.8317,146
+below_sma50 & bb_wide,strangle0.5,0.2500,8.2234,98765217.7064,284
+below_sma50 & complex_top10%,straddle,0.2500,7.7226,74735341.6391,146
+gap>0.5% & complex_top10%,strangle0.5,0.2500,7.6397,71253641.6514,131
+below_sma50,straddle,0.5000,6.9596,47315628.8033,419
+bb_wide & complex_top10%,straddle,0.2500,6.5122,35443781.8391,127
+below_sma50 & macd_neg,straddle,0.2500,6.4522,34051035.4315,303
+gap>1% & complex_top10%,straddle,0.5000,6.1464,27623323.9135,102
+below_sma50,strangle0.5,0.2500,6.0303,25452695.1419,419
+bb_wide & macd_neg,straddle,0.2500,5.9328,23739182.7139,274
+macd_neg & complex_top10%,straddle,0.5000,5.7532,20822361.6885,118
+gap>1% & bb_wide,straddle,0.5000,5.6415,19157773.4391,141
+vix>20 & below_sma50,straddle,0.2500,5.2047,13639968.9129,283
+vix>25 & complex_top10%,straddle,0.5000,5.0936,12463199.3905,108
+gap>0.5% & complex_top10%,straddle,0.2500,5.0405,11929769.0687,131
+bb_wide & macd_neg,straddle,0.5000,4.7602,9410442.9454,274
+bb_wide & complex_top10%,strangle1,0.5000,4.7075,8988292.0382,127
+macd_neg & complex_top10%,strangle0.5,0.2500,4.5852,8066717.2581,118
+vix>20 & below_sma50,strangle0.5,0.2500,4.5645,7918242.1749,283
+vix>20 & complex_top10%,strangle1,0.1000,4.5069,7517410.9859,167
+below_sma50 & macd_neg,straddle,0.5000,4.5019,7483036.3353,303
+gap>1% & complex_top10%,strangle0.5,0.5000,4.4983,7458969.0021,102
+vix>20 & below_sma50,straddle,0.5000,4.4366,7049829.9802,283
+below_sma50,strangle0.5,0.1000,4.3691,6623787.8984,419
+bb_wide & macd_neg,strangle0.5,0.2500,4.1816,5546238.4844,274
+below_sma50 & macd_neg,strangle0.5,0.2500,4.1426,5340959.4304,303
+macd_neg & complex_top10%,strangle0.5,0.5000,4.1083,5165246.0068,118
+vix>20 & complex_top10%,strangle1,0.5000,4.0740,4994712.6570,167
+complex_top10% & simple_top10%,straddle,0.5000,4.0020,4650381.0869,76
+vix>20 & bb_wide,straddle,0.2500,3.9998,4640171.8165,282
+vix>20 & complex_top10%,follow_gap,0.2500,3.9859,4576205.1513,167
+complex_top10%,follow_gap,0.2500,3.9783,4541356.7671,174
+gap>0.5% & complex_top10%,strangle1,0.2500,3.9291,4321883.6016,131
+complex_top10%,strangle1,0.1000,3.8590,4023619.8310,174
+vix>20 & complex_top10%,strangle0.5,0.1000,3.8354,3926931.0123,167
+complex_top10% & simple_top10%,strangle0.5,0.5000,3.7130,3455012.7592,76
+vix>25 & complex_top10%,strangle0.5,0.5000,3.6173,3118343.0199,108
+vix>25 & complex_top10%,strangle0.5,0.2500,3.5789,2990971.5983,108
+complex_top10%,strangle0.5,0.1000,3.5700,2962268.3021,174
+gap>1% & complex_top10%,strangle0.5,0.2500,3.5046,2756516.2777,102
+below_sma50 & bb_wide,strangle0.5,0.1000,3.4957,2729273.2021,284
+vix>20 & simple_top10%,straddle,0.5000,3.4026,2458436.6308,94
+gap>1% & bb_wide,straddle,0.2500,3.2849,2147251.8526,141
+bb_wide & complex_top10%,strangle1,0.1000,3.2783,2130948.0634,127
+macd_neg & complex_top10%,straddle,0.2500,3.2470,2054122.1363,118
+below_sma50 & complex_top10%,strangle1,0.5000,3.2448,2048812.5351,146
+bb_wide & complex_top10%,follow_gap,0.2500,3.1980,1938561.2556,127
+gap>1% & below_sma50,straddle,0.5000,3.1932,1927361.9424,118
+below_sma50,straddle,0.1000,3.1755,1887188.7182,419
+vix>25 & complex_top10%,strangle1,0.2500,3.1443,1817834.9956,108
+below_sma50 & complex_top10%,strangle1,0.1000,3.1357,1798998.6272,146
+complex_top10% & simple_top10%,strangle1,0.2500,3.0670,1654725.4110,76
+below_sma50 & macd_neg,strangle0.5,0.1000,2.9503,1430822.0760,303
+complex_top10% & simple_top10%,strangle0.5,0.2500,2.9007,1343182.9662,76
+below_sma50 & simple_top10%,straddle,0.5000,2.8969,1336679.0450,90
+below_sma50 & complex_top10%,strangle0.5,0.1000,2.8672,1286650.8457,146
+gap>1% & complex_top10%,straddle,0.2500,2.8049,1186359.4229,102
+vix>25 & complex_top10%,straddle,0.2500,2.8005,1179561.9444,108
+macd_neg & complex_top10%,strangle1,0.2500,2.7678,1129691.8979,118
+macd_neg & simple_top10%,straddle,0.5000,2.7625,1121886.4164,73
+bb_wide & macd_neg,strangle0.5,0.1000,2.7312,1075974.3262,274
+bb_wide & complex_top10%,strangle0.5,0.1000,2.6863,1012927.9084,127
+vix>20 & simple_top10%,strangle0.5,0.2500,2.6557,971524.0925,94
+gap>0.5% & below_sma50,straddle,0.2500,2.6419,953345.1219,238
+simple_top10%,straddle,0.5000,2.5921,890071.8036,100
+vix>20 & bb_wide,straddle,0.5000,2.5143,797819.6445,282
+macd_neg & simple_top10%,strangle1,0.2500,2.5100,792986.7733,73
+gap>1% & bb_wide,strangle0.5,0.2500,2.4970,778411.4741,141
+gap>1% & vix>20,straddle,0.5000,2.4901,770773.8497,128
+vix>20 & bb_wide,strangle0.5,0.2500,2.4824,762317.2394,282
+below_sma50 & bb_wide,strangle1,0.1000,2.4687,747423.1104,284
+below_sma50 & bb_wide,straddle,0.1000,2.4045,680928.1100,284
+complex_top10%,follow_gap,0.1000,2.3454,623855.5612,174
+vix>20 & below_sma50,strangle0.5,0.1000,2.3344,613667.4701,283
+vix>20 & simple_top10%,strangle0.5,0.5000,2.3251,605199.9647,94
+vix>20 & complex_top10%,follow_gap,0.1000,2.3108,592274.2397,167
+macd_neg & simple_top10%,strangle0.5,0.2500,2.3103,591879.3787,73
+gap>0.5% & complex_top10%,follow_gap,0.2500,2.2975,580513.7059,131
+bb_wide & simple_top10%,straddle,0.5000,2.2852,569752.3352,85
+simple_top10%,strangle0.5,0.2500,2.2543,543537.9879,100
+vix>20 & simple_top10%,strangle1,0.2500,2.2349,527549.8553,94
+below_sma50 & simple_top10%,strangle0.5,0.2500,2.2236,518383.2574,90
+gap>0.5% & macd_neg,straddle,0.2500,2.2199,515473.9979,329
+vix>20 & complex_top10%,straddle,0.1000,2.2044,503191.4589,167
+macd_neg & simple_top10%,strangle0.5,0.5000,2.1972,497511.9471,73
+vix>20 & macd_neg,straddle,0.2500,2.1276,445754.4241,250
+gap>1% & below_sma50,straddle,0.2500,2.1269,445283.8798,118
+complex_top10%,straddle,0.1000,2.1260,444634.9034,174
+gap>1% & vix>25,straddle,0.5000,2.1132,435613.3392,69
+complex_top10% & simple_top10%,straddle,0.2500,2.1027,428282.2633,76
+vix>25 & simple_top10%,straddle,0.5000,2.0970,424427.4762,83
+gap>1% & below_sma50,strangle0.5,0.2500,2.0806,413305.4482,118
+vix>20 & simple_top10%,straddle,0.2500,2.0728,408072.0347,94
+below_sma50 & macd_neg,straddle,0.1000,2.0707,406673.7053,303
+gap>0.5% & vix>20,straddle,0.2500,2.0655,403273.1559,244
+gap>0.5% & complex_top10%,strangle0.5,0.1000,2.0541,395851.4379,131
+gap>1% & vix>20,straddle,0.2500,1.9657,341859.6703,128
+vix>20,straddle,0.2500,1.9134,312787.3218,428
+bb_wide & macd_neg,straddle,0.1000,1.9064,309023.1872,274
+gap>0.5% & complex_top10%,strangle1,0.1000,1.8939,302449.5825,131
+simple_top10%,straddle,0.2500,1.8421,276376.2066,100
+gap>1% & vix>20,strangle0.5,0.2500,1.8404,275545.5000,128
+bb_wide & simple_top10%,strangle0.5,0.2500,1.8319,271465.0727,85
+below_sma50 & simple_top10%,straddle,0.2500,1.8312,271102.7428,90
+vix>20 & bb_wide,strangle0.5,0.1000,1.8159,263898.3961,282
+complex_top10% & simple_top10%,strangle1,0.5000,1.8051,258862.2837,76
+below_sma50 & complex_top10%,straddle,0.1000,1.8037,258215.4214,146
+below_sma50 & simple_top10%,strangle0.5,0.5000,1.7861,250247.3689,90
+below_sma50,strangle0.5,0.0500,1.7805,247742.3780,419
+below_sma50 & simple_top10%,strangle1,0.2500,1.7688,242573.4546,90
+vix>25,straddle,0.2500,1.7618,239501.1518,184
+vix>20 & vix>25,straddle,0.2500,1.7618,239501.1518,184
+bb_wide & complex_top10%,follow_gap,0.1000,1.7548,236507.9356,127
+below_sma50,strangle1,0.1000,1.7447,232221.8945,419
+simple_top10%,strangle1,0.2500,1.7330,227310.5902,100
+bb_wide & macd_neg,strangle1,0.1000,1.7297,225930.7661,274
+vix>25 & simple_top10%,strangle0.5,0.2500,1.7107,218180.6229,83
+rsi_extreme & complex_top10%,fade_gap,0.5000,1.7078,217042.6445,12
+macd_neg & simple_top10%,straddle,0.2500,1.7069,216674.5481,73
+vix>20 & complex_top10%,strangle1,0.0500,1.7043,215630.2868,167
+vix>20 & below_sma50,straddle,0.1000,1.6932,211260.7871,283
+gap>1% & complex_top10%,strangle1,0.2500,1.6689,201894.8710,102
+gap>1% & macd_neg,straddle,0.2500,1.6584,197942.8593,141
+bb_wide & complex_top10%,straddle,0.1000,1.6291,187291.4266,127
+below_sma50 & complex_top10%,follow_gap,0.2500,1.6252,185928.4627,146
+macd_neg & complex_top10%,strangle1,0.1000,1.6144,182142.8972,118
+gap>1% & simple_top10%,straddle,0.5000,1.6120,181293.0895,67
+macd_neg & complex_top10%,strangle0.5,0.1000,1.6001,177200.5374,118
+gap>1% & prev_move>1.5%,follow_gap,0.2500,1.5989,176810.5439,51
+complex_top10%,strangle1,0.0500,1.5445,159071.7842,174
+vix>25 & below_sma50,straddle,0.2500,1.5443,159002.2378,171
+bb_wide & simple_top10%,straddle,0.2500,1.5441,158948.9547,85
+below_sma50 & macd_neg,strangle1,0.1000,1.5437,158817.0057,303
+vix>20 & vix>25,strangle0.5,0.2500,1.5062,147480.8665,184
+vix>25,strangle0.5,0.2500,1.5062,147480.8665,184
+below_sma50,fade_gap,0.1000,1.4889,142455.9060,419
+vix>25 & complex_top10%,strangle1,0.1000,1.4873,141991.6536,108
+vix>20 & bb_wide,straddle,0.1000,1.4787,139566.7625,282
+gap>0.5% & below_sma50,straddle,0.5000,1.4760,138796.2311,238
+vix>20 & macd_neg,strangle0.5,0.2500,1.4657,135957.6454,250
+vix>25 & simple_top10%,straddle,0.2500,1.4602,134432.0910,83
+gap>1% & vix>25,strangle0.5,0.5000,1.4445,130201.8233,69
+vix>25 & below_sma50,strangle0.5,0.2500,1.4421,129586.2898,171
+gap>0.5% & bb_wide,straddle,0.2500,1.4400,129024.5268,309
+gap>0.5% & complex_top10%,follow_gap,0.1000,1.4395,128899.9452,131
+gap>1%,straddle,0.2500,1.4395,128892.5369,228
+gap>0.5% & gap>1%,straddle,0.2500,1.4395,128892.5369,228
+vix>25 & bb_wide,straddle,0.2500,1.4329,127150.1264,140
+vix>25 & bb_wide,strangle0.5,0.2500,1.4196,123710.7048,140
+vix>20 & below_sma50,strangle1,0.1000,1.4144,122396.5145,283
+gap>1% & vix>25,strangle0.5,0.2500,1.4111,121556.2127,69
+rsi_extreme & simple_top10%,fade_gap,0.5000,1.4106,121441.7154,11
+below_sma50 & bb_wide,strangle0.5,0.0500,1.4000,118786.7016,284
+vix>20 & complex_top10%,strangle0.5,0.0500,1.3792,113739.8689,167
+prev_move>1.5% & simple_top10%,straddle,0.5000,1.3682,111151.5654,45
+gap>0.5% & vix>20,strangle0.5,0.2500,1.3623,109765.3775,244
+simple_top10%,strangle0.5,0.5000,1.3585,108888.7474,100
+gap>0.5% & simple_top10%,straddle,0.5000,1.3541,107882.5018,86
+prev_move>1.5% & complex_top10%,strangle1,0.2500,1.3468,106206.0408,50
+below_sma50 & bb_wide,fade_gap,0.1000,1.3443,105653.4139,284
+macd_neg & complex_top10%,follow_gap,0.2500,1.3408,104873.5930,118
+vix>20 & macd_neg,strangle0.5,0.1000,1.3371,104050.8755,250
+gap>0.5% & complex_top10%,straddle,0.1000,1.3366,103922.2126,131
+complex_top10% & simple_top10%,strangle1,0.1000,1.3294,102345.5557,76
+bb_wide & complex_top10%,strangle1,0.0500,1.3290,102259.6585,127
+below_sma50 & bb_wide,strangle1,0.0500,1.3253,101450.7736,284
+complex_top10%,strangle0.5,0.0500,1.3150,99214.9095,174
+vix>20,strangle0.5,0.1000,1.3118,98541.8464,428
+below_sma50 & macd_neg,strangle0.5,0.0500,1.3066,97435.1388,303
+gap>1% & bb_wide,strangle0.5,0.1000,1.3028,96629.9313,141
+below_sma50 & complex_top10%,follow_gap,0.1000,1.2950,95007.1120,146
+bb_wide & simple_top10%,strangle1,0.2500,1.2929,94581.4735,85
+bb_wide & simple_top10%,strangle0.5,0.5000,1.2925,94500.4211,85
+below_sma50,strangle1,0.0500,1.2913,94251.4215,419
+vix>25 & complex_top10%,strangle0.5,0.1000,1.2871,93382.3905,108
+prev_move>1.5% & complex_top10%,straddle,0.5000,1.2827,92487.0519,50
+below_sma50 & complex_top10%,strangle1,0.0500,1.2743,90819.2264,146
+vix>25 & simple_top10%,strangle0.5,0.5000,1.2719,90339.8759,83
+gap>1% & vix>25,straddle,0.2500,1.2639,88755.5097,69
+gap>1% & macd_neg,strangle0.5,0.2500,1.2582,87650.2942,141
+gap>0.5% & simple_top10%,strangle0.5,0.2500,1.2560,87222.5056,86
+near_52w_low & complex_top10%,straddle,0.5000,1.2547,86973.1234,65
+gap>1% & prev_move>1.5%,follow_gap,0.5000,1.2463,85352.6265,51
+vix>25 & simple_top10%,strangle1,0.2500,1.2410,84362.7769,83
+gap>0.5% & macd_neg,strangle0.5,0.1000,1.2353,83299.2799,329
+gap>1% & macd_neg,straddle,0.5000,1.2323,82740.3249,141
+gap>1% & simple_top10%,strangle0.5,0.2500,1.2264,81653.5988,67
+vix>20,straddle,0.1000,1.2261,81604.4081,428
+complex_top10%,strangle1,0.5000,1.2219,80833.8683,174
+gap>1% & complex_top10%,strangle0.5,0.1000,1.2201,80503.8258,102
+gap>0.5% & below_sma50,strangle0.5,0.1000,1.2146,79506.4403,238
+bb_wide & macd_neg,strangle0.5,0.0500,1.2126,79160.7606,274
+vix>20 & simple_top10%,strangle1,0.1000,1.2114,78932.8122,94
+gap>0.5% & macd_neg,straddle,0.1000,1.2094,78584.8562,329
+below_sma50,straddle,0.0500,1.2069,78147.0144,419
+gap>1% & near_52w_low,follow_gap,0.5000,1.1879,74847.5903,35
+macd_neg & simple_top10%,strangle1,0.1000,1.1841,74193.2192,73
+gap>1% & complex_top10%,follow_gap,0.2500,1.1769,72974.3730,102
+prev_move>1.5% & complex_top10%,strangle0.5,0.2500,1.1748,72636.0631,50
+gap>0.5% & vix>25,straddle,0.2500,1.1672,71373.1168,120
+gap>0.5% & near_52w_low,follow_gap,0.2500,1.1616,70447.3710,59
+gap>0.5% & vix>20,strangle0.5,0.1000,1.1545,69300.1631,244
+below_sma50 & macd_neg,fade_gap,0.1000,1.1487,68371.8096,303
+macd_neg & simple_top10%,strangle1,0.5000,1.1481,68279.0965,73
+gap>0.5% & below_sma50,strangle0.5,0.2500,1.1357,66332.4644,238
+gap>0.5% & simple_top10%,straddle,0.2500,1.1341,66083.4269,86
+gap>1% & near_52w_low,straddle,0.5000,1.1270,64992.3564,35
+gap>0.5% & vix>25,strangle0.5,0.2500,1.1208,64053.1179,120
+below_sma50,fade_gap,0.0500,1.1180,63638.6919,419
+gap>1% & vix>25,strangle1,0.2500,1.1140,63032.6053,69
+bb_wide & macd_neg,strangle1,0.0500,1.1058,61831.4598,274
+gap>0.5% & below_sma50,straddle,0.1000,1.1019,61255.2806,238
+gap>0.5% & vix>25,straddle,0.5000,1.0989,60828.7306,120
+gap>1% & near_52w_low,follow_gap,0.2500,1.0980,60691.4061,35
+below_sma50 & complex_top10%,strangle0.5,0.0500,1.0971,60567.4302,146
+prev_move>1.5% & simple_top10%,follow_gap,0.2500,1.0959,60394.2360,45
+bb_wide & simple_top10%,follow_gap,0.2500,1.0957,60362.4787,85
+gap>1% & simple_top10%,straddle,0.2500,1.0885,59338.9247,67
+gap>1% & simple_top10%,follow_gap,0.2500,1.0879,59250.0266,67
+below_sma50 & macd_neg,strangle1,0.0500,1.0864,59038.8420,303
+simple_top10%,strangle1,0.1000,1.0858,58952.7995,100
+gap>1% & bb_wide,straddle,0.1000,1.0765,57644.1347,141
+vix>25 & bb_wide,straddle,0.5000,1.0754,57491.0927,140
+gap>1% & complex_top10%,strangle1,0.1000,1.0710,56887.0615,102
+gap>1% & prev_move>1.5%,straddle,0.5000,1.0698,56730.7733,51
+gap>1% & simple_top10%,strangle1,0.2500,1.0601,55405.8608,67
+vix>20 & simple_top10%,strangle0.5,0.1000,1.0592,55285.4291,94
+complex_top10% & simple_top10%,strangle0.5,0.1000,1.0587,55225.2725,76
+complex_top10%,follow_gap,0.0500,1.0582,55158.9873,174
+gap>1% & bb_wide,strangle1,0.1000,1.0561,54881.1253,141
+macd_neg & complex_top10%,straddle,0.1000,1.0545,54664.6894,118
+bb_wide & complex_top10%,strangle0.5,0.0500,1.0495,54003.8648,127
+rsi_extreme & complex_top10%,fade_gap,0.2500,1.0484,53862.4640,12
+vix>20 & complex_top10%,follow_gap,0.0500,1.0436,53229.4056,167
+below_sma50 & simple_top10%,strangle1,0.1000,1.0410,52895.2653,90
+macd_neg & complex_top10%,follow_gap,0.1000,1.0215,50412.1466,118
+prev_move>1.5% & complex_top10%,strangle0.5,0.5000,1.0212,50382.7681,50
+vix>20 & below_sma50,strangle0.5,0.0500,1.0208,50327.5886,283
+gap>0.5% & simple_top10%,strangle1,0.2500,1.0129,49353.3386,86
+vix>25,strangle0.5,0.1000,1.0064,48567.2943,184
+vix>20 & vix>25,strangle0.5,0.1000,1.0064,48567.2943,184
+prev_move>1.5% & simple_top10%,strangle0.5,0.5000,1.0060,48516.6117,45
+vix>20 & macd_neg,straddle,0.1000,1.0026,48109.4880,250
+gap>1% & below_sma50,strangle0.5,0.1000,0.9972,47462.8982,118
+vix>25 & rsi_extreme,fade_gap,0.5000,0.9948,47177.9826,16
+gap>1% & macd_neg,strangle0.5,0.1000,0.9912,46750.1147,141
+prev_move>1.5% & complex_top10%,follow_gap,0.2500,0.9886,46445.3074,50
+simple_top10%,strangle0.5,0.1000,0.9870,46269.7301,100
+vix>20 & bb_wide,strangle1,0.1000,0.9805,45512.9233,282
+vix>25 & macd_neg,straddle,0.2500,0.9791,45357.9816,118
+prev_move>1.5% & simple_top10%,strangle0.5,0.2500,0.9720,44549.1055,45
+gap>1% & bb_wide,follow_gap,0.1000,0.9654,43807.3306,141
+vix>25,straddle,0.5000,0.9633,43578.1685,184
+vix>20 & vix>25,straddle,0.5000,0.9633,43578.1685,184
+gap>1% & bb_wide,follow_gap,0.2500,0.9533,42481.3677,141
+gap>1% & vix>20,strangle0.5,0.1000,0.9528,42422.6807,128
+vix>25 & below_sma50,strangle0.5,0.1000,0.9496,42073.9128,171
+below_sma50 & bb_wide,straddle,0.0500,0.9477,41872.6141,284
+below_sma50 & simple_top10%,strangle0.5,0.1000,0.9373,40762.1078,90
+macd_neg & simple_top10%,strangle0.5,0.1000,0.9362,40648.1154,73
+prev_move>1.5% & complex_top10%,straddle,0.2500,0.9316,40173.2729,50
+vix>25 & complex_top10%,straddle,0.1000,0.9295,39956.8775,108
+gap>0.5% & vix>20,straddle,0.1000,0.9237,39353.5054,244
+vix>25 & macd_neg,strangle0.5,0.2500,0.9203,39013.4879,118
+near_52w_low & complex_top10%,straddle,0.2500,0.9178,38754.1217,65
+rsi_extreme & simple_top10%,fade_gap,0.2500,0.9167,38645.1106,11
+rsi_extreme & near_52w_low,fade_gap,0.5000,0.9161,38589.4590,7
+gap>1% & simple_top10%,strangle0.5,0.5000,0.9122,38200.8772,67
+gap>0.5% & vix>20,straddle,0.5000,0.9041,37396.9392,244
+macd_neg,straddle,0.1000,0.8958,36587.1226,645
+gap>1% & complex_top10%,straddle,0.1000,0.8906,36086.8784,102
+below_sma50 & bb_wide,fade_gap,0.0500,0.8845,35514.9948,284
+near_52w_low & complex_top10%,strangle0.5,0.2500,0.8816,35239.8216,65
+below_sma50 & complex_top10%,fade_gap,0.1000,0.8781,34916.0575,146
+first_friday & macd_neg,strangle0.5,0.2500,0.8757,34694.8964,30
+gap>1% & near_52w_low,strangle0.5,0.5000,0.8697,34143.9807,35
+gap>1% & below_sma50,strangle1,0.1000,0.8695,34118.7106,118
+gap>0.5% & bb_wide,straddle,0.1000,0.8694,34117.4236,309
+gap>0.5% & complex_top10%,strangle1,0.0500,0.8678,33968.6260,131
+vix>20 & bb_wide,strangle0.5,0.0500,0.8656,33767.1181,282
+below_sma50 & macd_neg,straddle,0.0500,0.8623,33475.3049,303
+prev_move>1.5% & simple_top10%,straddle,0.2500,0.8620,33440.7904,45
+vix>20 & complex_top10%,straddle,0.0500,0.8605,33307.2583,167
+first_friday & macd_neg,strangle0.5,0.5000,0.8533,32675.6952,30
+bb_wide & simple_top10%,strangle1,0.1000,0.8467,32092.7608,85
+below_sma50 & macd_neg,fade_gap,0.0500,0.8460,32033.0695,303
+gap>1% & complex_top10%,follow_gap,0.1000,0.8457,32008.4752,102
+vix>20 & below_sma50,strangle1,0.0500,0.8439,31854.1615,283
+below_sma50 & bb_wide,strangle1,0.2500,0.8437,31832.1179,284
+vix>25 & bb_wide,strangle0.5,0.1000,0.8426,31742.1121,140
+rsi_extreme & simple_top10%,strangle1,0.5000,0.8422,31708.5638,11
+gap>0.5% & complex_top10%,strangle0.5,0.0500,0.8401,31527.2333,131
+complex_top10%,straddle,0.0500,0.8382,31360.8187,174
+vix>25 & rsi_extreme,fade_gap,0.2500,0.8353,31117.1188,16
+vix>20 & simple_top10%,follow_gap,0.2500,0.8341,31016.9345,94
+bb_wide & complex_top10%,follow_gap,0.0500,0.8223,30029.8947,127
+bb_wide & simple_top10%,strangle0.5,0.1000,0.8194,29795.0403,85
+gap>1% & vix>20,strangle1,0.1000,0.8171,29609.2660,128
+vix>25 & complex_top10%,follow_gap,0.2500,0.8169,29592.3121,108
+macd_neg & simple_top10%,strangle2,0.1000,0.8167,29577.6888,66
+first_friday & macd_neg,follow_gap,0.2500,0.8144,29390.5971,30
+vix>25 & complex_top10%,strangle1,0.5000,0.8119,29188.8902,108
+first_friday & macd_neg,straddle,0.5000,0.8108,29100.3280,30
+vix>25 & simple_top10%,strangle1,0.1000,0.8091,28961.1098,83
+gap>1% & macd_neg,strangle1,0.1000,0.8073,28819.7358,141
+gap>1% & macd_neg,follow_gap,0.1000,0.8071,28805.3048,141
+vix>25 & below_sma50,strangle1,0.1000,0.8033,28499.7575,171
+bb_wide & macd_neg,straddle,0.0500,0.8027,28455.8769,274
+vix>20 & vix>25,strangle1,0.1000,0.8014,28349.1013,184
+vix>25,strangle1,0.1000,0.8014,28349.1013,184
+bb_wide,straddle,0.1000,0.8002,27564.6895,647
+gap>1% & below_sma50,strangle1,0.2500,0.7985,28122.9516,118
+vix>25,straddle,0.1000,0.7976,28054.9642,184
+vix>20 & vix>25,straddle,0.1000,0.7976,28054.9642,184
+macd_neg & complex_top10%,strangle1,0.0500,0.7825,26898.1375,118
+vix>25 & below_sma50,straddle,0.5000,0.7824,26886.2493,171
+gap>1% & below_sma50,straddle,0.1000,0.7770,26486.2864,118
+gap>0.5% & gap>1%,straddle,0.1000,0.7735,26225.7117,228
+gap>1%,straddle,0.1000,0.7735,26225.7117,228
+vix>25 & complex_top10%,follow_gap,0.1000,0.7713,26064.3906,108
+vix>25 & simple_top10%,strangle0.5,0.1000,0.7691,25903.5574,83
+gap>0.5% & simple_top10%,follow_gap,0.2500,0.7618,25373.8031,86
+vix>20,strangle0.5,0.0500,0.7612,25328.1919,428
+vix>20 & macd_neg,follow_gap,0.1000,0.7569,25019.0555,250
+gap>1% & vix>20,straddle,0.1000,0.7551,24894.1777,128
+gap>0.5% & macd_neg,strangle0.5,0.0500,0.7545,24853.2597,329
+bb_wide & complex_top10%,strangle2,0.1000,0.7505,24573.1166,109
+vix>20 & simple_top10%,straddle,0.1000,0.7501,24539.4395,94
+gap>1% & below_sma50,strangle0.5,0.5000,0.7462,24271.5426,118
+near_52w_low & macd_neg,follow_gap,0.2500,0.7457,24237.1752,68
+rsi_extreme & simple_top10%,strangle0.5,0.5000,0.7445,24153.8776,11
+gap>1% & macd_neg,straddle,0.1000,0.7386,23749.8558,141
+vix>20 & rsi_extreme,fade_gap,0.5000,0.7363,23589.2170,17
+complex_top10% & simple_top10%,straddle,0.1000,0.7340,23436.2990,76
+vix>20,follow_gap,0.1000,0.7330,23366.1918,428
+vix>20 & rsi_extreme,fade_gap,0.2500,0.7326,23338.6780,17
+below_sma50 & complex_top10%,straddle,0.0500,0.7291,23103.5455,146
+vix>20 & below_sma50,fade_gap,0.1000,0.7288,23087.4857,283
+rsi_extreme & simple_top10%,straddle,0.5000,0.7269,22960.8723,11
+vix>25 & below_sma50,straddle,0.1000,0.7239,22761.7197,171
+gap>0.5% & simple_top10%,strangle1,0.1000,0.7239,22759.6746,86
+vix>20 & below_sma50,straddle,0.0500,0.7227,22680.7191,283
+gap>1% & prev_move>1.5%,follow_gap,0.1000,0.7223,22655.6540,51
+bb_wide & simple_top10%,follow_gap,0.1000,0.7201,22509.9035,85
+vix>25 & bb_wide,strangle1,0.1000,0.7143,22132.9730,140
+prev_move>1.5% & complex_top10%,strangle1,0.1000,0.7141,22121.6550,50
+bb_wide & macd_neg,follow_gap,0.1000,0.7140,22118.4174,274
+gap>1% & prev_move>1.5%,straddle,0.2500,0.7076,21707.9677,51
+bb_wide & macd_neg,fade_gap,0.1000,0.7067,21648.2698,274
+macd_neg & complex_top10%,strangle0.5,0.0500,0.7044,21505.4868,118
+simple_top10%,straddle,0.1000,0.7043,21495.1288,100
+gap>0.5% & gap>1%,strangle0.5,0.1000,0.7008,21279.9892,228
+gap>1%,strangle0.5,0.1000,0.7008,21279.9892,228
+gap>0.5% & complex_top10%,follow_gap,0.0500,0.6991,21169.5620,131
+vix>25 & complex_top10%,strangle1,0.0500,0.6979,21098.7607,108
+below_sma50 & simple_top10%,follow_gap,0.2500,0.6969,21034.6146,90
+below_sma50 & bb_wide,follow_gap,0.1000,0.6941,20860.3837,284
+vix>20 & bb_wide,strangle1,0.0500,0.6906,20650.6650,282
+below_sma50 & simple_top10%,straddle,0.1000,0.6844,20270.8109,90
+vix>20 & macd_neg,strangle0.5,0.0500,0.6832,20201.6457,250
+prev_move>1.5% & simple_top10%,strangle1,0.2500,0.6786,19924.6984,45
+near_52w_low & complex_top10%,follow_gap,0.2500,0.6783,19906.2532,65
+vix>20 & simple_top10%,follow_gap,0.1000,0.6752,19723.9614,94
+gap>0.5% & below_sma50,fade_gap,0.1000,0.6746,19690.1738,238
+bb_wide & complex_top10%,straddle,0.0500,0.6738,19646.8131,127
+gap>0.5%,straddle,0.1000,0.6691,19369.1409,557
+prev_move>1.5% & simple_top10%,follow_gap,0.5000,0.6672,19260.3080,45
+simple_top10%,follow_gap,0.2500,0.6647,19115.1056,100
+gap>1% & simple_top10%,follow_gap,0.1000,0.6591,18797.4137,67
+below_sma50 & complex_top10%,follow_gap,0.0500,0.6574,18699.9073,146
+vix>20 & bb_wide,straddle,0.0500,0.6546,18544.7306,282
+gap>1% & simple_top10%,strangle1,0.1000,0.6495,18260.5149,67
+gap>0.5% & vix>25,strangle0.5,0.1000,0.6475,18150.7527,120
+gap>1% & vix>25,strangle1,0.1000,0.6470,18124.8168,69
+gap>0.5% & below_sma50,strangle0.5,0.0500,0.6446,17991.7123,238
+vix>25 & bb_wide,straddle,0.1000,0.6441,17961.8023,140
+gap>0.5% & simple_top10%,strangle0.5,0.1000,0.6440,17956.9719,86
+macd_neg & simple_top10%,straddle,0.1000,0.6431,17906.8802,73
+vix>20,follow_gap,0.0500,0.6430,17901.8090,428
+vix>20 & macd_neg,straddle,0.5000,0.6407,17778.9357,250
+vix>20 & bb_wide,follow_gap,0.1000,0.6363,17540.8086,282
+rsi_extreme & below_sma50,fade_gap,0.2500,0.6356,17504.6596,18
+vix>20 & below_sma50,follow_gap,0.1000,0.6350,17473.2380,283
+gap>0.5% & bb_wide,follow_gap,0.1000,0.6339,17416.4247,309
+gap>1% & bb_wide,strangle1,0.0500,0.6332,17377.6800,141
+simple_top10%,follow_gap,0.1000,0.6332,17375.4771,100
+gap>1% & bb_wide,strangle0.5,0.0500,0.6298,17197.5116,141
+vix>25 & macd_neg,strangle0.5,0.1000,0.6288,17145.7107,118
+prev_move>1.5% & rsi_extreme,fade_gap,0.2500,0.6265,17025.2964,15
+complex_top10% & simple_top10%,strangle1,0.0500,0.6257,16980.0720,76
+gap>1% & vix>25,follow_gap,0.2500,0.6248,16934.4948,69
+vix>25 & rsi_extreme,strangle1,0.5000,0.6234,16861.1362,16
+below_sma50 & near_52w_low,straddle,0.2500,0.6188,16623.6175,87
+near_52w_low,straddle,0.2500,0.6188,16623.6175,87
+vix>20 & near_52w_low,straddle,0.2500,0.6188,16623.6175,87
+macd_neg & simple_top10%,strangle2,0.2500,0.6180,16584.1349,66
+gap>0.5% & simple_top10%,follow_gap,0.1000,0.6167,16519.4694,86
+rsi_extreme & near_52w_low,fade_gap,0.2500,0.6162,16491.0346,7
+streak<=-3 & complex_top10%,straddle,0.5000,0.6161,16488.7371,25
+gap>1% & near_52w_low,strangle0.5,0.2500,0.6121,16283.9580,35
+gap>1% & vix>25,strangle0.5,0.1000,0.6090,16129.2440,69
+vix>20 & rsi_extreme,strangle1,0.5000,0.6069,16023.0824,17
+prev_move>1.5% & complex_top10%,strangle1,0.5000,0.6058,15970.6020,50
+vix>20 & macd_neg,strangle1,0.1000,0.6053,15945.6258,250
+bb_wide & simple_top10%,straddle,0.1000,0.6037,15863.0197,85
+vix>20 & complex_top10%,strangle2,0.1000,0.6029,15824.8714,141
+complex_top10%,strangle2,0.1000,0.6029,15824.8714,141
+vix>20,straddle,0.0500,0.5978,15577.2733,428
+prev_move>1.5% & rsi_extreme,fade_gap,0.5000,0.5978,15575.5144,15
+below_sma50 & simple_top10%,follow_gap,0.1000,0.5978,15575.3684,90
+gap>0.5% & near_52w_low,follow_gap,0.1000,0.5970,15535.3108,59
+vix>20 & simple_top10%,strangle1,0.0500,0.5958,15476.3855,94
+gap>1% & near_52w_low,straddle,0.2500,0.5948,15430.2461,35
+complex_top10% & simple_top10%,strangle2,0.1000,0.5925,15321.3315,73
+gap>0.5% & vix>20,strangle0.5,0.0500,0.5914,15268.9529,244
+vix>20 & rsi_extreme,strangle0.5,0.5000,0.5914,15266.7667,17
+vix>20 & below_sma50,fade_gap,0.0500,0.5914,15265.4675,283
+vix>25 & simple_top10%,follow_gap,0.2500,0.5893,15166.8983,83
+below_sma50,follow_gap,0.1000,0.5882,15115.4746,419
+bb_wide & macd_neg,fade_gap,0.0500,0.5855,14988.0881,274
+gap>0.5% & vix>20,follow_gap,0.1000,0.5839,14910.8008,244
+vix>25 & complex_top10%,strangle0.5,0.0500,0.5806,14753.9755,108
+vix>25 & simple_top10%,straddle,0.1000,0.5802,14736.8392,83
+gap>0.5% & macd_neg,straddle,0.0500,0.5801,14733.4746,329
+vix>20 & rsi_extreme,straddle,0.5000,0.5771,14592.8902,17
+gap>1% & vix>20,strangle1,0.2500,0.5746,14478.7296,128
+gap>1% & simple_top10%,strangle0.5,0.1000,0.5742,14459.6510,67
+macd_neg & simple_top10%,strangle1,0.0500,0.5721,14362.7274,73
+prev_move>1.5% & complex_top10%,follow_gap,0.1000,0.5704,14284.7390,50
+gap>0.5% & near_52w_low,straddle,0.5000,0.5699,14266.3664,59
+vix>20 & complex_top10%,fade_gap,0.1000,0.5697,14254.0752,167
+gap>0.5% & complex_top10%,straddle,0.0500,0.5667,14121.4836,131
+near_52w_low & simple_top10%,straddle,0.5000,0.5660,14088.2524,48
+gap>1% & bb_wide,strangle1,0.2500,0.5598,13812.0031,141
+first_friday & macd_neg,straddle,0.2500,0.5583,13744.9530,30
+vix>25 & macd_neg,strangle1,0.1000,0.5572,13698.2370,118
+bb_wide & complex_top10%,strangle2,0.0500,0.5539,13551.0457,109
+streak<=-3 & complex_top10%,follow_gap,0.2500,0.5537,13542.6238,25
+vix>25 & rsi_extreme,strangle0.5,0.5000,0.5534,13532.6655,16
+gap>0.5% & below_sma50,strangle1,0.1000,0.5524,13485.3754,238
+rsi_extreme & simple_top10%,strangle1,0.2500,0.5523,13483.4305,11
+vix>25 & rsi_extreme,straddle,0.5000,0.5521,13472.7867,16
+simple_top10%,strangle1,0.0500,0.5520,13468.5504,100
+below_sma50 & complex_top10%,fade_gap,0.0500,0.5515,13446.6381,146
+gap>1% & complex_top10%,strangle0.5,0.0500,0.5512,13437.2304,102
+gap>1% & complex_top10%,strangle1,0.0500,0.5509,13423.3871,102
+below_sma50,follow_gap,0.0500,0.5508,13419.9689,419
+prev_move>1.5% & complex_top10%,strangle0.5,0.1000,0.5498,13373.0153,50
+gap>1% & rsi_extreme,fade_gap,0.2500,0.5488,13331.7495,20
+prev_move>1.5% & simple_top10%,follow_gap,0.1000,0.5482,13307.4845,45
+gap>1% & macd_neg,strangle1,0.0500,0.5482,13304.9140,141
+first_friday & below_sma50,follow_gap,0.2500,0.5478,13289.0464,23
+vix>25 & macd_neg,straddle,0.5000,0.5444,13145.7085,118
+gap>1% & vix>20,fade_gap,0.1000,0.5415,13021.4581,128
+macd_neg,straddle,0.0500,0.5398,12948.8142,645
+gap>1% & rsi_extreme,straddle,0.5000,0.5362,12797.7380,20
+gap>0.5% & bb_wide,strangle0.5,0.1000,0.5326,12648.0751,309
+macd_neg & complex_top10%,follow_gap,0.0500,0.5307,12570.5253,118
+gap>0.5% & complex_top10%,strangle1,0.5000,0.5299,12539.0553,131
+complex_top10%,strangle2,0.0500,0.5290,12504.1792,141
+vix>20 & complex_top10%,strangle2,0.0500,0.5290,12504.1792,141
+below_sma50 & simple_top10%,strangle1,0.0500,0.5272,12427.4223,90
+vix>25 & simple_top10%,follow_gap,0.1000,0.5267,12408.3490,83
+gap>1% & bb_wide,follow_gap,0.0500,0.5258,12371.0637,141
+bb_wide & macd_neg,follow_gap,0.0500,0.5240,12298.2260,274
+gap>1% & macd_neg,strangle0.5,0.0500,0.5236,12283.6475,141
+gap>0.5% & below_sma50,fade_gap,0.0500,0.5210,12180.3536,238
+bb_wide & streak<=-3,straddle,0.2500,0.5174,12035.8708,61
+gap>0.5% & vix>25,straddle,0.1000,0.5147,11927.4306,120
+gap>0.5% & macd_neg,follow_gap,0.1000,0.5142,11910.4902,329
+gap>0.5% & below_sma50,straddle,0.0500,0.5130,11860.7129,238
+vix>20 & macd_neg,follow_gap,0.0500,0.5122,11833.0509,250
+vix>25 & near_52w_low,straddle,0.2500,0.5114,11798.3803,72
+rsi_extreme & below_sma50,fade_gap,0.5000,0.5112,11792.7595,18
+gap>0.5% & vix>25,strangle1,0.1000,0.5101,11749.8482,120
+vix>25,strangle0.5,0.0500,0.5092,11713.5104,184
+vix>20 & vix>25,strangle0.5,0.0500,0.5092,11713.5104,184
+near_52w_low,follow_gap,0.2500,0.5091,11710.0470,87
+vix>20 & near_52w_low,follow_gap,0.2500,0.5091,11710.0470,87
+below_sma50 & near_52w_low,follow_gap,0.2500,0.5091,11710.0470,87
+below_sma50 & bb_wide,follow_gap,0.0500,0.5088,11700.1454,284
+vix>25 & rsi_extreme,strangle1,0.2500,0.5032,11485.0097,16
+bb_wide & near_52w_low,follow_gap,0.2500,0.5032,11481.8796,67
+complex_top10% & simple_top10%,fade_gap,0.1000,0.5027,11465.4905,76
+vix_gap>5% & complex_top10%,straddle,0.5000,0.4989,11322.1624,26
+gap>0.5% & bb_wide,follow_gap,0.0500,0.4974,11265.5656,309
+complex_top10% & simple_top10%,follow_gap,0.2500,0.4974,11263.6988,76
+rsi_extreme & below_sma50,straddle,0.5000,0.4963,11224.6367,18
+vix>20 & simple_top10%,strangle0.5,0.0500,0.4960,11211.9477,94
+vix>20 & rsi_extreme,strangle1,0.2500,0.4957,11199.9483,17
+bb_wide,straddle,0.0500,0.4955,11057.6600,647
+gap>1% & vix>25,follow_gap,0.1000,0.4950,11173.2577,69
+gap>1% & below_sma50,strangle1,0.0500,0.4945,11155.6506,118
+bb_wide & complex_top10%,fade_gap,0.1000,0.4940,11136.2454,127
+macd_neg & simple_top10%,strangle2,0.0500,0.4935,11119.7516,66
+near_52w_low & complex_top10%,strangle0.5,0.5000,0.4935,11117.6034,65
+streak<=-3 & complex_top10%,strangle0.5,0.2500,0.4933,11110.8272,25
+prev_move>1.5% & rsi_extreme,straddle,0.5000,0.4933,11109.5149,15
+streak<=-3 & simple_top10%,straddle,0.5000,0.4932,11107.9901,18
+vix>20 & macd_neg,strangle1,0.0500,0.4919,11058.1626,250
+vix>25,strangle1,0.0500,0.4905,11007.2201,184
+vix>20 & vix>25,strangle1,0.0500,0.4905,11007.2201,184
+vix>25 & macd_neg,straddle,0.1000,0.4905,11006.2268,118
+gap>0.5% & streak<=-3,straddle,0.2500,0.4904,11004.0401,65
+vix>20 & bb_wide,follow_gap,0.0500,0.4887,10939.3442,282
+complex_top10% & simple_top10%,strangle0.5,0.0500,0.4886,10937.5440,76
+gap>0.5% & near_52w_low,straddle,0.2500,0.4885,10932.3879,59
+vix>25,fade_gap,0.1000,0.4882,10921.3255,184
+vix>20 & vix>25,fade_gap,0.1000,0.4882,10921.3255,184
+gap>1% & vix>25,straddle,0.1000,0.4874,10893.3559,69
+near_52w_low & macd_neg,follow_gap,0.1000,0.4859,10839.6792,68
+gap>1% & near_52w_low,follow_gap,0.1000,0.4858,10836.1101,35
+gap>1% & below_sma50,strangle0.5,0.0500,0.4849,10801.5411,118
+gap>0.5% & below_sma50,strangle1,0.0500,0.4843,10781.1884,238
+gap>1% & bb_wide,straddle,0.0500,0.4836,10755.3294,141
+vix>25 & below_sma50,strangle0.5,0.0500,0.4827,10720.9494,171
+gap>1% & prev_move>1.5%,strangle0.5,0.2500,0.4818,10691.8472,51
+near_52w_low & simple_top10%,straddle,0.2500,0.4813,10674.0292,48
+gap>0.5% & simple_top10%,straddle,0.1000,0.4812,10668.2712,86
+gap>1% & rsi_extreme,fade_gap,0.5000,0.4809,10656.7376,20
+vix>25 & below_sma50,strangle1,0.0500,0.4808,10654.6445,171
+vix>20 & macd_neg,straddle,0.0500,0.4801,10628.2820,250
+gap>1% & vix>20,strangle1,0.0500,0.4780,10553.0550,128
+vix>20 & below_sma50,follow_gap,0.0500,0.4771,10521.2897,283
+first_friday & below_sma50,follow_gap,0.5000,0.4770,10517.7710,23
+complex_top10% & simple_top10%,follow_gap,0.1000,0.4765,10499.0130,76
+macd_neg & complex_top10%,straddle,0.0500,0.4734,10392.4662,118
+gap>1% & macd_neg,follow_gap,0.0500,0.4724,10356.9755,141
+simple_top10%,strangle0.5,0.0500,0.4720,10343.0697,100
+gap>0.5% & near_52w_low,follow_gap,0.5000,0.4717,10330.8276,59
+gap>1% & macd_neg,follow_gap,0.2500,0.4709,10304.5850,141
+gap>1% & vix>20,strangle0.5,0.0500,0.4701,10274.0606,128
+rsi_extreme & simple_top10%,strangle0.5,0.2500,0.4696,10258.2615,11
+below_sma50 & macd_neg,follow_gap,0.1000,0.4670,10166.3278,303
+below_sma50 & near_52w_low,follow_gap,0.1000,0.4664,10147.0997,87
+near_52w_low,follow_gap,0.1000,0.4664,10147.0997,87
+vix>20 & near_52w_low,follow_gap,0.1000,0.4664,10147.0997,87
+near_52w_low & complex_top10%,follow_gap,0.1000,0.4663,10142.6206,65
+rsi_extreme & complex_top10%,strangle1,0.5000,0.4652,10106.5991,12
+complex_top10%,fade_gap,0.1000,0.4635,10045.4324,174
+gap>1% & streak<=-3,straddle,0.5000,0.4618,9988.2945,31
+first_friday & macd_neg,strangle1,0.2500,0.4604,9942.4033,30
+gap>0.5% & streak<=-3,straddle,0.5000,0.4586,9880.6252,65
+gap>0.5% & macd_neg,follow_gap,0.0500,0.4580,9858.7219,329
+rsi_extreme & complex_top10%,straddle,0.5000,0.4567,9815.8885,12
+macd_neg,strangle0.5,0.0500,0.4566,9811.2326,645
+first_friday & macd_neg,follow_gap,0.1000,0.4556,9778.4971,30
+first_friday & below_sma50,straddle,0.5000,0.4547,9750.0026,23
+near_52w_low & complex_top10%,strangle0.5,0.1000,0.4546,9746.5783,65
+rsi_extreme & complex_top10%,fade_gap,0.1000,0.4546,9746.2868,12
+vix>25 & bb_wide,strangle1,0.2500,0.4536,9712.0480,140
+prev_move>1.5% & simple_top10%,strangle0.5,0.1000,0.4529,9688.7029,45
+below_sma50 & simple_top10%,strangle0.5,0.0500,0.4480,9527.7322,90
+vix>20 & rsi_extreme,strangle0.5,0.2500,0.4478,9518.7370,17
+bb_wide & simple_top10%,strangle1,0.0500,0.4452,9435.8793,85
+vix>20 & bb_wide,fade_gap,0.1000,0.4448,9421.0592,282
+macd_neg & simple_top10%,strangle0.5,0.0500,0.4445,9412.1556,73
+gap>1% & complex_top10%,follow_gap,0.0500,0.4436,9383.2768,102
+first_friday & macd_neg,follow_gap,0.5000,0.4436,9382.6059,30
+gap>1% & simple_top10%,straddle,0.1000,0.4422,9336.5286,67
+gap>0.5% & simple_top10%,strangle0.5,0.5000,0.4418,9324.9655,86
+gap>1%,strangle0.5,0.0500,0.4413,9308.0745,228
+gap>0.5% & gap>1%,strangle0.5,0.0500,0.4413,9308.0745,228
+streak<=-3 & complex_top10%,straddle,0.2500,0.4403,9275.8138,25
+gap>0.5% & vix>20,straddle,0.0500,0.4399,9265.0006,244
+vix>20 & bb_wide,fade_gap,0.0500,0.4391,9236.4919,282
+gap>0.5% & bb_wide,straddle,0.0500,0.4373,9180.0897,309
+streak<=-3 & complex_top10%,strangle1,0.2500,0.4363,9149.4001,25
+gap>1% & below_sma50,follow_gap,0.1000,0.4345,9090.3392,118
+simple_top10%,strangle2,0.1000,0.4342,9080.5017,89
+vix>20 & simple_top10%,strangle2,0.1000,0.4342,9080.5017,89
+vix>20 & complex_top10%,fade_gap,0.0500,0.4309,8978.0822,167
+vix>25 & rsi_extreme,strangle0.5,0.2500,0.4298,8944.3291,16
+prev_move>1.5% & simple_top10%,strangle1,0.1000,0.4294,8929.7048,45
+vix>25 & bb_wide,strangle0.5,0.0500,0.4273,8866.8732,140
+macd_neg & simple_top10%,fade_gap,0.1000,0.4266,8845.5595,73
+vix>25 & simple_top10%,strangle1,0.0500,0.4266,8843.0186,83
+rsi_extreme & near_52w_low,strangle1,0.5000,0.4254,8806.9114,7
+first_friday & macd_neg,strangle0.5,0.1000,0.4253,8804.0115,30
+vix>25 & complex_top10%,follow_gap,0.0500,0.4245,8779.5655,108
+gap>0.5% & vix>20,follow_gap,0.0500,0.4225,8719.1277,244
+vix>25 & complex_top10%,straddle,0.0500,0.4224,8714.5053,108
+macd_neg & complex_top10%,strangle2,0.1000,0.4217,8693.5968,93
+near_52w_low,straddle,0.5000,0.4202,8647.3198,87
+vix>20 & near_52w_low,straddle,0.5000,0.4202,8647.3198,87
+below_sma50 & near_52w_low,straddle,0.5000,0.4202,8647.3198,87
+rsi_extreme & complex_top10%,strangle0.5,0.5000,0.4200,8641.2401,12
+vix>25 & bb_wide,strangle1,0.0500,0.4199,8638.4256,140
+rsi_extreme & near_52w_low,strangle0.5,0.5000,0.4148,8484.6033,7
+rsi_extreme & near_52w_low,straddle,0.5000,0.4145,8477.0822,7
+rsi_extreme & simple_top10%,fade_gap,0.1000,0.4126,8418.3311,11
+below_sma50 & near_52w_low,strangle0.5,0.2500,0.4123,8409.7080,87
+vix>20 & near_52w_low,strangle0.5,0.2500,0.4123,8409.7080,87
+near_52w_low,strangle0.5,0.2500,0.4123,8409.7080,87
+streak<=-3 & complex_top10%,strangle0.5,0.5000,0.4123,8409.4908,25
+rsi_extreme & below_sma50,strangle1,0.2500,0.4119,8398.9366,18
+bb_wide & near_52w_low,straddle,0.2500,0.4093,8321.5918,67
+below_sma50 & macd_neg,follow_gap,0.0500,0.4083,8291.3042,303
+gap>0.5%,straddle,0.0500,0.4080,8283.0614,557
+prev_move>1.5% & complex_top10%,strangle2,0.1000,0.4073,8262.0386,46
+macd_neg & simple_top10%,follow_gap,0.1000,0.4045,8181.0723,73
+gap>1% & rsi_extreme,strangle1,0.2500,0.4039,8164.1921,20
+vix>25 & rsi_extreme,fade_gap,0.1000,0.4037,8156.8038,16
+gap>0.5% & bb_wide,strangle0.5,0.0500,0.4033,8144.8470,309
+gap>1% & complex_top10%,straddle,0.0500,0.4023,8118.0737,102
+bb_wide & simple_top10%,strangle2,0.1000,0.4019,8106.7068,76
+complex_top10% & simple_top10%,strangle2,0.0500,0.4013,8088.9442,73
+bb_wide & simple_top10%,strangle0.5,0.0500,0.3999,8046.3937,85
+rsi_extreme & simple_top10%,straddle,0.2500,0.3994,8032.3796,11
+rsi_extreme & below_sma50,strangle1,0.5000,0.3983,8003.0386,18
+prev_move>1.5% & complex_top10%,straddle,0.1000,0.3983,8003.0145,50
+bb_wide & streak<=-3,straddle,0.5000,0.3972,7971.8762,61
+bb_wide & near_52w_low,follow_gap,0.1000,0.3962,7940.9329,67
+gap>0.5% & complex_top10%,fade_gap,0.1000,0.3942,7884.5095,131
+rsi_extreme & macd_neg,fade_gap,0.2500,0.3925,7837.3478,34
+near_52w_low & complex_top10%,straddle,0.1000,0.3915,7809.5698,65
+streak<=-3,straddle,0.2500,0.3908,7790.3408,115
+rsi_extreme & complex_top10%,strangle1,0.2500,0.3891,7743.1589,12
+gap>1% & below_sma50,fade_gap,0.1000,0.3890,7740.1677,118
+gap>0.5% & simple_top10%,strangle1,0.0500,0.3881,7713.5114,86
+near_52w_low & simple_top10%,strangle0.5,0.2500,0.3878,7706.0768,48
+gap>0.5% & gap>1%,straddle,0.0500,0.3868,7679.5163,228
+gap>1%,straddle,0.0500,0.3868,7679.5163,228
+gap>1% & rsi_extreme,strangle0.5,0.2500,0.3866,7674.4013,20
+vix>25,straddle,0.0500,0.3866,7673.1215,184
+vix>20 & vix>25,straddle,0.0500,0.3866,7673.1215,184
+gap>0.5% & vix>20,strangle1,0.1000,0.3860,7656.2910,244
+vix>25 & near_52w_low,strangle0.5,0.2500,0.3857,7648.4621,72
+rsi_extreme & below_sma50,strangle0.5,0.5000,0.3850,7629.5965,18
+vix>25,fade_gap,0.0500,0.3845,7614.5524,184
+vix>20 & vix>25,fade_gap,0.0500,0.3845,7614.5524,184
+complex_top10%,fade_gap,0.0500,0.3842,7605.8990,174
+bb_wide & simple_top10%,follow_gap,0.0500,0.3784,7450.3528,85
+streak<=-3 & simple_top10%,fade_gap,0.2500,0.3784,7447.9691,18
+vix>25 & simple_top10%,strangle0.5,0.0500,0.3776,7427.1052,83
+vix>20 & rsi_extreme,fade_gap,0.1000,0.3743,7339.3300,17
+below_sma50 & simple_top10%,strangle2,0.1000,0.3735,7318.8534,87
+vix_gap>5% & complex_top10%,strangle0.5,0.5000,0.3717,7270.2255,26
+first_friday & macd_neg,strangle1,0.1000,0.3699,7222.5618,30
+prev_move>1.5% & complex_top10%,strangle1,0.0500,0.3685,7186.4976,50
+vix>20 & simple_top10%,follow_gap,0.0500,0.3672,7151.2404,94
+rsi_extreme & below_sma50,strangle0.5,0.2500,0.3667,7139.6596,18
+vix>20 & rsi_extreme,straddle,0.2500,0.3660,7120.1988,17
+gap>1% & below_sma50,straddle,0.0500,0.3635,7055.5657,118
+gap>1% & vix>20,fade_gap,0.0500,0.3622,7022.5714,128
+gap>1% & macd_neg,straddle,0.0500,0.3604,6976.0619,141
+bb_wide & complex_top10%,fade_gap,0.0500,0.3604,6975.4499,127
+prev_move>1.5% & simple_top10%,straddle,0.1000,0.3591,6942.3548,45
+gap>1% & streak<=-3,straddle,0.2500,0.3587,6931.9631,31
+prev_move>1.5% & rsi_extreme,strangle0.5,0.2500,0.3583,6922.7758,15
+gap>1% & prev_move>1.5%,follow_gap,0.0500,0.3572,6893.9492,51
+gap>1% & vix>20,straddle,0.0500,0.3571,6893.0820,128
+vix>25 & below_sma50,straddle,0.0500,0.3555,6850.3167,171
+vix>25 & rsi_extreme,straddle,0.2500,0.3549,6836.6868,16
+gap>1% & rsi_extreme,straddle,0.2500,0.3536,6803.9175,20
+simple_top10%,follow_gap,0.0500,0.3533,6797.1217,100
+prev_move>1.5% & rsi_extreme,strangle1,0.2500,0.3529,6785.0946,15
+vix>20 & simple_top10%,straddle,0.0500,0.3519,6761.0577,94
+gap>0.5% & prev_move>1.5%,straddle,0.2500,0.3511,6741.3642,107
+prev_move>1.5% & bb_wide,straddle,0.2500,0.3491,6691.7088,133
+prev_move>1.5% & rsi_extreme,strangle0.5,0.5000,0.3481,6667.3510,15
+gap>0.5% & vix>20,strangle1,0.0500,0.3480,6663.6749,244
+near_52w_low & complex_top10%,strangle1,0.1000,0.3476,6654.3544,65
+gap>0.5% & near_52w_low,strangle0.5,0.2500,0.3461,6617.3318,59
+rsi_extreme & below_sma50,fade_gap,0.1000,0.3456,6604.8318,18
+gap>1% & simple_top10%,follow_gap,0.0500,0.3455,6601.6568,67
+simple_top10%,strangle2,0.0500,0.3446,6581.5097,89
+vix>20 & simple_top10%,strangle2,0.0500,0.3446,6581.5097,89
+macd_neg & complex_top10%,strangle2,0.0500,0.3439,6563.7170,93
+vix>25 & complex_top10%,fade_gap,0.1000,0.3439,6562.3003,108
+vix_gap>5% & streak<=-3,fade_gap,0.2500,0.3437,6558.8184,14
+gap>1% & simple_top10%,strangle1,0.0500,0.3436,6555.4928,67
+vix>25 & macd_neg,strangle1,0.0500,0.3426,6530.7005,118
+complex_top10% & simple_top10%,straddle,0.0500,0.3424,6526.4534,76
+gap>1% & vix>25,strangle1,0.0500,0.3389,6442.4964,69
+macd_neg & simple_top10%,follow_gap,0.2500,0.3384,6429.2602,73
+gap>0.5% & simple_top10%,follow_gap,0.0500,0.3382,6426.3569,86
+streak<=-3 & simple_top10%,strangle0.5,0.5000,0.3382,6425.4295,18
+streak<=-3 & simple_top10%,strangle0.5,0.2500,0.3361,6376.1584,18
+simple_top10%,straddle,0.0500,0.3350,6348.3528,100
+vix>25 & below_sma50,strangle1,0.2500,0.3349,6346.6101,171
+vix>25 & macd_neg,strangle0.5,0.0500,0.3344,6334.7472,118
+first_friday & bb_wide,follow_gap,0.2500,0.3341,6327.2392,31
+prev_move>1.5% & rsi_extreme,fade_gap,0.1000,0.3334,6312.5178,15
+below_sma50 & near_52w_low,strangle0.5,0.1000,0.3334,6312.0504,87
+vix>20 & near_52w_low,strangle0.5,0.1000,0.3334,6312.0504,87
+near_52w_low,strangle0.5,0.1000,0.3334,6312.0504,87
+rsi_extreme & complex_top10%,strangle0.5,0.2500,0.3331,6304.7362,12
+gap>0.5% & vix>25,strangle0.5,0.0500,0.3331,6304.0123,120
+rsi_extreme & below_sma50,straddle,0.2500,0.3329,6299.1784,18
+prev_move>1.5% & rsi_extreme,strangle2,0.2500,0.3315,6266.7322,10
+below_sma50 & simple_top10%,follow_gap,0.0500,0.3308,6250.5594,90
+prev_move>1.5% & rsi_extreme,straddle,0.2500,0.3291,6210.8409,15
+gap>1% & macd_neg,strangle2,0.1000,0.3271,6164.1860,62
+near_52w_low & complex_top10%,strangle1,0.2500,0.3266,6151.3252,65
+bb_wide & streak<=-3,strangle0.5,0.2500,0.3260,6139.2104,61
+gap>0.5% & simple_top10%,strangle0.5,0.0500,0.3257,6130.9826,86
+gap>1% & vix>20,strangle0.5,0.5000,0.3256,6130.0607,128
+prev_move>1.5% & below_sma50,straddle,0.2500,0.3254,6125.1710,136
+below_sma50 & simple_top10%,straddle,0.0500,0.3248,6110.5477,90
+vix>20 & streak<=-3,straddle,0.2500,0.3239,6089.6856,54
+streak<=-3 & simple_top10%,straddle,0.2500,0.3237,6084.9354,18
+streak<=-3 & complex_top10%,strangle2,0.1000,0.3236,6083.7187,20
+prev_move>1.5% & macd_neg,straddle,0.2500,0.3232,6074.1596,127
+bb_wide,strangle0.5,0.0500,0.3230,5965.5411,647
+streak<=-3 & complex_top10%,follow_gap,0.1000,0.3214,6032.5169,25
+complex_top10% & simple_top10%,fade_gap,0.0500,0.3209,6021.8621,76
+vix>25 & below_sma50,fade_gap,0.1000,0.3197,5994.1311,171
+vix>20 & near_52w_low,straddle,0.1000,0.3177,5949.8251,87
+near_52w_low,straddle,0.1000,0.3177,5949.8251,87
+below_sma50 & near_52w_low,straddle,0.1000,0.3177,5949.8251,87
+vix>25 & bb_wide,straddle,0.0500,0.3168,5929.5111,140
+vix_gap>5% & complex_top10%,strangle0.5,0.2500,0.3163,5918.0232,26
+bb_wide & simple_top10%,strangle2,0.0500,0.3139,5864.1047,76
+gap>1% & complex_top10%,fade_gap,0.1000,0.3128,5840.0849,102
+vix_gap>5% & complex_top10%,straddle,0.2500,0.3124,5830.1619,26
+below_sma50 & simple_top10%,strangle2,0.0500,0.3121,5823.8785,87
+rsi_extreme & near_52w_low,strangle1,0.2500,0.3119,5819.0465,7
+vix>25 & near_52w_low,straddle,0.5000,0.3109,5796.3000,72
+streak<=-3 & complex_top10%,strangle1,0.1000,0.3099,5774.3829,25
+gap>0.5% & vix>25,strangle1,0.0500,0.3079,5731.2902,120
+macd_neg & simple_top10%,straddle,0.0500,0.3071,5713.7473,73
+gap>0.5% & gap>1%,follow_gap,0.1000,0.3071,5713.2696,228
+gap>1%,follow_gap,0.1000,0.3071,5713.2696,228
+gap>1% & rsi_extreme,strangle0.5,0.5000,0.3067,5705.7908,20
+rsi_extreme & macd_neg,fade_gap,0.1000,0.3059,5688.1598,34
+vix>25 & near_52w_low,strangle0.5,0.1000,0.3053,5673.5459,72
+rsi_extreme & simple_top10%,strangle2,0.2500,0.3052,5671.8885,11
+first_friday,follow_gap,0.1000,0.3049,5666.1106,56
+prev_move>1.5% & below_sma50,strangle0.5,0.1000,0.3046,5658.2894,136
+gap>0.5% & near_52w_low,follow_gap,0.0500,0.3044,5654.2427,59
+macd_neg & complex_top10%,fade_gap,0.1000,0.3034,5633.4959,118
+gap>1% & prev_move>1.5%,strangle0.5,0.1000,0.3031,5626.8039,51
+gap>1% & prev_move>1.5%,straddle,0.1000,0.3024,5610.9025,51
+gap>0.5% & vix>25,strangle1,0.2500,0.3018,5599.0935,120
+prev_move>1.5% & complex_top10%,follow_gap,0.0500,0.3010,5582.3941,50
+gap>1% & vix>25,strangle0.5,0.0500,0.3002,5563.6401,69
+gap>0.5% & streak<=-3,fade_gap,0.1000,0.2982,5522.2785,65
+gap>1% & streak<=-3,fade_gap,0.2500,0.2963,5481.1801,31
+gap>0.5% & complex_top10%,fade_gap,0.0500,0.2961,5477.0561,131
+first_friday & below_sma50,straddle,0.2500,0.2960,5476.0394,23
+vix>25 & bb_wide,fade_gap,0.1000,0.2959,5474.1623,140
+vix>25 & simple_top10%,follow_gap,0.0500,0.2959,5473.4846,83
+gap>1% & bb_wide,strangle0.5,0.5000,0.2955,5464.3824,141
+rsi_extreme & near_52w_low,fade_gap,0.1000,0.2954,5462.2268,7
+vix>20 & streak<=-3,strangle0.5,0.2500,0.2953,5461.5060,54
+vix>25 & near_52w_low,follow_gap,0.1000,0.2939,5430.8518,72
+rsi_extreme & complex_top10%,straddle,0.2500,0.2936,5425.8202,12
+near_52w_low & simple_top10%,follow_gap,0.2500,0.2936,5425.7474,48
+near_52w_low & macd_neg,straddle,0.2500,0.2918,5387.4001,68
+vix_gap>5% & first_friday,follow_gap,0.5000,0.2912,5375.3521,2
+gap>0.5% & macd_neg,strangle1,0.0500,0.2912,5374.5619,329
+prev_move>1.5% & bb_wide,straddle,0.1000,0.2911,5373.7301,133
+bb_wide & simple_top10%,straddle,0.0500,0.2911,5373.3485,85
+vix>25 & below_sma50,fade_gap,0.0500,0.2908,5367.3906,171
+gap>1%,follow_gap,0.0500,0.2907,5365.0781,228
+gap>0.5% & gap>1%,follow_gap,0.0500,0.2907,5365.0781,228
+prev_move>1.5% & rsi_extreme,strangle2,0.5000,0.2904,5358.4533,10
+bb_wide & streak<=-3,strangle0.5,0.1000,0.2897,5343.9021,61
+prev_move>1.5% & first_friday,follow_gap,0.5000,0.2897,5342.8231,9
+gap>1% & simple_top10%,strangle0.5,0.0500,0.2882,5312.4903,67
+prev_move>1.5% & below_sma50,straddle,0.1000,0.2882,5312.0976,136
+vix>20 & simple_top10%,strangle1,0.5000,0.2880,5307.9609,94
+prev_move>1.5% & bb_wide,strangle0.5,0.1000,0.2867,5282.8754,133
+vix>25 & bb_wide,follow_gap,0.1000,0.2850,5246.4401,140
+gap>0.5% & macd_neg,fade_gap,0.0500,0.2846,5238.6494,329
+gap>1% & below_sma50,fade_gap,0.0500,0.2843,5232.0709,118
+macd_neg & simple_top10%,fade_gap,0.0500,0.2828,5202.1445,73
+vix>25 & prev_move>1.5%,straddle,0.2500,0.2824,5194.7944,83
+gap>1% & rsi_extreme,strangle1,0.1000,0.2818,5181.7922,20
+vix>25 & simple_top10%,straddle,0.0500,0.2815,5176.2881,83
+prev_move>1.5% & simple_top10%,follow_gap,0.0500,0.2812,5169.9990,45
+first_friday & below_sma50,follow_gap,0.1000,0.2809,5163.9854,23
+gap>1% & rsi_extreme,fade_gap,0.1000,0.2807,5160.5514,20
+vix>20 & simple_top10%,fade_gap,0.1000,0.2806,5158.2118,94
+prev_move>1.5% & macd_neg,straddle,0.1000,0.2806,5158.1287,127
+gap>0.5% & vix>25,follow_gap,0.1000,0.2806,5157.9753,120
+rsi_extreme & near_52w_low,strangle0.5,0.2500,0.2801,5147.2757,7
+prev_move>1.5% & complex_top10%,strangle2,0.0500,0.2798,5141.4084,46
+streak<=-3 & complex_top10%,follow_gap,0.5000,0.2790,5125.9137,25
+prev_move>1.5% & complex_top10%,strangle0.5,0.0500,0.2784,5113.7788,50
+gap>1% & below_sma50,follow_gap,0.0500,0.2775,5095.3346,118
+vix>25 & macd_neg,follow_gap,0.1000,0.2756,5058.2627,118
+gap>1% & vix>25,follow_gap,0.0500,0.2751,5048.4669,69
+bb_wide & near_52w_low,strangle0.5,0.2500,0.2747,5041.3033,67
+vix>25 & near_52w_low,straddle,0.1000,0.2736,5019.4245,72
+complex_top10% & simple_top10%,follow_gap,0.0500,0.2725,4997.7454,76
+below_sma50 & simple_top10%,fade_gap,0.1000,0.2719,4984.7565,90
+gap>1% & near_52w_low,strangle0.5,0.1000,0.2689,4926.7056,35
+vix>20,strangle1,0.0500,0.2672,4893.7586,428
+streak<=-3,straddle,0.1000,0.2671,4892.6160,115
+prev_move>1.5% & rsi_extreme,strangle1,0.5000,0.2664,4879.6123,15
+bb_wide & streak<=-3,straddle,0.1000,0.2661,4873.6749,61
+streak<=-3 & complex_top10%,strangle0.5,0.1000,0.2653,4857.2984,25
+vix>25 & macd_neg,strangle1,0.2500,0.2641,4835.4409,118
+first_friday & bb_wide,follow_gap,0.1000,0.2636,4824.4596,31
+below_sma50 & near_52w_low,follow_gap,0.0500,0.2629,4812.4517,87
+vix>20 & near_52w_low,follow_gap,0.0500,0.2629,4812.4517,87
+near_52w_low,follow_gap,0.0500,0.2629,4812.4517,87
+vix>25 & complex_top10%,fade_gap,0.0500,0.2622,4797.6397,108
+gap>1% & vix>20,follow_gap,0.1000,0.2616,4787.0185,128
+near_52w_low & macd_neg,follow_gap,0.0500,0.2611,4778.6196,68
+macd_neg & complex_top10%,fade_gap,0.0500,0.2597,4750.7126,118
+vix>25 & below_sma50,follow_gap,0.1000,0.2585,4728.5086,171
+bb_wide & streak<=-3,strangle1,0.1000,0.2572,4703.8043,61
+prev_move>1.5% & macd_neg,strangle0.5,0.1000,0.2571,4702.0346,127
+vix>25 & bb_wide,fade_gap,0.0500,0.2549,4661.9029,140
+gap>0.5% & vix>25,straddle,0.0500,0.2549,4661.6275,120
+near_52w_low & complex_top10%,follow_gap,0.0500,0.2535,4636.1285,65
+bb_wide & streak<=-3,strangle2,0.1000,0.2534,4634.3521,31
+streak<=-3 & simple_top10%,fade_gap,0.1000,0.2532,4630.1596,18
+rsi_extreme & simple_top10%,strangle1,0.1000,0.2531,4629.0559,11
+rsi_extreme & near_52w_low,straddle,0.2500,0.2530,4626.5881,7
+gap>1% & streak<=-3,strangle0.5,0.2500,0.2526,4619.0561,31
+gap>1% & streak<=-3,fade_gap,0.1000,0.2520,4607.1725,31
+vix>25 & macd_neg,straddle,0.0500,0.2505,4580.4985,118
+below_sma50 & complex_top10%,strangle2,0.0500,0.2485,4544.7244,127
+gap>1% & near_52w_low,strangle1,0.2500,0.2481,4536.9780,35
+gap>1% & bb_wide,fade_gap,0.1000,0.2478,4531.2433,141
+gap>1% & macd_neg,strangle2,0.0500,0.2467,4512.0082,62
+first_friday & macd_neg,straddle,0.1000,0.2457,4492.6464,30
+first_friday & macd_neg,follow_gap,0.0500,0.2454,4488.2715,30
+vix>25 & rsi_extreme,strangle1,0.1000,0.2447,4475.2627,16
+gap>1% & near_52w_low,follow_gap,0.0500,0.2434,4452.1168,35
+gap>0.5% & prev_move>1.5%,straddle,0.1000,0.2434,4451.9922,107
+simple_top10%,fade_gap,0.1000,0.2430,4444.5789,100
+vix>20 & streak<=-3,strangle0.5,0.1000,0.2427,4439.0776,54
+vix>20 & rsi_extreme,strangle1,0.1000,0.2422,4431.0441,17
+near_52w_low & simple_top10%,follow_gap,0.1000,0.2421,4429.1045,48
+rsi_extreme & near_52w_low,strangle2,0.2500,0.2416,4419.6503,7
+near_52w_low & simple_top10%,strangle0.5,0.1000,0.2412,4412.8200,48
+macd_neg & simple_top10%,follow_gap,0.0500,0.2402,4395.6901,73
+gap>0.5% & streak<=-3,straddle,0.1000,0.2388,4369.8955,65
+streak<=-3 & simple_top10%,strangle1,0.2500,0.2385,4365.4504,18
+bb_wide & near_52w_low,strangle0.5,0.1000,0.2379,4355.3542,67
+gap>0.5% & simple_top10%,straddle,0.0500,0.2376,4349.4822,86
+vix>25 & near_52w_low,strangle1,0.1000,0.2376,4349.2373,72
+gap>1% & near_52w_low,straddle,0.1000,0.2374,4345.9462,35
+gap>1% & prev_move>1.5%,strangle1,0.1000,0.2371,4341.4157,51
+gap>1% & vix>25,straddle,0.0500,0.2361,4322.7668,69
+prev_move>1.5% & simple_top10%,strangle1,0.0500,0.2359,4319.7738,45
+first_friday & below_sma50,strangle0.5,0.2500,0.2359,4319.0988,23
+near_52w_low & complex_top10%,strangle0.5,0.0500,0.2358,4317.7334,65
+gap>1% & complex_top10%,fade_gap,0.0500,0.2357,4316.7177,102
+bb_wide & near_52w_low,straddle,0.5000,0.2349,4301.4952,67
+gap>1% & bb_wide,fade_gap,0.0500,0.2341,4287.5414,141
+rsi_extreme & complex_top10%,fade_gap,0.0500,0.2338,4283.3233,12
+vix>25 & prev_move>1.5%,strangle0.5,0.1000,0.2335,4277.3115,83
+first_friday,follow_gap,0.2500,0.2324,4258.8629,56
+streak<=-3,strangle0.5,0.1000,0.2324,4258.8303,115
+prev_move>1.5% & simple_top10%,strangle0.5,0.0500,0.2318,4247.7213,45
+gap>0.5% & near_52w_low,strangle0.5,0.1000,0.2315,4243.1840,59
+near_52w_low & simple_top10%,straddle,0.1000,0.2300,4217.0137,48
+streak<=-3 & complex_top10%,strangle2,0.2500,0.2296,4210.5307,20
+vix>20 & simple_top10%,fade_gap,0.0500,0.2293,4205.0921,94
+gap>0.5%,fade_gap,0.0500,0.2291,4202.9695,557
+below_sma50 & streak<=-3,straddle,0.2500,0.2287,4195.6027,65
+vix>25 & below_sma50,follow_gap,0.0500,0.2277,4177.6703,171
+gap>0.5% & near_52w_low,straddle,0.1000,0.2275,4174.4550,59
+vix>20 & macd_neg,fade_gap,0.0500,0.2268,4163.4828,250
+bb_wide & near_52w_low,straddle,0.1000,0.2250,4133.2183,67
+streak<=-3 & complex_top10%,strangle2,0.0500,0.2248,4129.0024,20
+gap>1%,fade_gap,0.0500,0.2230,4099.0369,228
+gap>0.5% & gap>1%,fade_gap,0.0500,0.2230,4099.0369,228
+prev_move>1.5% & complex_top10%,follow_gap,0.5000,0.2224,4089.6401,50
+vix>25 & near_52w_low,follow_gap,0.2500,0.2222,4086.1131,72
+vix>25 & bb_wide,follow_gap,0.0500,0.2222,4085.3793,140
+first_friday & macd_neg,strangle0.5,0.0500,0.2221,4084.4368,30
+first_friday & macd_neg,strangle1,0.0500,0.2220,4081.6736,30
+bb_wide & near_52w_low,follow_gap,0.0500,0.2216,4075.2386,67
+below_sma50 & simple_top10%,fade_gap,0.0500,0.2210,4065.2774,90
+gap>0.5% & vix>25,fade_gap,0.1000,0.2200,4049.3008,120
+gap>0.5% & vix>20,fade_gap,0.0500,0.2200,4048.6893,244
+gap>1% & rsi_extreme,strangle0.5,0.1000,0.2179,4014.5086,20
+below_sma50 & streak<=-3,fade_gap,0.1000,0.2178,4012.1113,65
+prev_move>1.5% & simple_top10%,strangle2,0.1000,0.2176,4009.1291,42
+gap>1% & simple_top10%,straddle,0.0500,0.2172,4003.2527,67
+vix>25,strangle1,0.2500,0.2164,3990.3863,184
+vix>20 & vix>25,strangle1,0.2500,0.2164,3990.3863,184
+rsi_extreme & below_sma50,strangle1,0.1000,0.2163,3987.8185,18
+rsi_extreme & simple_top10%,fade_gap,0.0500,0.2153,3971.2499,11
+vix>25 & complex_top10%,strangle2,0.0500,0.2152,3969.6178,108
+simple_top10%,fade_gap,0.0500,0.2139,3949.2122,100
+vix_gap>5% & streak<=-3,fade_gap,0.5000,0.2139,3948.4724,14
+vix>25 & rsi_extreme,fade_gap,0.0500,0.2137,3945.4691,16
+rsi_extreme & simple_top10%,strangle0.5,0.1000,0.2105,3894.0319,11
+vix>20 & rsi_extreme,strangle0.5,0.1000,0.2103,3891.3202,17
+vix>25 & prev_move>1.5%,straddle,0.1000,0.2101,3887.9839,83
+complex_top10% & simple_top10%,fade_gap,0.2500,0.2082,3856.7369,76
+gap>0.5% & gap>1%,strangle1,0.0500,0.2076,3847.3539,228
+gap>1%,strangle1,0.0500,0.2076,3847.3539,228
+prev_move>1.5% & below_sma50,strangle0.5,0.0500,0.2075,3846.7438,136
+first_friday & simple_top10%,follow_gap,0.5000,0.2075,3845.4514,8
+near_52w_low & complex_top10%,strangle1,0.0500,0.2073,3842.7981,65
+prev_move>1.5% & bb_wide,fade_gap,0.1000,0.2071,3840.5181,133
+vix_gap>5% & streak<=-3,fade_gap,0.1000,0.2061,3824.1295,14
+gap>1% & first_friday,follow_gap,0.2500,0.2061,3824.1139,15
+prev_move>1.5% & bb_wide,fade_gap,0.0500,0.2056,3816.7776,133
+vix>25 & simple_top10%,strangle2,0.0500,0.2055,3814.8507,83
+rsi_extreme & simple_top10%,strangle2,0.5000,0.2049,3804.5159,11
+gap>0.5% & vix>25,follow_gap,0.0500,0.2049,3804.2865,120
+vix>25 & rsi_extreme,strangle0.5,0.1000,0.2046,3799.4517,16
+macd_neg,follow_gap,0.0500,0.2039,3789.7276,645
+streak<=-3 & complex_top10%,straddle,0.1000,0.2038,3788.2125,25
+gap>0.5% & streak<=-3,strangle0.5,0.2500,0.2037,3786.7612,65
+vix>25 & macd_neg,follow_gap,0.0500,0.2036,3785.2357,118
+gap>0.5%,strangle0.5,0.0500,0.2036,3784.0481,557
+gap>1% & vix>20,follow_gap,0.0500,0.2025,3766.7955,128
+first_friday & rsi_extreme,follow_gap,0.2500,0.2025,3766.6117,7
+vix>20,strangle0.5,0.2500,0.2019,3757.6851,428
+prev_move>1.5% & bb_wide,strangle0.5,0.0500,0.2014,3750.6860,133
+bb_wide & streak<=-3,strangle2,0.0500,0.2014,3749.5582,31
+vix>20 & rsi_extreme,fade_gap,0.0500,0.2013,3748.6679,17
+prev_move>1.5% & rsi_extreme,strangle2,0.1000,0.2004,3735.0233,10
+gap>0.5% & streak<=-3,strangle0.5,0.1000,0.1995,3720.3637,65
+prev_move>1.5% & complex_top10%,straddle,0.0500,0.1993,3716.7900,50
+rsi_extreme & complex_top10%,strangle1,0.1000,0.1978,3693.6697,12
+vix>20 & streak<=-3,follow_gap,0.1000,0.1973,3686.6084,54
+vix>25 & prev_move>1.5%,strangle1,0.1000,0.1972,3685.2199,83
+prev_move>1.5% & rsi_extreme,strangle1,0.1000,0.1969,3679.8294,15
+gap>0.5% & simple_top10%,strangle2,0.1000,0.1962,3668.9408,75
+near_52w_low & complex_top10%,straddle,0.0500,0.1959,3664.3580,65
+vix>20 & below_sma50,strangle1,0.2500,0.1950,3651.9585,283
+gap>0.5% & simple_top10%,strangle2,0.0500,0.1948,3648.5410,75
+gap>0.5% & prev_move>1.5%,follow_gap,0.1000,0.1940,3635.9861,107
+rsi_extreme & simple_top10%,strangle2,0.1000,0.1939,3634.6429,11
+gap>0.5% & vix>25,fade_gap,0.0500,0.1920,3606.3306,120
+macd_neg,strangle0.5,0.1000,0.1909,3589.2686,645
+gap>1% & simple_top10%,strangle2,0.1000,0.1903,3579.8561,57
+prev_move>1.5% & macd_neg,strangle1,0.0500,0.1895,3568.3705,127
+rsi_extreme & below_sma50,fade_gap,0.0500,0.1892,3563.1402,18
+vix>20 & near_52w_low,strangle0.5,0.0500,0.1889,3559.0418,87
+below_sma50 & near_52w_low,strangle0.5,0.0500,0.1889,3559.0418,87
+near_52w_low,strangle0.5,0.0500,0.1889,3559.0418,87
+gap>0.5% & streak<=-3,fade_gap,0.0500,0.1888,3557.2102,65
+vix>20 & streak<=-3,strangle1,0.1000,0.1886,3554.5789,54
+prev_move>1.5% & macd_neg,strangle0.5,0.0500,0.1884,3551.8428,127
+first_friday,follow_gap,0.0500,0.1883,3550.0433,56
+gap>0.5% & below_sma50,follow_gap,0.0500,0.1878,3543.0996,238
+vix>20 & streak<=-3,straddle,0.1000,0.1875,3538.5979,54
+prev_move>1.5% & rsi_extreme,strangle0.5,0.1000,0.1861,3517.2409,15
+gap>0.5% & prev_move>1.5%,strangle0.5,0.1000,0.1859,3514.5772,107
+gap>0.5% & first_friday,follow_gap,0.1000,0.1856,3510.8922,32
+rsi_extreme & below_sma50,strangle0.5,0.1000,0.1852,3504.5228,18
+first_friday & simple_top10%,follow_gap,0.2500,0.1849,3499.6309,8
+prev_move>1.5% & first_friday,follow_gap,0.2500,0.1848,3497.6705,9
+rsi_extreme & macd_neg,straddle,0.2500,0.1845,3494.1662,34
+prev_move>1.5% & below_sma50,strangle1,0.0500,0.1842,3489.7906,136
+vix>20,fade_gap,0.0500,0.1829,3470.3078,428
+gap>1% & near_52w_low,strangle1,0.1000,0.1824,3463.0450,35
+prev_move>1.5% & rsi_extreme,fade_gap,0.0500,0.1822,3460.3535,15
+gap>1%,straddle,0.5000,0.1818,3454.3650,228
+gap>0.5% & gap>1%,straddle,0.5000,0.1818,3454.3650,228
+near_52w_low & macd_neg,straddle,0.1000,0.1818,3454.2572,68
+streak<=-3 & complex_top10%,strangle1,0.0500,0.1811,3443.5294,25
+rsi_extreme & macd_neg,strangle1,0.1000,0.1808,3439.3152,34
+vix>25 & simple_top10%,strangle2,0.1000,0.1805,3434.8947,83
+vix>25,follow_gap,0.0500,0.1797,3424.0926,184
+vix>20 & vix>25,follow_gap,0.0500,0.1797,3424.0926,184
+prev_move>1.5% & simple_top10%,straddle,0.0500,0.1795,3420.1682,45
+bb_wide & streak<=-3,strangle1,0.0500,0.1793,3418.0681,61
+rsi_extreme & macd_neg,fade_gap,0.0500,0.1792,3416.8756,34
+vix>25 & near_52w_low,follow_gap,0.0500,0.1773,3388.6254,72
+streak<=-3 & complex_top10%,follow_gap,0.0500,0.1770,3385.0174,25
+vix_gap>5% & first_friday,follow_gap,0.2500,0.1765,3377.0536,2
+vix>25 & simple_top10%,fade_gap,0.1000,0.1759,3369.4753,83
+below_sma50 & streak<=-3,strangle0.5,0.1000,0.1755,3363.0327,65
+streak<=-3 & simple_top10%,strangle0.5,0.1000,0.1748,3353.0362,18
+vix>25 & near_52w_low,strangle0.5,0.0500,0.1736,3336.2562,72
+prev_move>1.5% & simple_top10%,strangle2,0.0500,0.1735,3334.5734,42
+streak<=-3 & simple_top10%,strangle2,0.1000,0.1730,3328.2495,17
+gap>1% & simple_top10%,strangle2,0.0500,0.1727,3323.4523,57
+below_sma50 & complex_top10%,strangle2,0.1000,0.1723,3318.4204,127
+gap>1% & vix>25,strangle1,0.5000,0.1723,3317.6217,69
+macd_neg,fade_gap,0.0500,0.1722,3315.9571,645
+streak<=-3 & simple_top10%,strangle1,0.1000,0.1719,3311.7649,18
+first_friday & streak<=-3,straddle,0.5000,0.1708,3296.9224,8
+vix>25 & prev_move>1.5%,follow_gap,0.1000,0.1703,3289.7149,83
+rsi_extreme & simple_top10%,straddle,0.1000,0.1699,3284.2242,11
+vix>25 & macd_neg,fade_gap,0.0500,0.1698,3283.0333,118
+prev_move>1.5% & below_sma50,fade_gap,0.0500,0.1691,3272.5862,136
+bb_wide & streak<=-3,strangle0.5,0.0500,0.1689,3269.7339,61
+gap>1% & streak<=-3,straddle,0.1000,0.1688,3268.1115,31
+gap>1% & rsi_extreme,strangle1,0.0500,0.1684,3263.0145,20
+gap>1% & prev_move>1.5%,strangle0.5,0.0500,0.1669,3242.4822,51
+rsi_extreme & near_52w_low,strangle2,0.1000,0.1668,3241.3355,7
+vix>20 & near_52w_low,straddle,0.0500,0.1663,3233.3466,87
+near_52w_low,straddle,0.0500,0.1663,3233.3466,87
+below_sma50 & near_52w_low,straddle,0.0500,0.1663,3233.3466,87
+prev_move>1.5% & bb_wide,straddle,0.0500,0.1656,3224.6100,133
+prev_move>1.5% & below_sma50,straddle,0.0500,0.1655,3222.4739,136
+prev_move>1.5% & streak<=-3,straddle,0.2500,0.1654,3221.2697,31
+gap>1% & streak<=-3,strangle0.5,0.1000,0.1639,3201.2129,31
+rsi_extreme & complex_top10%,strangle0.5,0.1000,0.1639,3200.8960,12
+vix>20 & rsi_extreme,straddle,0.1000,0.1636,3196.7884,17
+gap>0.5% & first_friday,straddle,0.2500,0.1635,3194.6828,32
+near_52w_low & macd_neg,strangle0.5,0.1000,0.1630,3188.9836,68
+vix>25 & simple_top10%,fade_gap,0.0500,0.1627,3183.8006,83
+vix_gap>5% & streak<=-3,strangle1,0.2500,0.1618,3172.0652,14
+prev_move>1.5% & macd_neg,straddle,0.0500,0.1613,3164.6866,127
+streak<=-3,strangle0.5,0.0500,0.1612,3164.0365,115
+vix>25 & near_52w_low,strangle1,0.0500,0.1605,3153.8607,72
+gap>1% & rsi_extreme,straddle,0.1000,0.1600,3147.6293,20
+gap>1% & prev_move>1.5%,strangle1,0.0500,0.1597,3143.6940,51
+vix>25 & rsi_extreme,straddle,0.1000,0.1597,3143.6127,16
+rsi_extreme & near_52w_low,fade_gap,0.0500,0.1591,3135.9977,7
+rsi_extreme & near_52w_low,strangle1,0.1000,0.1588,3130.7390,7
+gap>0.5% & first_friday,follow_gap,0.2500,0.1587,3129.9190,32
+near_52w_low & simple_top10%,strangle1,0.1000,0.1584,3126.5015,48
+gap>1% & first_friday,follow_gap,0.1000,0.1579,3119.4699,15
+prev_move>1.5% & below_sma50,strangle1,0.1000,0.1579,3118.8280,136
+prev_move>1.5% & macd_neg,strangle1,0.1000,0.1575,3114.3739,127
+gap>0.5% & streak<=-3,fade_gap,0.2500,0.1571,3108.4502,65
+first_friday & bb_wide,follow_gap,0.0500,0.1556,3087.8863,31
+vix>25,follow_gap,0.1000,0.1553,3084.3417,184
+vix>20 & vix>25,follow_gap,0.1000,0.1553,3084.3417,184
+gap>0.5% & prev_move>1.5%,follow_gap,0.0500,0.1546,3075.0346,107
+vix_gap>5% & complex_top10%,strangle0.5,0.1000,0.1540,3067.5444,26
+vix>25 & macd_neg,fade_gap,0.1000,0.1535,3060.0084,118
+below_sma50 & streak<=-3,fade_gap,0.0500,0.1533,3058.4985,65
+rsi_extreme & below_sma50,straddle,0.1000,0.1524,3045.8079,18
+gap>1% & prev_move>1.5%,straddle,0.0500,0.1524,3045.3691,51
+below_sma50 & complex_top10%,fade_gap,0.2500,0.1518,3038.7331,146
+vix>25 & prev_move>1.5%,strangle1,0.0500,0.1515,3033.8739,83
+prev_move>1.5% & rsi_extreme,straddle,0.1000,0.1512,3029.9174,15
+below_sma50 & streak<=-3,straddle,0.1000,0.1507,3023.2945,65
+bb_wide,follow_gap,0.0500,0.1507,3152.7463,647
+prev_move>1.5% & bb_wide,strangle1,0.0500,0.1501,3015.5471,133
+first_friday,straddle,0.2500,0.1499,3013.3434,56
+gap>1% & streak<=-3,fade_gap,0.0500,0.1494,3007.2118,31
+first_friday & below_sma50,follow_gap,0.0500,0.1492,3003.5381,23
+vix>25 & first_friday,straddle,0.5000,0.1490,3001.4347,8
+gap>1% & rsi_extreme,fade_gap,0.0500,0.1488,2999.0550,20
+rsi_extreme & macd_neg,strangle0.5,0.1000,0.1480,2988.3508,34
+streak<=-3,straddle,0.0500,0.1475,2982.4174,115
+streak<=-3 & simple_top10%,straddle,0.1000,0.1474,2981.0673,18
+vix>25 & prev_move>1.5%,strangle0.5,0.0500,0.1468,2972.6826,83
+vix>25 & complex_top10%,strangle2,0.1000,0.1468,2972.1543,108
+streak<=-3 & simple_top10%,fade_gap,0.0500,0.1459,2960.8828,18
+vix>25 & near_52w_low,straddle,0.0500,0.1452,2951.5488,72
+streak<=-3 & complex_top10%,strangle0.5,0.0500,0.1439,2935.8924,25
+first_friday & below_sma50,strangle0.5,0.1000,0.1433,2928.0665,23
+near_52w_low,strangle1,0.1000,0.1416,2906.1372,87
+vix>20 & near_52w_low,strangle1,0.1000,0.1416,2906.1372,87
+below_sma50 & near_52w_low,strangle1,0.1000,0.1416,2906.1372,87
+gap>1% & complex_top10%,strangle2,0.0500,0.1413,2902.7514,79
+vix>20 & streak<=-3,strangle0.5,0.0500,0.1413,2901.9502,54
+bb_wide & streak<=-3,fade_gap,0.1000,0.1410,2898.1067,61
+prev_move>1.5% & streak<=-3,strangle0.5,0.2500,0.1408,2895.6748,31
+prev_move>1.5%,straddle,0.1000,0.1407,2894.2422,200
+vix>20 & streak<=-3,straddle,0.5000,0.1402,2887.9408,54
+bb_wide & streak<=-3,straddle,0.0500,0.1401,2887.2808,61
+gap>0.5% & first_friday,strangle0.5,0.1000,0.1401,2886.8301,32
+gap>0.5% & complex_top10%,strangle2,0.0500,0.1400,2885.3952,105
+near_52w_low & simple_top10%,follow_gap,0.0500,0.1389,2871.5609,48
+bb_wide & near_52w_low,strangle0.5,0.0500,0.1384,2865.6964,67
+prev_move>1.5% & below_sma50,fade_gap,0.1000,0.1375,2854.6576,136
+gap>1% & near_52w_low,strangle0.5,0.0500,0.1369,2846.6510,35
+vix_gap>5% & complex_top10%,straddle,0.1000,0.1369,2846.1960,26
+vix>20 & streak<=-3,strangle1,0.0500,0.1366,2842.6655,54
+gap>0.5% & prev_move>1.5%,strangle0.5,0.0500,0.1362,2838.3133,107
+gap>1%,fade_gap,0.1000,0.1360,2835.8332,228
+gap>0.5% & gap>1%,fade_gap,0.1000,0.1360,2835.8332,228
+rsi_extreme & near_52w_low,strangle0.5,0.1000,0.1353,2827.1035,7
+gap>0.5% & prev_move>1.5%,straddle,0.0500,0.1352,2825.2561,107
+vix>20 & streak<=-3,follow_gap,0.0500,0.1350,2823.3978,54
+rsi_extreme & complex_top10%,straddle,0.1000,0.1343,2814.2592,12
+prev_move>1.5% & streak<=-3,straddle,0.5000,0.1340,2810.6197,31
+rsi_extreme & macd_neg,strangle1,0.0500,0.1339,2808.9525,34
+vix>25 & prev_move>1.5%,follow_gap,0.0500,0.1338,2808.7573,83
+near_52w_low & simple_top10%,strangle0.5,0.0500,0.1338,2808.5219,48
+rsi_extreme & simple_top10%,strangle1,0.0500,0.1331,2800.0920,11
+prev_move>1.5% & complex_top10%,strangle2,0.2500,0.1325,2791.6042,46
+complex_top10% & simple_top10%,strangle2,0.2500,0.1323,2790.0876,73
+first_friday & below_sma50,straddle,0.1000,0.1317,2782.3442,23
+gap>0.5% & rsi_extreme,straddle,0.2500,0.1311,2774.5917,47
+prev_move>1.5% & near_52w_low,straddle,0.2500,0.1303,2765.1976,37
+first_friday & rsi_extreme,follow_gap,0.5000,0.1302,2764.3474,7
+vix>25 & rsi_extreme,strangle1,0.0500,0.1302,2763.8964,16
+vix_gap>5% & streak<=-3,strangle0.5,0.2500,0.1300,2762.1365,14
+first_friday & rsi_extreme,follow_gap,0.1000,0.1299,2760.0092,7
+vix>20 & rsi_extreme,strangle1,0.0500,0.1290,2749.8383,17
+vix>25 & streak<=-3,fade_gap,0.1000,0.1289,2748.1921,31
+gap>0.5% & near_52w_low,strangle0.5,0.0500,0.1284,2742.3928,59
+rsi_extreme & macd_neg,straddle,0.1000,0.1284,2741.8975,34
+bb_wide & simple_top10%,fade_gap,0.0500,0.1262,2715.0094,85
+first_friday & macd_neg,straddle,0.0500,0.1253,2705.1478,30
+gap>0.5% & streak<=-3,straddle,0.0500,0.1241,2690.2137,65
+gap>0.5% & below_sma50,follow_gap,0.1000,0.1228,2674.8163,238
+bb_wide & streak<=-3,follow_gap,0.1000,0.1224,2669.7272,61
+vix>25 & prev_move>1.5%,strangle0.5,0.2500,0.1222,2668.0553,83
+gap>1% & rsi_extreme,strangle0.5,0.0500,0.1214,2658.2659,20
+streak<=-3,follow_gap,0.0500,0.1211,2655.0792,115
+bb_wide & near_52w_low,straddle,0.0500,0.1208,2651.5473,67
+first_friday & streak<=-3,strangle0.5,0.5000,0.1208,2651.1269,8
+gap>1% & bb_wide,strangle2,0.0500,0.1203,2644.6200,74
+near_52w_low & simple_top10%,straddle,0.0500,0.1202,2643.5978,48
+streak<=-3 & simple_top10%,strangle2,0.0500,0.1201,2642.9757,17
+bb_wide,fade_gap,0.0500,0.1198,2507.0107,647
+vix>25 & prev_move>1.5%,straddle,0.0500,0.1193,2633.3249,83
+vix>20 & first_friday,follow_gap,0.1000,0.1192,2632.4899,22
+below_sma50 & streak<=-3,strangle0.5,0.2500,0.1188,2627.6512,65
+streak<=-3 & macd_neg,fade_gap,0.1000,0.1188,2627.5610,87
+rsi_extreme & complex_top10%,strangle2,0.1000,0.1188,2627.1101,12
+vix>20 & near_52w_low,strangle1,0.0500,0.1184,2622.7326,87
+near_52w_low,strangle1,0.0500,0.1184,2622.7326,87
+below_sma50 & near_52w_low,strangle1,0.0500,0.1184,2622.7326,87
+first_friday,straddle,0.1000,0.1183,2622.2164,56
+gap>0.5% & near_52w_low,strangle1,0.1000,0.1183,2621.2390,59
+vix_gap>5% & streak<=-3,strangle1,0.1000,0.1182,2620.0451,14
+vix>20 & prev_move>1.5%,fade_gap,0.0500,0.1181,2619.7157,139
+gap>1% & near_52w_low,straddle,0.0500,0.1179,2616.4487,35
+rsi_extreme & below_sma50,strangle1,0.0500,0.1174,2611.3366,18
+gap>0.5% & near_52w_low,straddle,0.0500,0.1173,2610.3896,59
+gap>0.5% & streak<=-3,strangle0.5,0.0500,0.1172,2608.7759,65
+prev_move>1.5% & rsi_extreme,strangle2,0.0500,0.1172,2608.7369,10
+bb_wide & streak<=-3,fade_gap,0.0500,0.1168,2603.6797,61
+vix_gap>5% & streak<=-3,fade_gap,0.0500,0.1166,2602.1642,14
+gap>0.5% & first_friday,follow_gap,0.0500,0.1166,2601.3073,32
+prev_move>1.5% & near_52w_low,strangle0.5,0.1000,0.1163,2598.1313,37
+first_friday,strangle0.5,0.1000,0.1158,2592.5927,56
+rsi_extreme & near_52w_low,straddle,0.1000,0.1157,2591.7207,7
+bb_wide & near_52w_low,strangle1,0.1000,0.1154,2587.5109,67
+vix>20 & first_friday,follow_gap,0.2500,0.1152,2585.2892,22
+prev_move>1.5% & macd_neg,follow_gap,0.0500,0.1151,2584.7450,127
+streak<=-3 & macd_neg,fade_gap,0.0500,0.1151,2584.3490,87
+rsi_extreme & near_52w_low,strangle2,0.5000,0.1150,2583.6685,7
+rsi_extreme & simple_top10%,strangle2,0.0500,0.1146,2578.2448,11
+gap>0.5% & vix>20,fade_gap,0.1000,0.1135,2565.8681,244
+vix_gap>5% & near_52w_low,fade_gap,0.2500,0.1124,2553.8266,9
+vix>20 & rsi_extreme,strangle0.5,0.0500,0.1105,2532.1498,17
+vix_gap>5% & complex_top10%,fade_gap,0.1000,0.1104,2531.0644,26
+rsi_extreme & simple_top10%,strangle0.5,0.0500,0.1092,2516.9690,11
+below_sma50 & streak<=-3,strangle0.5,0.0500,0.1087,2511.4879,65
+prev_move>1.5% & rsi_extreme,strangle1,0.0500,0.1086,2510.2904,15
+streak<=-3,follow_gap,0.1000,0.1082,2505.8761,115
+gap>0.5% & first_friday,strangle1,0.1000,0.1078,2500.7930,32
+vix>25 & rsi_extreme,strangle0.5,0.0500,0.1075,2497.6216,16
+rsi_extreme & complex_top10%,strangle1,0.0500,0.1074,2496.0954,12
+prev_move>1.5% & macd_neg,fade_gap,0.0500,0.1064,2485.6918,127
+near_52w_low & simple_top10%,strangle1,0.0500,0.1064,2485.3044,48
+streak<=-3 & complex_top10%,straddle,0.0500,0.1062,2483.1378,25
+gap>0.5%,straddle,0.2500,0.1060,2481.0368,557
+prev_move>1.5%,straddle,0.0500,0.1059,2479.3051,200
+prev_move>1.5% & near_52w_low,strangle1,0.1000,0.1055,2475.7237,37
+gap>1% & near_52w_low,strangle1,0.0500,0.1049,2468.3741,35
+prev_move>1.5% & streak<=-3,strangle0.5,0.1000,0.1047,2466.0968,31
+gap>1% & vix>25,fade_gap,0.1000,0.1046,2465.4424,69
+gap>0.5% & first_friday,straddle,0.1000,0.1045,2463.9549,32
+first_friday & streak<=-3,strangle0.5,0.2500,0.1045,2463.6438,8
+near_52w_low & macd_neg,strangle0.5,0.0500,0.1038,2456.6173,68
+macd_neg & simple_top10%,fade_gap,0.2500,0.1038,2456.1985,73
+rsi_extreme & complex_top10%,strangle2,0.2500,0.1036,2454.2418,12
+gap>0.5% & gap>1%,strangle0.5,0.2500,0.1035,2452.5677,228
+gap>1%,strangle0.5,0.2500,0.1035,2452.5677,228
+gap>1% & vix>25,fade_gap,0.0500,0.1025,2442.2543,69
+vix>20 & streak<=-3,straddle,0.0500,0.1023,2439.5073,54
+streak<=-3 & macd_neg,straddle,0.1000,0.1018,2433.6535,87
+first_friday & streak<=-3,straddle,0.2500,0.1015,2431.2844,8
+prev_move>1.5% & bb_wide,strangle1,0.1000,0.1015,2430.8121,133
+rsi_extreme & near_52w_low,strangle2,0.0500,0.1011,2426.8290,7
+prev_move>1.5% & macd_neg,follow_gap,0.1000,0.1010,2425.6439,127
+near_52w_low & macd_neg,straddle,0.0500,0.1008,2422.8631,68
+prev_move>1.5% & rsi_extreme,strangle0.5,0.0500,0.1005,2419.5541,15
+streak<=-3 & simple_top10%,strangle1,0.0500,0.1005,2419.5329,18
+prev_move>1.5% & near_52w_low,straddle,0.1000,0.1002,2416.9380,37
+prev_move>1.5% & streak<=-3,follow_gap,0.1000,0.0998,2412.5150,31
+bb_wide & streak<=-3,follow_gap,0.0500,0.0997,2411.5158,61
+vix>25 & first_friday,straddle,0.2500,0.0993,2406.1721,8
+rsi_extreme & below_sma50,strangle0.5,0.0500,0.0991,2404.7891,18
+gap>0.5% & rsi_extreme,straddle,0.1000,0.0991,2404.7600,47
+rsi_extreme & macd_neg,strangle0.5,0.0500,0.0986,2399.3546,34
+gap>1% & streak<=-3,strangle2,0.1000,0.0980,2392.1273,16
+gap>1% & complex_top10%,strangle2,0.1000,0.0977,2388.9045,79
+gap>0.5% & first_friday,strangle0.5,0.2500,0.0972,2383.3190,32
+first_friday & simple_top10%,follow_gap,0.1000,0.0968,2379.9316,8
+vix>25 & rsi_extreme,strangle2,0.1000,0.0958,2368.1892,16
+bb_wide & simple_top10%,fade_gap,0.1000,0.0957,2368.0793,85
+vix_gap>5% & first_friday,strangle1,0.5000,0.0957,2367.7560,2
+gap>1% & first_friday,follow_gap,0.0500,0.0955,2364.9855,15
+gap>0.5% & first_friday,strangle1,0.0500,0.0952,2361.7541,32
+vix>25 & first_friday,strangle1,0.2500,0.0948,2358.2197,8
+bb_wide & near_52w_low,strangle1,0.0500,0.0945,2354.1804,67
+streak<=-3 & simple_top10%,strangle0.5,0.0500,0.0942,2351.5235,18
+vix>25 & first_friday,strangle0.5,0.2500,0.0938,2346.7697,8
+streak<=-3 & simple_top10%,strangle2,0.2500,0.0932,2340.3535,17
+vix_gap>5% & first_friday,strangle1,0.2500,0.0929,2338.0099,2
+gap>1% & streak<=-3,strangle0.5,0.0500,0.0919,2327.2563,31
+vix>25 & streak<=-3,fade_gap,0.0500,0.0909,2315.8280,31
+gap>0.5% & first_friday,strangle0.5,0.0500,0.0904,2311.3811,32
+gap>1% & macd_neg,fade_gap,0.0500,0.0903,2310.2940,141
+prev_move>1.5% & streak<=-3,straddle,0.1000,0.0888,2294.1258,31
+vix_gap>5% & streak<=-3,strangle0.5,0.1000,0.0888,2293.6246,14
+gap>0.5% & rsi_extreme,follow_gap,0.1000,0.0884,2289.8217,47
+near_52w_low & macd_neg,strangle0.5,0.2500,0.0882,2288.0532,68
+gap>1% & streak<=-3,straddle,0.0500,0.0882,2287.4033,31
+gap>0.5% & bb_wide,strangle1,0.0500,0.0879,2284.4756,308
+rsi_extreme & complex_top10%,strangle0.5,0.0500,0.0878,2283.2773,12
+first_friday,strangle0.5,0.0500,0.0875,2280.4717,56
+rsi_extreme & near_52w_low,strangle1,0.0500,0.0873,2278.7473,7
+rsi_extreme & simple_top10%,straddle,0.0500,0.0869,2274.4774,11
+gap>1% & below_sma50,follow_gap,0.2500,0.0867,2271.6707,118
+vix_gap>5% & streak<=-3,straddle,0.2500,0.0862,2266.6805,14
+gap>0.5% & near_52w_low,strangle1,0.0500,0.0861,2265.5333,59
+vix>20 & rsi_extreme,straddle,0.0500,0.0848,2251.8394,17
+below_sma50 & streak<=-3,straddle,0.0500,0.0843,2247.1723,65
+vix>20 & streak<=-3,strangle2,0.0500,0.0841,2245.0753,41
+streak<=-3,strangle2,0.0500,0.0841,2245.0753,41
+macd_neg,straddle,0.2500,0.0838,2241.6457,645
+gap>1% & rsi_extreme,strangle1,0.5000,0.0834,2237.5896,20
+vix_gap>5% & first_friday,follow_gap,0.1000,0.0832,2235.9286,2
+streak<=-3 & simple_top10%,fade_gap,0.5000,0.0830,2233.3140,18
+gap>1% & rsi_extreme,straddle,0.0500,0.0829,2232.7271,20
+prev_move>1.5% & first_friday,follow_gap,0.1000,0.0828,2232.0005,9
+vix>25 & rsi_extreme,straddle,0.0500,0.0828,2231.7477,16
+vix>20 & macd_neg,fade_gap,0.1000,0.0826,2229.2901,250
+first_friday & near_52w_low,follow_gap,0.2500,0.0818,2220.9310,5
+vix_gap>5% & complex_top10%,strangle0.5,0.0500,0.0814,2217.0396,26
+prev_move>1.5%,strangle0.5,0.0500,0.0809,2212.3098,200
+prev_move>1.5% & simple_top10%,strangle1,0.5000,0.0804,2207.3255,45
+rsi_extreme & below_sma50,straddle,0.0500,0.0799,2201.5277,18
+gap>1% & streak<=-3,strangle2,0.0500,0.0796,2198.8131,16
+first_friday & below_sma50,strangle0.5,0.0500,0.0796,2198.4032,23
+rsi_extreme & complex_top10%,strangle2,0.0500,0.0791,2194.0552,12
+prev_move>1.5% & rsi_extreme,straddle,0.0500,0.0789,2191.6473,15
+first_friday & rsi_extreme,straddle,0.2500,0.0787,2189.5996,7
+gap>0.5% & macd_neg,fade_gap,0.1000,0.0785,2187.2650,329
+prev_move>1.5% & near_52w_low,strangle1,0.0500,0.0783,2186.0540,37
+gap>1% & prev_move>1.5%,strangle1,0.2500,0.0773,2175.9049,51
+prev_move>1.5% & near_52w_low,strangle0.5,0.2500,0.0771,2173.7385,37
+first_friday & rsi_extreme,follow_gap,0.0500,0.0768,2170.9476,7
+streak<=-3 & simple_top10%,straddle,0.0500,0.0767,2169.0426,18
+gap>0.5% & rsi_extreme,strangle0.5,0.1000,0.0748,2150.8499,47
+gap>0.5% & macd_neg,strangle0.5,0.2500,0.0748,2150.7281,329
+streak<=-3 & macd_neg,strangle0.5,0.1000,0.0740,2142.7934,87
+prev_move>1.5% & near_52w_low,strangle0.5,0.0500,0.0738,2140.3785,37
+rsi_extreme & macd_neg,straddle,0.0500,0.0738,2140.0772,34
+gap>0.5% & rsi_extreme,follow_gap,0.0500,0.0736,2138.9639,47
+first_friday & rsi_extreme,straddle,0.5000,0.0735,2137.9835,7
+vix_gap>5% & complex_top10%,fade_gap,0.0500,0.0734,2136.1629,26
+vix>20 & first_friday,follow_gap,0.0500,0.0732,2134.8174,22
+rsi_extreme & near_52w_low,strangle0.5,0.0500,0.0728,2130.6079,7
+vix>20 & rsi_extreme,strangle2,0.1000,0.0728,2130.3563,17
+rsi_extreme & bb_wide,strangle2,0.1000,0.0728,2130.3563,17
+rsi_extreme & below_sma50,strangle2,0.1000,0.0728,2130.3563,17
+rsi_extreme,strangle2,0.1000,0.0728,2130.3563,17
+rsi_extreme & macd_neg,strangle2,0.1000,0.0728,2130.3563,17
+gap>0.5% & simple_top10%,fade_gap,0.0500,0.0726,2128.1173,86
+vix_gap>5% & first_friday,straddle,0.5000,0.0716,2118.3734,2
+rsi_extreme & macd_neg,strangle0.5,0.2500,0.0710,2112.7823,34
+rsi_extreme & complex_top10%,straddle,0.0500,0.0704,2107.2819,12
+first_friday & below_sma50,strangle0.5,0.5000,0.0703,2105.5457,23
+vix_gap>5% & complex_top10%,straddle,0.0500,0.0702,2105.3868,26
+vix_gap>5% & complex_top10%,follow_gap,0.1000,0.0700,2103.2945,26
+streak<=-3 & macd_neg,strangle0.5,0.0500,0.0699,2102.3737,87
+vix_gap>5% & streak<=-3,strangle1,0.0500,0.0699,2101.6269,14
+rsi_extreme & bb_wide,fade_gap,0.0500,0.0697,2100.1992,104
+vix>25 & rsi_extreme,strangle2,0.0500,0.0690,2093.5117,16
+first_friday,straddle,0.0500,0.0685,2088.5443,56
+first_friday & below_sma50,strangle1,0.1000,0.0684,2087.0002,23
+vix_gap>5% & first_friday,strangle0.5,0.5000,0.0679,2082.5901,2
+first_friday & below_sma50,straddle,0.0500,0.0678,2081.5246,23
+vix_gap>5% & near_52w_low,fade_gap,0.1000,0.0669,2072.6296,9
+first_friday & rsi_extreme,strangle1,0.1000,0.0663,2067.1457,7
+prev_move>1.5% & streak<=-3,follow_gap,0.0500,0.0662,2065.8435,31
+gap>1% & bb_wide,strangle2,0.1000,0.0653,2057.5793,74
+near_52w_low & complex_top10%,strangle2,0.0500,0.0652,2055.7947,60
+first_friday & complex_top10%,follow_gap,0.2500,0.0650,2054.1634,8
+streak<=-3 & macd_neg,straddle,0.0500,0.0648,2052.1325,87
+vix>25 & streak<=-3,straddle,0.2500,0.0647,2051.3051,31
+first_friday & rsi_extreme,strangle0.5,0.1000,0.0642,2046.1899,7
+vix_gap>5% & first_friday,strangle0.5,0.2500,0.0641,2045.9244,2
+gap>0.5% & prev_move>1.5%,strangle1,0.0500,0.0641,2045.8241,107
+vix>25 & first_friday,strangle1,0.1000,0.0640,2044.3250,8
+gap>0.5% & rsi_extreme,strangle0.5,0.0500,0.0639,2043.3117,47
+gap>1% & streak<=-3,strangle1,0.1000,0.0631,2036.3697,31
+vix>25 & streak<=-3,straddle,0.1000,0.0614,2020.2915,31
+rsi_extreme & near_52w_low,straddle,0.0500,0.0608,2014.1599,7
+prev_move>1.5% & streak<=-3,strangle0.5,0.0500,0.0602,2008.9393,31
+gap>1% & first_friday,strangle1,0.1000,0.0598,2004.7032,15
+prev_move>1.5% & complex_top10%,fade_gap,0.0500,0.0596,2003.1360,50
+streak<=-3,fade_gap,0.0500,0.0594,2001.1786,115
+vix>25 & streak<=-3,strangle0.5,0.1000,0.0591,1998.5377,31
+gap>0.5% & first_friday,straddle,0.0500,0.0591,1997.7833,32
+gap>1% & first_friday,strangle1,0.0500,0.0588,1995.1847,15
+prev_move>1.5% & near_52w_low,straddle,0.0500,0.0586,1993.3423,37
+rsi_extreme & below_sma50,strangle2,0.0500,0.0581,1989.0680,17
+vix>20 & rsi_extreme,strangle2,0.0500,0.0581,1989.0680,17
+rsi_extreme & bb_wide,strangle2,0.0500,0.0581,1989.0680,17
+rsi_extreme & macd_neg,strangle2,0.0500,0.0581,1989.0680,17
+rsi_extreme,strangle2,0.0500,0.0581,1989.0680,17
+prev_move>1.5%,fade_gap,0.0500,0.0580,1987.9979,200
+rsi_extreme & streak<=-3,follow_gap,0.2500,0.0578,1985.7011,6
+near_52w_low & simple_top10%,strangle0.5,0.5000,0.0577,1985.0659,48
+gap>0.5% & rsi_extreme,straddle,0.0500,0.0574,1981.9661,47
+first_friday & rsi_extreme,strangle1,0.0500,0.0572,1980.4958,7
+prev_move>1.5% & near_52w_low,follow_gap,0.1000,0.0568,1976.4975,37
+gap>0.5% & bb_wide,fade_gap,0.0500,0.0552,1961.3243,309
+rsi_extreme & streak<=-3,straddle,0.5000,0.0551,1960.6352,6
+near_52w_low & complex_top10%,fade_gap,0.0500,0.0549,1958.6563,65
+vix>20 & prev_move>1.5%,straddle,0.1000,0.0548,1957.9576,139
+vix>25 & first_friday,strangle0.5,0.5000,0.0544,1954.4415,8
+vix_gap>5% & streak<=-3,straddle,0.1000,0.0541,1951.8928,14
+prev_move>1.5% & near_52w_low,strangle2,0.0500,0.0541,1951.0869,35
+vix>25 & first_friday,strangle0.5,0.1000,0.0535,1946.3204,8
+vix>20 & prev_move>1.5%,straddle,0.0500,0.0533,1944.5321,139
+first_friday & simple_top10%,follow_gap,0.0500,0.0530,1941.6909,8
+first_friday & below_sma50,strangle1,0.0500,0.0530,1941.5902,23
+gap>0.5% & complex_top10%,strangle2,0.1000,0.0526,1937.3730,105
+first_friday & complex_top10%,follow_gap,0.1000,0.0524,1935.4342,8
+vix_gap>5% & first_friday,strangle1,0.1000,0.0520,1932.2885,2
+near_52w_low & simple_top10%,fade_gap,0.0500,0.0515,1927.2626,48
+vix_gap>5% & streak<=-3,strangle0.5,0.0500,0.0511,1923.4318,14
+prev_move>1.5% & below_sma50,follow_gap,0.0500,0.0508,1920.9192,136
+first_friday & streak<=-3,strangle0.5,0.1000,0.0505,1918.3012,8
+below_sma50 & simple_top10%,strangle1,0.5000,0.0505,1918.1748,90
+gap>1% & streak<=-3,strangle1,0.0500,0.0500,1913.9495,31
+first_friday & near_52w_low,follow_gap,0.1000,0.0493,1907.8283,5
+gap>1% & prev_move>1.5%,strangle0.5,0.5000,0.0483,1898.1191,51
+prev_move>1.5% & streak<=-3,straddle,0.0500,0.0482,1897.0821,31
+prev_move>1.5% & near_52w_low,follow_gap,0.0500,0.0481,1896.3154,37
+vix_gap>5% & complex_top10%,follow_gap,0.0500,0.0469,1885.5688,26
+rsi_extreme & streak<=-3,straddle,0.2500,0.0466,1883.2681,6
+prev_move>1.5% & macd_neg,strangle2,0.0500,0.0466,1882.8284,69
+vix>25 & first_friday,straddle,0.1000,0.0459,1877.0596,8
+first_friday & rsi_extreme,strangle0.5,0.2500,0.0458,1875.5375,7
+first_friday & rsi_extreme,straddle,0.1000,0.0457,1875.2371,7
+vix>20 & prev_move>1.5%,fade_gap,0.1000,0.0457,1875.1553,139
+near_52w_low & simple_top10%,strangle1,0.2500,0.0457,1874.7032,48
+vix_gap>5% & first_friday,straddle,0.2500,0.0454,1872.0143,2
+vix_gap>5% & first_friday,follow_gap,0.0500,0.0447,1865.6552,2
+gap>0.5%,follow_gap,0.0500,0.0444,1863.5762,557
+first_friday & streak<=-3,straddle,0.1000,0.0440,1859.7007,8
+first_friday & rsi_extreme,strangle0.5,0.0500,0.0439,1858.9005,7
+vix>20 & prev_move>1.5%,strangle0.5,0.0500,0.0432,1852.6843,139
+prev_move>1.5% & first_friday,follow_gap,0.0500,0.0429,1850.1072,9
+near_52w_low & macd_neg,strangle1,0.0500,0.0428,1848.9376,68
+streak<=-3 & macd_neg,straddle,0.2500,0.0426,1847.4991,87
+rsi_extreme & streak<=-3,strangle1,0.2500,0.0420,1842.2228,6
+vix_gap>5% & complex_top10%,fade_gap,0.2500,0.0419,1841.0460,26
+vix>25 & streak<=-3,strangle0.5,0.0500,0.0416,1838.3832,31
+rsi_extreme & streak<=-3,follow_gap,0.1000,0.0414,1836.7193,6
+near_52w_low & macd_neg,straddle,0.5000,0.0411,1833.9444,68
+first_friday & near_52w_low,follow_gap,0.5000,0.0410,1833.5381,5
+gap>0.5% & rsi_extreme,strangle1,0.0500,0.0377,1804.6036,47
+gap>1% & simple_top10%,strangle1,0.5000,0.0374,1802.2409,67
+prev_move>1.5% & simple_top10%,fade_gap,0.0500,0.0373,1801.4325,45
+vix_gap>5% & near_52w_low,fade_gap,0.0500,0.0371,1799.6921,9
+vix>25 & streak<=-3,straddle,0.0500,0.0370,1798.5538,31
+vix>25 & first_friday,strangle1,0.0500,0.0368,1796.5835,8
+vix_gap>5% & near_52w_low,fade_gap,0.5000,0.0367,1795.5003,9
+vix>25 & first_friday,fade_gap,0.1000,0.0365,1793.8219,8
+gap>0.5% & streak<=-3,strangle2,0.0500,0.0352,1783.0187,30
+gap>1% & vix>25,strangle2,0.0500,0.0351,1781.7127,69
+prev_move>1.5% & near_52w_low,fade_gap,0.0500,0.0348,1779.3149,37
+vix_gap>5% & first_friday,strangle0.5,0.1000,0.0348,1779.0122,2
+vix>25 & streak<=-3,strangle1,0.0500,0.0346,1777.9934,31
+gap>1% & vix_gap>5%,fade_gap,0.0500,0.0344,1776.1691,40
+vix>25 & first_friday,follow_gap,0.1000,0.0340,1772.7823,8
+gap>1% & simple_top10%,fade_gap,0.0500,0.0338,1771.1753,67
+vix>25 & prev_move>1.5%,fade_gap,0.0500,0.0335,1768.6202,83
+vix>25 & rsi_extreme,strangle2,0.2500,0.0328,1762.7296,16
+vix_gap>5% & complex_top10%,strangle1,0.1000,0.0317,1752.8941,26
+first_friday & complex_top10%,follow_gap,0.0500,0.0315,1751.6927,8
+gap>1% & prev_move>1.5%,strangle2,0.0500,0.0308,1745.1695,32
+vix_gap>5% & streak<=-3,straddle,0.0500,0.0305,1742.9318,14
+vix>20 & first_friday,straddle,0.1000,0.0301,1739.7528,22
+rsi_extreme & streak<=-3,strangle0.5,0.2500,0.0299,1737.7490,6
+vix>25 & first_friday,strangle0.5,0.0500,0.0295,1734.3281,8
+vix_gap>5% & first_friday,strangle1,0.0500,0.0292,1732.2613,2
+vix>20 & streak<=-3,fade_gap,0.0500,0.0292,1732.2052,54
+rsi_extreme & streak<=-3,strangle1,0.1000,0.0292,1731.8259,6
+below_sma50 & bb_wide,strangle0.5,0.5000,0.0289,1729.1013,284
+vix>25 & streak<=-3,strangle1,0.1000,0.0284,1724.8371,31
+vix>20 & prev_move>1.5%,strangle1,0.0500,0.0280,1721.9909,139
+vix>25 & near_52w_low,fade_gap,0.0500,0.0279,1721.1528,72
+vix>20 & first_friday,straddle,0.2500,0.0278,1720.3508,22
+first_friday & near_52w_low,follow_gap,0.0500,0.0278,1720.1214,5
+first_friday & bb_wide,strangle1,0.0500,0.0274,1717.1472,31
+vix_gap>5% & complex_top10%,strangle1,0.0500,0.0274,1716.4620,26
+vix>25 & first_friday,fade_gap,0.2500,0.0269,1712.4777,8
+first_friday & streak<=-3,strangle0.5,0.0500,0.0266,1709.8428,8
+vix>20 & first_friday,strangle0.5,0.1000,0.0263,1707.3999,22
+gap>1% & first_friday,strangle0.5,0.0500,0.0259,1704.6479,15
+first_friday & rsi_extreme,straddle,0.0500,0.0259,1704.5587,7
+vix>25 & near_52w_low,strangle1,0.2500,0.0244,1691.8039,72
+rsi_extreme & streak<=-3,follow_gap,0.0500,0.0242,1690.5507,6
+prev_move>1.5% & near_52w_low,strangle2,0.1000,0.0240,1688.7539,35
+vix>25 & first_friday,straddle,0.0500,0.0240,1688.6498,8
+gap>1% & vix_gap>5%,fade_gap,0.1000,0.0236,1685.5243,40
+gap>0.5% & gap>1%,strangle1,0.1000,0.0234,1683.6510,228
+gap>1%,strangle1,0.1000,0.0234,1683.6510,228
+vix>25 & first_friday,fade_gap,0.0500,0.0232,1681.8477,8
+gap>1% & first_friday,strangle0.5,0.1000,0.0231,1681.1979,15
+rsi_extreme & streak<=-3,straddle,0.1000,0.0230,1680.7044,6
+vix_gap>5% & below_sma50,straddle,0.1000,0.0230,1680.3275,52
+vix>25 & first_friday,follow_gap,0.0500,0.0229,1679.2795,8
+first_friday & streak<=-3,fade_gap,0.1000,0.0226,1676.7190,8
+first_friday & streak<=-3,straddle,0.0500,0.0225,1676.0381,8
+rsi_extreme & streak<=-3,strangle0.5,0.1000,0.0217,1669.6722,6
+prev_move>1.5% & complex_top10%,fade_gap,0.1000,0.0217,1669.4775,50
+gap>0.5% & first_friday,straddle,0.5000,0.0212,1665.2973,32
+vix>20 & first_friday,strangle0.5,0.0500,0.0211,1665.2299,22
+first_friday & bb_wide,straddle,0.1000,0.0211,1665.2089,31
+vix_gap>5% & first_friday,straddle,0.1000,0.0210,1663.7584,2
+first_friday & near_52w_low,straddle,0.2500,0.0208,1662.8022,5
+vix_gap>5% & streak<=-3,straddle,0.5000,0.0200,1656.1098,14
+near_52w_low & simple_top10%,fade_gap,0.1000,0.0195,1652.2426,48
+vix_gap>5% & first_friday,strangle0.5,0.0500,0.0192,1649.8429,2
+prev_move>1.5% & streak<=-3,follow_gap,0.2500,0.0192,1649.4639,31
+vix>20 & first_friday,straddle,0.0500,0.0184,1642.9627,22
+vix_gap>5% & below_sma50,straddle,0.0500,0.0184,1642.7710,52
+bb_wide & streak<=-3,strangle1,0.2500,0.0180,1639.8041,61
+prev_move>1.5%,follow_gap,0.0500,0.0177,1637.5841,200
+first_friday & bb_wide,straddle,0.0500,0.0174,1635.0982,31
+vix_gap>5% & streak<=-3,strangle2,0.0500,0.0169,1631.2152,8
+gap>0.5% & prev_move>1.5%,fade_gap,0.0500,0.0169,1630.6547,107
+rsi_extreme & streak<=-3,strangle1,0.0500,0.0167,1629.0609,6
+streak<=-3 & complex_top10%,strangle1,0.5000,0.0166,1628.9235,25
+prev_move>1.5% & macd_neg,fade_gap,0.1000,0.0164,1626.7005,127
+gap>0.5% & simple_top10%,fade_gap,0.1000,0.0163,1625.9530,86
+vix>20 & first_friday,strangle1,0.0500,0.0155,1619.8312,22
+first_friday & streak<=-3,fade_gap,0.0500,0.0150,1615.8700,8
+streak<=-3,strangle2,0.1000,0.0150,1615.5602,41
+vix>20 & streak<=-3,strangle2,0.1000,0.0150,1615.5602,41
+gap>1% & first_friday,straddle,0.1000,0.0147,1613.2508,15
+vix>25 & first_friday,follow_gap,0.2500,0.0143,1610.4320,8
+vix>20 & streak<=-3,follow_gap,0.2500,0.0140,1608.1662,54
+rsi_extreme & macd_neg,strangle1,0.2500,0.0140,1607.7441,34
+first_friday & near_52w_low,straddle,0.5000,0.0139,1606.9433,5
+first_friday & bb_wide,strangle0.5,0.0500,0.0138,1606.3644,31
+first_friday & streak<=-3,follow_gap,0.1000,0.0128,1597.9809,8
+rsi_extreme,fade_gap,0.0500,0.0126,1596.6856,141
+rsi_extreme & streak<=-3,strangle0.5,0.0500,0.0125,1595.7211,6
+rsi_extreme & streak<=-3,straddle,0.0500,0.0122,1593.6154,6
+gap>1% & first_friday,straddle,0.0500,0.0120,1591.9301,15
+first_friday & near_52w_low,straddle,0.1000,0.0119,1591.4248,5
+near_52w_low & macd_neg,strangle1,0.1000,0.0114,1587.5441,68
+prev_move>1.5% & streak<=-3,fade_gap,0.0500,0.0112,1585.6175,31
+vix_gap>5% & first_friday,straddle,0.0500,0.0110,1584.2694,2
+vix_gap>5% & complex_top10%,follow_gap,0.2500,0.0105,1579.9446,26
+vix>25 & streak<=-3,fade_gap,0.2500,0.0103,1578.5864,31
+first_friday & streak<=-3,follow_gap,0.0500,0.0100,1576.4737,8
+first_friday & complex_top10%,strangle2,0.0500,0.0086,1565.5084,6
+gap>1% & first_friday,strangle2,0.0500,0.0086,1565.2320,6
+gap>1% & macd_neg,strangle1,0.2500,0.0083,1563.0817,141
+vix_gap>5% & near_52w_low,strangle0.5,0.1000,0.0083,1563.0814,9
+vix>20 & vix_gap>5%,follow_gap,0.0500,0.0082,1562.0935,74
+streak<=-3 & complex_top10%,fade_gap,0.0500,0.0078,1558.9889,25
+first_friday & near_52w_low,strangle0.5,0.1000,0.0069,1552.3269,5
+vix_gap>5% & below_sma50,fade_gap,0.0500,0.0068,1551.3662,52
+vix_gap>5% & near_52w_low,straddle,0.1000,0.0066,1549.9576,9
+first_friday & near_52w_low,straddle,0.0500,0.0066,1549.8085,5
+first_friday & complex_top10%,straddle,0.1000,0.0065,1549.1324,8
+gap>1% & first_friday,strangle2,0.1000,0.0059,1545.0187,6
+first_friday & complex_top10%,strangle2,0.1000,0.0059,1544.9788,6
+vix_gap>5% & simple_top10%,follow_gap,0.0500,0.0057,1543.3620,17
+prev_move>1.5% & near_52w_low,fade_gap,0.1000,0.0054,1540.8450,37
+vix>20 & first_friday,strangle1,0.1000,0.0052,1539.4047,22
+vix_gap>5% & near_52w_low,strangle0.5,0.0500,0.0052,1539.3007,9
+first_friday & near_52w_low,strangle0.5,0.0500,0.0050,1538.1127,5
+vix>25 & first_friday,strangle2,0.0500,0.0050,1537.6662,8
+gap>1% & vix_gap>5%,straddle,0.0500,0.0049,1537.3942,40
+vix_gap>5% & near_52w_low,strangle0.5,0.2500,0.0046,1534.8740,9
+first_friday & streak<=-3,fade_gap,0.2500,0.0044,1533.3246,8
+first_friday & complex_top10%,straddle,0.0500,0.0043,1532.7942,8
+vix_gap>5% & near_52w_low,straddle,0.2500,0.0042,1531.6181,9
+rsi_extreme & bb_wide,fade_gap,0.1000,0.0042,1531.5542,104
+vix_gap>5% & near_52w_low,straddle,0.0500,0.0040,1530.1609,9
+near_52w_low & complex_top10%,fade_gap,0.1000,0.0039,1529.5328,65
+prev_move>1.5% & bb_wide,follow_gap,0.0500,0.0036,1527.4402,133
+bb_wide,strangle0.5,0.1000,0.0036,1474.1251,647
+first_friday & near_52w_low,strangle1,0.0500,0.0033,1524.6634,5
+vix_gap>5% & prev_move>1.5%,fade_gap,0.0500,0.0032,1524.1640,27
+vix_gap>5% & streak<=-3,strangle2,0.1000,0.0023,1517.2493,8
+first_friday & complex_top10%,strangle1,0.0500,0.0022,1516.7923,8
+gap>1% & rsi_extreme,strangle2,0.0500,0.0022,1516.4950,10
+first_friday & near_52w_low,strangle1,0.1000,0.0021,1515.4819,5
+gap>1% & vix_gap>5%,straddle,0.1000,0.0013,1509.7823,40
+first_friday & complex_top10%,straddle,0.2500,0.0011,1507.9495,8
+first_friday & simple_top10%,straddle,0.0500,0.0008,1505.9839,8
+vix>25 & vix_gap>5%,fade_gap,0.0500,0.0006,1504.8613,32
+first_friday,strangle1,0.0500,0.0002,1501.3940,56
+vix_gap>5% & first_friday,strangle2,0.2500,0.0000,1500.0000,0
+vix_gap>5% & first_friday,strangle2,0.0500,0.0000,1500.0000,0
+first_friday & rsi_extreme,strangle2,0.0500,0.0000,1500.0000,0
+first_friday & rsi_extreme,strangle2,0.2500,0.0000,1500.0000,0
+first_friday & rsi_extreme,strangle2,0.1000,0.0000,1500.0000,0
+vix_gap>5% & first_friday,strangle2,0.1000,0.0000,1500.0000,0
+vix_gap>5% & first_friday,strangle2,0.5000,0.0000,1500.0000,0
+first_friday & rsi_extreme,strangle2,0.5000,0.0000,1500.0000,0
+vix_gap>5% & near_52w_low,strangle1,0.0500,-0.0002,1498.8385,9
+first_friday & simple_top10%,straddle,0.1000,-0.0005,1496.0339,8
+vix_gap>5% & simple_top10%,follow_gap,0.1000,-0.0009,1493.5824,17
+prev_move>1.5%,strangle0.5,0.1000,-0.0009,1493.2148,200
+prev_move>1.5% & streak<=-3,strangle1,0.0500,-0.0010,1492.6324,31
+first_friday & simple_top10%,strangle2,0.0500,-0.0017,1487.4144,7
+first_friday & complex_top10%,strangle0.5,0.0500,-0.0021,1484.5604,8
+below_sma50 & streak<=-3,strangle1,0.0500,-0.0021,1484.5593,65
+vix>25 & first_friday,strangle2,0.1000,-0.0021,1484.1518,8
+vix_gap>5% & near_52w_low,strangle1,0.1000,-0.0023,1482.5163,9
+first_friday & complex_top10%,strangle1,0.1000,-0.0042,1468.7940,8
+gap>1% & rsi_extreme,strangle2,0.1000,-0.0045,1466.3179,10
+first_friday & near_52w_low,strangle0.5,0.2500,-0.0050,1462.9632,5
+near_52w_low & complex_top10%,strangle2,0.1000,-0.0058,1457.2801,60
+bb_wide,straddle,0.2500,-0.0059,1367.6235,647
+gap>0.5% & vix>25,strangle0.5,0.5000,-0.0060,1455.4328,120
+gap>0.5% & rsi_extreme,strangle2,0.0500,-0.0066,1450.9169,13
+vix>25 & first_friday,strangle1,0.5000,-0.0068,1449.7762,8
+vix_gap>5% & below_sma50,follow_gap,0.0500,-0.0072,1447.1355,52
+gap>0.5% & streak<=-3,strangle2,0.1000,-0.0074,1445.4483,30
+gap>0.5% & rsi_extreme,fade_gap,0.0500,-0.0075,1444.6274,47
+first_friday & macd_neg,strangle2,0.0500,-0.0079,1441.6355,8
+rsi_extreme & streak<=-3,fade_gap,0.0500,-0.0082,1439.6318,6
+vix>20 & streak<=-3,fade_gap,0.1000,-0.0092,1432.4984,54
+first_friday & complex_top10%,strangle0.5,0.1000,-0.0093,1431.8941,8
+vix>25 & streak<=-3,strangle0.5,0.2500,-0.0094,1431.1254,31
+prev_move>1.5% & simple_top10%,fade_gap,0.1000,-0.0096,1429.2823,45
+vix_gap>5% & bb_wide,straddle,0.0500,-0.0097,1428.9957,76
+gap>1% & vix>20,fade_gap,0.2500,-0.0101,1425.8821,128
+gap>1% & rsi_extreme,follow_gap,0.0500,-0.0103,1424.1621,20
+vix_gap>5% & simple_top10%,straddle,0.0500,-0.0103,1424.0905,17
+gap>0.5% & rsi_extreme,strangle1,0.1000,-0.0104,1423.8777,47
+streak<=-3,strangle1,0.0500,-0.0106,1422.1081,115
+gap>1% & simple_top10%,follow_gap,0.5000,-0.0110,1419.5932,67
+vix_gap>5% & simple_top10%,strangle2,0.0500,-0.0118,1413.9290,14
+prev_move>1.5% & streak<=-3,fade_gap,0.1000,-0.0120,1412.1913,31
+vix_gap>5% & streak<=-3,strangle0.5,0.5000,-0.0124,1409.0453,14
+gap>1% & streak<=-3,follow_gap,0.0500,-0.0126,1408.2478,31
+streak<=-3 & simple_top10%,follow_gap,0.0500,-0.0128,1406.2338,18
+vix>25 & near_52w_low,strangle2,0.0500,-0.0132,1403.5576,72
+first_friday & bb_wide,strangle0.5,0.1000,-0.0133,1403.1955,31
+first_friday & simple_top10%,strangle0.5,0.0500,-0.0137,1399.8693,8
+gap>1% & prev_move>1.5%,strangle2,0.1000,-0.0138,1399.7666,32
+gap>1% & streak<=-3,strangle0.5,0.5000,-0.0138,1399.6577,31
+streak<=-3,fade_gap,0.1000,-0.0140,1398.1124,115
+vix_gap>5% & below_sma50,strangle0.5,0.0500,-0.0142,1396.4573,52
+first_friday & simple_top10%,straddle,0.2500,-0.0148,1392.6414,8
+vix>25 & streak<=-3,strangle2,0.0500,-0.0149,1391.6393,31
+first_friday & simple_top10%,strangle2,0.1000,-0.0151,1390.2739,7
+rsi_extreme & streak<=-3,follow_gap,0.5000,-0.0153,1388.8945,6
+rsi_extreme & streak<=-3,strangle2,0.0500,-0.0154,1387.9773,5
+gap>0.5% & first_friday,strangle2,0.0500,-0.0155,1387.5956,10
+first_friday & bb_wide,strangle2,0.0500,-0.0155,1387.5825,10
+first_friday & simple_top10%,strangle1,0.0500,-0.0156,1386.7848,8
+gap>1% & macd_neg,fade_gap,0.1000,-0.0166,1379.6498,141
+prev_move>1.5% & first_friday,straddle,0.0500,-0.0176,1372.6642,9
+gap>0.5% & prev_move>1.5%,strangle1,0.1000,-0.0177,1372.1370,107
+vix>20 & prev_move>1.5%,strangle0.5,0.1000,-0.0177,1371.6842,139
+vix_gap>5% & rsi_extreme,fade_gap,0.0500,-0.0178,1371.1173,13
+vix>25 & macd_neg,strangle2,0.0500,-0.0182,1368.2846,118
+bb_wide & macd_neg,strangle2,0.0500,-0.0183,1368.0598,130
+gap>0.5% & gap>1%,strangle2,0.0500,-0.0183,1368.0263,99
+gap>1% & vix>20,strangle2,0.0500,-0.0183,1368.0263,99
+gap>1%,strangle2,0.0500,-0.0183,1368.0263,99
+first_friday & streak<=-3,follow_gap,0.2500,-0.0185,1366.3655,8
+gap>0.5% & streak<=-3,follow_gap,0.0500,-0.0188,1364.5493,65
+vix_gap>5% & simple_top10%,strangle0.5,0.0500,-0.0189,1363.5351,17
+first_friday & bb_wide,strangle1,0.1000,-0.0192,1361.4768,31
+vix>20 & streak<=-3,strangle1,0.2500,-0.0198,1357.2239,54
+rsi_extreme & streak<=-3,strangle1,0.5000,-0.0200,1356.1639,6
+vix_gap>5% & complex_top10%,strangle2,0.0500,-0.0201,1355.4327,20
+vix>20 & vix_gap>5%,straddle,0.0500,-0.0203,1354.2132,74
+vix_gap>5% & first_friday,fade_gap,0.0500,-0.0203,1353.9076,2
+first_friday & streak<=-3,strangle2,0.0500,-0.0203,1353.8293,2
+gap>1% & first_friday,straddle,0.2500,-0.0206,1352.1930,15
+gap>0.5% & streak<=-3,strangle1,0.0500,-0.0206,1352.0395,65
+near_52w_low,fade_gap,0.0500,-0.0208,1350.5902,87
+below_sma50 & near_52w_low,fade_gap,0.0500,-0.0208,1350.5902,87
+vix>20 & near_52w_low,fade_gap,0.0500,-0.0208,1350.5902,87
+first_friday & macd_neg,fade_gap,0.0500,-0.0208,1350.4431,30
+vix_gap>5% & simple_top10%,strangle1,0.0500,-0.0209,1349.6886,17
+first_friday & complex_top10%,fade_gap,0.0500,-0.0212,1347.7115,8
+rsi_extreme & streak<=-3,fade_gap,0.1000,-0.0215,1345.9678,6
+vix_gap>5% & streak<=-3,strangle1,0.5000,-0.0217,1344.0579,14
+gap>1% & below_sma50,strangle2,0.0500,-0.0223,1340.5093,82
+vix_gap>5% & near_52w_low,strangle1,0.2500,-0.0226,1337.8890,9
+streak<=-3 & near_52w_low,straddle,0.0500,-0.0231,1335.0736,20
+vix_gap>5% & prev_move>1.5%,fade_gap,0.1000,-0.0231,1334.5551,27
+vix>20,strangle1,0.1000,-0.0232,1334.3912,428
+bb_wide & streak<=-3,strangle2,0.2500,-0.0232,1334.0660,31
+streak<=-3 & near_52w_low,follow_gap,0.0500,-0.0235,1331.9572,20
+first_friday & rsi_extreme,strangle1,0.2500,-0.0237,1330.8700,7
+gap>0.5% & rsi_extreme,strangle2,0.1000,-0.0238,1330.0376,13
+gap>0.5% & macd_neg,strangle2,0.0500,-0.0238,1329.8767,119
+vix_gap>5% & bb_wide,fade_gap,0.0500,-0.0243,1326.4279,76
+streak<=-3 & simple_top10%,strangle1,0.5000,-0.0244,1325.9564,18
+first_friday & near_52w_low,fade_gap,0.0500,-0.0245,1324.9085,5
+rsi_extreme & macd_neg,strangle2,0.2500,-0.0249,1322.4042,17
+vix>20 & rsi_extreme,strangle2,0.2500,-0.0249,1322.4042,17
+rsi_extreme & below_sma50,strangle2,0.2500,-0.0249,1322.4042,17
+rsi_extreme & bb_wide,strangle2,0.2500,-0.0249,1322.4042,17
+rsi_extreme,strangle2,0.2500,-0.0249,1322.4042,17
+below_sma50 & streak<=-3,fade_gap,0.2500,-0.0250,1322.0814,65
+streak<=-3 & macd_neg,strangle2,0.0500,-0.0250,1321.6800,32
+vix>25 & vix_gap>5%,straddle,0.0500,-0.0251,1321.3610,32
+vix_gap>5% & rsi_extreme,strangle2,0.0500,-0.0252,1320.6456,4
+first_friday & below_sma50,fade_gap,0.0500,-0.0252,1320.5456,23
+first_friday & near_52w_low,strangle1,0.2500,-0.0256,1317.8503,5
+first_friday & streak<=-3,strangle1,0.0500,-0.0260,1315.3247,8
+streak<=-3 & complex_top10%,fade_gap,0.1000,-0.0260,1314.8491,25
+rsi_extreme & streak<=-3,strangle0.5,0.5000,-0.0261,1314.1744,6
+gap>0.5% & first_friday,fade_gap,0.0500,-0.0268,1309.7947,32
+prev_move>1.5% & streak<=-3,strangle1,0.1000,-0.0269,1309.1634,31
+vix_gap>5% & simple_top10%,fade_gap,0.0500,-0.0273,1306.6457,17
+gap>1% & simple_top10%,fade_gap,0.1000,-0.0273,1306.2959,67
+vix_gap>5% & simple_top10%,straddle,0.1000,-0.0273,1306.1514,17
+rsi_extreme & macd_neg,straddle,0.5000,-0.0274,1305.6312,34
+first_friday & near_52w_low,strangle2,0.0500,-0.0278,1303.1782,4
+first_friday & macd_neg,strangle2,0.1000,-0.0280,1301.3669,8
+rsi_extreme & bb_wide,straddle,0.0500,-0.0282,1300.4664,104
+vix_gap>5% & rsi_extreme,straddle,0.0500,-0.0310,1281.9170,13
+gap>1% & first_friday,follow_gap,0.5000,-0.0314,1278.7683,15
+first_friday & simple_top10%,strangle0.5,0.1000,-0.0318,1276.4638,8
+rsi_extreme & streak<=-3,strangle2,0.1000,-0.0325,1271.7491,5
+gap>1% & near_52w_low,strangle2,0.0500,-0.0327,1270.4905,33
+first_friday & bb_wide,straddle,0.2500,-0.0328,1269.7063,31
+gap>1% & near_52w_low,fade_gap,0.0500,-0.0332,1267.3362,35
+first_friday & rsi_extreme,fade_gap,0.0500,-0.0335,1265.4868,7
+gap>0.5% & vix_gap>5%,fade_gap,0.0500,-0.0338,1263.0212,83
+below_sma50 & streak<=-3,follow_gap,0.0500,-0.0346,1258.2126,65
+vix_gap>5% & near_52w_low,follow_gap,0.0500,-0.0346,1258.1642,9
+vix>25 & vix_gap>5%,fade_gap,0.1000,-0.0349,1256.3967,32
+streak<=-3 & near_52w_low,fade_gap,0.0500,-0.0352,1254.4098,20
+first_friday & below_sma50,strangle2,0.0500,-0.0355,1252.4317,12
+prev_move>1.5% & first_friday,straddle,0.1000,-0.0360,1249.0092,9
+vix_gap>5% & below_sma50,fade_gap,0.1000,-0.0369,1243.0181,52
+vix_gap>5% & below_sma50,straddle,0.2500,-0.0372,1241.2733,52
+prev_move>1.5% & rsi_extreme,follow_gap,0.0500,-0.0376,1238.5235,15
+streak<=-3 & simple_top10%,follow_gap,0.1000,-0.0382,1234.6820,18
+prev_move>1.5% & below_sma50,follow_gap,0.1000,-0.0384,1233.5023,136
+vix>25 & vix_gap>5%,strangle0.5,0.0500,-0.0386,1232.3117,32
+vix_gap>5% & bb_wide,follow_gap,0.0500,-0.0389,1230.5302,76
+vix_gap>5% & macd_neg,follow_gap,0.0500,-0.0390,1229.7316,76
+vix>25 & streak<=-3,follow_gap,0.0500,-0.0393,1228.0890,31
+vix_gap>5% & near_52w_low,straddle,0.5000,-0.0393,1227.9717,9
+first_friday & simple_top10%,strangle1,0.1000,-0.0396,1226.0708,8
+vix_gap>5% & bb_wide,straddle,0.1000,-0.0401,1222.8252,76
+prev_move>1.5% & first_friday,strangle2,0.0500,-0.0402,1221.9255,4
+gap>1% & streak<=-3,strangle2,0.2500,-0.0410,1217.3205,16
+prev_move>1.5% & first_friday,strangle0.5,0.0500,-0.0410,1216.9582,9
+bb_wide & near_52w_low,fade_gap,0.0500,-0.0410,1216.8361,67
+vix>20 & rsi_extreme,follow_gap,0.0500,-0.0412,1215.6813,17
+vix_gap>5% & first_friday,fade_gap,0.1000,-0.0413,1215.1131,2
+first_friday & streak<=-3,strangle2,0.1000,-0.0413,1215.0870,2
+below_sma50 & streak<=-3,straddle,0.5000,-0.0413,1214.8729,65
+rsi_extreme & below_sma50,follow_gap,0.0500,-0.0415,1213.6704,18
+near_52w_low & simple_top10%,strangle2,0.0500,-0.0422,1209.7111,48
+vix>20 & first_friday,strangle0.5,0.2500,-0.0424,1208.1929,22
+prev_move>1.5% & below_sma50,strangle0.5,0.2500,-0.0427,1206.0207,136
+rsi_extreme & simple_top10%,follow_gap,0.0500,-0.0429,1204.7778,11
+first_friday & complex_top10%,straddle,0.5000,-0.0430,1204.6111,8
+vix>20 & first_friday,fade_gap,0.0500,-0.0430,1204.4057,22
+first_friday & complex_top10%,follow_gap,0.5000,-0.0431,1203.9840,8
+gap>0.5% & first_friday,strangle2,0.1000,-0.0433,1202.2592,10
+first_friday & bb_wide,strangle2,0.1000,-0.0434,1202.1650,10
+rsi_extreme & near_52w_low,follow_gap,0.0500,-0.0439,1198.9553,7
+vix_gap>5% & rsi_extreme,fade_gap,0.1000,-0.0440,1198.3874,13
+vix>25 & prev_move>1.5%,strangle2,0.0500,-0.0441,1197.7596,83
+gap>1% & vix_gap>5%,follow_gap,0.0500,-0.0451,1191.4296,40
+vix>25 & prev_move>1.5%,fade_gap,0.1000,-0.0456,1188.1056,83
+prev_move>1.5% & near_52w_low,strangle1,0.2500,-0.0459,1186.2576,37
+gap>0.5% & macd_neg,strangle1,0.1000,-0.0465,1182.8158,329
+streak<=-3 & near_52w_low,strangle0.5,0.0500,-0.0469,1179.8698,20
+first_friday & complex_top10%,fade_gap,0.1000,-0.0474,1176.7222,8
+gap>1% & first_friday,strangle2,0.2500,-0.0476,1175.7137,6
+first_friday & complex_top10%,strangle2,0.2500,-0.0476,1175.6455,6
+gap>1% & vix_gap>5%,strangle0.5,0.0500,-0.0476,1175.4829,40
+vix>20 & vix_gap>5%,follow_gap,0.1000,-0.0482,1172.3483,74
+vix_gap>5% & simple_top10%,strangle0.5,0.1000,-0.0500,1161.1921,17
+first_friday & near_52w_low,fade_gap,0.1000,-0.0504,1158.3527,5
+streak<=-3 & near_52w_low,straddle,0.1000,-0.0507,1157.0336,20
+vix_gap>5% & streak<=-3,follow_gap,0.0500,-0.0507,1156.4950,14
+first_friday & below_sma50,strangle1,0.2500,-0.0510,1155.0022,23
+gap>1% & streak<=-3,follow_gap,0.1000,-0.0512,1153.9276,31
+prev_move>1.5% & streak<=-3,strangle2,0.0500,-0.0514,1152.2989,20
+vix_gap>5% & rsi_extreme,strangle2,0.1000,-0.0515,1152.1921,4
+gap>0.5% & vix_gap>5%,straddle,0.0500,-0.0524,1146.5649,83
+streak<=-3,strangle0.5,0.2500,-0.0526,1145.3575,115
+gap>1% & rsi_extreme,follow_gap,0.1000,-0.0526,1145.3171,20
+vix>20 & near_52w_low,strangle2,0.0500,-0.0530,1143.1091,76
+below_sma50 & near_52w_low,strangle2,0.0500,-0.0530,1143.1091,76
+near_52w_low,strangle2,0.0500,-0.0530,1143.1091,76
+vix>25 & near_52w_low,fade_gap,0.1000,-0.0530,1142.8450,72
+first_friday & streak<=-3,strangle1,0.1000,-0.0540,1136.6267,8
+first_friday & simple_top10%,fade_gap,0.0500,-0.0541,1136.1634,8
+vix>25 & rsi_extreme,follow_gap,0.0500,-0.0542,1135.3961,16
+below_sma50 & streak<=-3,strangle2,0.0500,-0.0545,1133.6434,35
+vix_gap>5% & near_52w_low,strangle0.5,0.5000,-0.0552,1129.4417,9
+vix_gap>5% & below_sma50,strangle0.5,0.1000,-0.0553,1129.2830,52
+gap>1% & vix_gap>5%,straddle,0.2500,-0.0559,1125.2223,40
+vix_gap>5% & simple_top10%,strangle2,0.1000,-0.0560,1124.8914,14
+first_friday & near_52w_low,strangle2,0.1000,-0.0564,1122.5706,4
+streak<=-3 & near_52w_low,follow_gap,0.1000,-0.0565,1121.7414,20
+vix>20 & vix_gap>5%,straddle,0.1000,-0.0568,1120.2584,74
+vix_gap>5% & bb_wide,strangle0.5,0.0500,-0.0571,1118.2504,76
+vix_gap>5% & prev_move>1.5%,strangle2,0.0500,-0.0582,1111.6502,17
+first_friday & complex_top10%,strangle0.5,0.2500,-0.0582,1111.5789,8
+gap>0.5% & rsi_extreme,fade_gap,0.1000,-0.0586,1109.4382,47
+vix_gap>5% & simple_top10%,strangle1,0.1000,-0.0587,1108.7125,17
+vix>25 & vix_gap>5%,straddle,0.1000,-0.0587,1108.6848,32
+vix_gap>5% & below_sma50,follow_gap,0.1000,-0.0591,1106.5109,52
+vix_gap>5% & complex_top10%,strangle1,0.2500,-0.0593,1105.3613,26
+vix_gap>5% & macd_neg,straddle,0.0500,-0.0595,1104.0811,76
+gap>0.5% & near_52w_low,strangle1,0.2500,-0.0595,1103.9782,59
+prev_move>1.5% & macd_neg,strangle2,0.1000,-0.0607,1097.4302,69
+vix_gap>5% & rsi_extreme,strangle0.5,0.0500,-0.0610,1095.3626,13
+vix>25 & vix_gap>5%,strangle1,0.0500,-0.0614,1093.1749,32
+rsi_extreme & bb_wide,strangle0.5,0.0500,-0.0616,1092.0166,104
+vix_gap>5% & rsi_extreme,follow_gap,0.0500,-0.0621,1089.0466,13
+vix>20 & vix_gap>5%,strangle0.5,0.0500,-0.0626,1086.2737,74
+macd_neg & complex_top10%,strangle1,0.5000,-0.0631,1083.5102,118
+vix_gap>5% & rsi_extreme,straddle,0.1000,-0.0634,1081.2697,13
+gap>1% & streak<=-3,strangle1,0.2500,-0.0642,1076.9196,31
+first_friday & complex_top10%,strangle1,0.2500,-0.0646,1074.6104,8
+vix>20 & first_friday,strangle2,0.0500,-0.0647,1073.9505,15
+first_friday,strangle2,0.0500,-0.0647,1073.9505,15
+gap>1% & rsi_extreme,strangle2,0.2500,-0.0647,1073.7783,10
+rsi_extreme & macd_neg,follow_gap,0.0500,-0.0651,1071.8348,34
+vix>25 & vix_gap>5%,follow_gap,0.0500,-0.0653,1070.8930,32
+prev_move>1.5% & first_friday,strangle1,0.0500,-0.0663,1064.7490,9
+streak<=-3 & macd_neg,follow_gap,0.0500,-0.0671,1060.3650,87
+first_friday & simple_top10%,straddle,0.5000,-0.0674,1058.7278,8
+first_friday & rsi_extreme,fade_gap,0.1000,-0.0681,1054.6121,7
+first_friday,strangle0.5,0.2500,-0.0690,1049.5756,56
+streak<=-3 & macd_neg,strangle1,0.0500,-0.0693,1047.6878,87
+vix_gap>5% & prev_move>1.5%,straddle,0.0500,-0.0694,1047.5232,27
+gap>1% & prev_move>1.5%,fade_gap,0.0500,-0.0701,1043.1691,51
+vix>25 & bb_wide,strangle2,0.0500,-0.0708,1039.4557,140
+below_sma50 & streak<=-3,strangle1,0.1000,-0.0710,1038.3624,65
+vix>25 & first_friday,strangle2,0.2500,-0.0724,1030.4947,8
+vix_gap>5% & below_sma50,strangle1,0.0500,-0.0728,1028.6588,52
+vix_gap>5% & near_52w_low,follow_gap,0.1000,-0.0737,1023.4032,9
+vix_gap>5% & near_52w_low,strangle2,0.0500,-0.0739,1022.3649,9
+near_52w_low & macd_neg,strangle2,0.0500,-0.0741,1021.4829,59
+gap>1% & first_friday,fade_gap,0.0500,-0.0749,1016.9193,15
+first_friday & macd_neg,fade_gap,0.1000,-0.0750,1016.0060,30
+vix_gap>5% & rsi_extreme,strangle1,0.0500,-0.0766,1007.3229,13
+first_friday,fade_gap,0.0500,-0.0767,1006.7946,56
+first_friday & below_sma50,fade_gap,0.1000,-0.0768,1006.5925,23
+gap>1% & vix>25,strangle2,0.1000,-0.0769,1005.8356,69
+vix_gap>5% & simple_top10%,fade_gap,0.1000,-0.0769,1005.8215,17
+vix>20 & prev_move>1.5%,follow_gap,0.0500,-0.0780,999.6511,139
+streak<=-3 & near_52w_low,strangle1,0.0500,-0.0781,999.3103,20
+vix_gap>5% & complex_top10%,strangle2,0.1000,-0.0783,998.0416,20
+prev_move>1.5%,strangle1,0.0500,-0.0784,997.6436,200
+gap>0.5% & rsi_extreme,straddle,0.5000,-0.0791,993.8329,47
+vix>20 & vix_gap>5%,fade_gap,0.0500,-0.0793,993.0111,74
+gap>1% & vix_gap>5%,strangle2,0.0500,-0.0803,987.6252,21
+rsi_extreme,straddle,0.0500,-0.0803,987.4139,141
+gap>0.5%,strangle0.5,0.1000,-0.0806,985.9716,557
+streak<=-3 & near_52w_low,strangle2,0.0500,-0.0806,985.7382,18
+prev_move>1.5% & first_friday,strangle2,0.1000,-0.0809,984.2376,4
+prev_move>1.5% & first_friday,fade_gap,0.0500,-0.0822,977.3526,9
+vix_gap>5% & simple_top10%,follow_gap,0.2500,-0.0822,977.2436,17
+first_friday & below_sma50,strangle2,0.1000,-0.0828,973.9462,12
+prev_move>1.5% & first_friday,strangle0.5,0.1000,-0.0832,971.9277,9
+gap>1% & first_friday,strangle0.5,0.2500,-0.0836,969.7234,15
+first_friday & near_52w_low,strangle0.5,0.5000,-0.0838,968.7883,5
+prev_move>1.5% & rsi_extreme,follow_gap,0.1000,-0.0853,960.8382,15
+rsi_extreme & complex_top10%,follow_gap,0.0500,-0.0856,959.4218,12
+gap>0.5% & first_friday,fade_gap,0.1000,-0.0861,956.7566,32
+rsi_extreme & streak<=-3,fade_gap,0.2500,-0.0875,949.6404,6
+streak<=-3 & near_52w_low,fade_gap,0.1000,-0.0880,946.9532,20
+gap>0.5% & prev_move>1.5%,fade_gap,0.1000,-0.0892,940.6373,107
+rsi_extreme & near_52w_low,follow_gap,0.1000,-0.0894,939.8899,7
+vix>25 & vix_gap>5%,strangle0.5,0.1000,-0.0903,934.8798,32
+prev_move>1.5% & near_52w_low,straddle,0.5000,-0.0904,934.7291,37
+gap>0.5% & streak<=-3,follow_gap,0.1000,-0.0913,930.0969,65
+near_52w_low & macd_neg,fade_gap,0.0500,-0.0917,927.6558,68
+rsi_extreme & simple_top10%,follow_gap,0.1000,-0.0919,927.1113,11
+gap>1% & first_friday,strangle1,0.2500,-0.0919,926.6540,15
+gap>0.5% & macd_neg,straddle,0.5000,-0.0925,923.9999,329
+rsi_extreme & bb_wide,straddle,0.1000,-0.0928,922.1866,104
+bb_wide & near_52w_low,strangle2,0.0500,-0.0929,921.5607,64
+vix>20 & rsi_extreme,follow_gap,0.1000,-0.0933,919.6667,17
+rsi_extreme & streak<=-3,strangle2,0.2500,-0.0934,919.0890,5
+rsi_extreme & below_sma50,follow_gap,0.1000,-0.0938,917.2504,18
+vix>20 & first_friday,straddle,0.5000,-0.0941,915.5492,22
+gap>0.5% & near_52w_low,fade_gap,0.0500,-0.0942,915.3577,59
+gap>0.5% & streak<=-3,strangle1,0.1000,-0.0943,914.5534,65
+first_friday,strangle1,0.1000,-0.0957,907.5582,56
+prev_move>1.5% & first_friday,straddle,0.2500,-0.0963,904.5399,9
+prev_move>1.5% & bb_wide,strangle0.5,0.2500,-0.0974,898.9765,133
+prev_move>1.5% & simple_top10%,strangle2,0.2500,-0.0977,897.6126,42
+vix>25 & streak<=-3,follow_gap,0.1000,-0.0985,893.9481,31
+vix>25 & streak<=-3,strangle2,0.1000,-0.0988,892.0069,31
+gap>0.5% & near_52w_low,strangle0.5,0.5000,-0.0999,887.0360,59
+streak<=-3 & near_52w_low,strangle0.5,0.1000,-0.1003,884.7492,20
+vix_gap>5% & prev_move>1.5%,strangle0.5,0.0500,-0.1004,884.5110,27
+gap>1% & macd_neg,strangle2,0.2500,-0.1008,882.3113,62
+first_friday & simple_top10%,strangle2,0.2500,-0.1010,881.5552,7
+vix>20 & first_friday,fade_gap,0.1000,-0.1012,880.2279,22
+prev_move>1.5% & near_52w_low,follow_gap,0.2500,-0.1025,874.1387,37
+vix>20 & prev_move>1.5%,strangle1,0.1000,-0.1033,870.3133,139
+gap>1% & near_52w_low,fade_gap,0.1000,-0.1040,866.6161,35
+gap>0.5% & near_52w_low,strangle2,0.0500,-0.1074,850.3453,54
+first_friday & simple_top10%,strangle0.5,0.2500,-0.1078,848.5397,8
+prev_move>1.5% & streak<=-3,strangle0.5,0.5000,-0.1079,848.2276,31
+gap>1% & near_52w_low,strangle1,0.5000,-0.1082,846.5018,35
+gap>0.5% & vix_gap>5%,follow_gap,0.0500,-0.1082,846.4869,83
+gap>0.5% & prev_move>1.5%,strangle2,0.0500,-0.1083,846.4132,62
+first_friday & simple_top10%,fade_gap,0.1000,-0.1087,844.4937,8
+vix_gap>5% & simple_top10%,straddle,0.2500,-0.1087,844.4201,17
+vix_gap>5% & first_friday,fade_gap,0.2500,-0.1088,843.9284,2
+first_friday & streak<=-3,strangle2,0.2500,-0.1088,843.8014,2
+prev_move>1.5% & below_sma50,strangle2,0.0500,-0.1091,842.5327,99
+vix_gap>5% & streak<=-3,follow_gap,0.1000,-0.1094,841.0665,14
+gap>1% & vix_gap>5%,strangle0.5,0.1000,-0.1097,839.3965,40
+bb_wide & complex_top10%,follow_gap,0.5000,-0.1101,837.6960,127
+gap>1% & vix_gap>5%,follow_gap,0.1000,-0.1103,836.8914,40
+vix_gap>5% & near_52w_low,strangle1,0.5000,-0.1103,836.8409,9
+vix_gap>5% & bb_wide,fade_gap,0.1000,-0.1112,832.6909,76
+prev_move>1.5% & bb_wide,follow_gap,0.1000,-0.1117,830.1420,133
+vix_gap>5% & prev_move>1.5%,strangle1,0.0500,-0.1140,819.7143,27
+gap>0.5% & rsi_extreme,strangle0.5,0.2500,-0.1144,817.7377,47
+gap>1% & near_52w_low,strangle2,0.1000,-0.1154,813.3262,33
+gap>0.5% & rsi_extreme,follow_gap,0.2500,-0.1161,809.8152,47
+gap>0.5% & first_friday,strangle1,0.2500,-0.1162,809.6714,32
+gap>0.5% & prev_move>1.5%,strangle0.5,0.2500,-0.1162,809.2647,107
+vix>25 & below_sma50,strangle2,0.0500,-0.1167,807.0108,171
+vix>25 & rsi_extreme,follow_gap,0.1000,-0.1174,804.1589,16
+below_sma50 & streak<=-3,follow_gap,0.1000,-0.1176,803.2019,65
+streak<=-3 & macd_neg,strangle2,0.1000,-0.1177,802.6358,32
+first_friday & bb_wide,fade_gap,0.0500,-0.1183,799.8436,31
+gap>0.5% & vix_gap>5%,straddle,0.1000,-0.1183,799.7455,83
+rsi_extreme,fade_gap,0.1000,-0.1191,796.0643,141
+vix_gap>5% & macd_neg,fade_gap,0.0500,-0.1204,790.5001,76
+gap>0.5% & rsi_extreme,strangle2,0.2500,-0.1216,784.8712,13
+vix>25 & streak<=-3,straddle,0.5000,-0.1224,781.5530,31
+vix_gap>5% & rsi_extreme,strangle0.5,0.1000,-0.1239,774.6833,13
+vix>25 & first_friday,fade_gap,0.5000,-0.1248,770.9866,8
+vix_gap>5% & rsi_extreme,follow_gap,0.1000,-0.1251,769.4909,13
+prev_move>1.5%,fade_gap,0.1000,-0.1262,764.6643,200
+bb_wide & macd_neg,strangle1,0.2500,-0.1267,762.6912,274
+vix_gap>5% & streak<=-3,strangle2,0.2500,-0.1276,758.5923,8
+gap>0.5% & prev_move>1.5%,straddle,0.5000,-0.1283,755.5877,107
+vix_gap>5%,straddle,0.0500,-0.1287,753.7074,145
+gap>0.5% & vix_gap>5%,fade_gap,0.1000,-0.1289,752.9508,83
+vix_gap>5% & macd_neg,straddle,0.1000,-0.1314,742.4291,76
+prev_move>1.5% & streak<=-3,strangle2,0.1000,-0.1321,739.4474,20
+vix_gap>5%,fade_gap,0.0500,-0.1328,736.2502,145
+prev_move>1.5% & first_friday,strangle1,0.1000,-0.1329,735.7538,9
+vix_gap>5% & macd_neg,follow_gap,0.1000,-0.1335,733.3962,76
+streak<=-3,straddle,0.5000,-0.1354,725.2841,115
+first_friday & macd_neg,strangle2,0.2500,-0.1355,725.1104,8
+first_friday & rsi_extreme,strangle0.5,0.5000,-0.1355,725.0175,7
+prev_move>1.5%,straddle,0.2500,-0.1357,724.0817,200
+prev_move>1.5% & bb_wide,strangle2,0.0500,-0.1359,723.4386,87
+first_friday & near_52w_low,fade_gap,0.2500,-0.1361,722.3636,5
+bb_wide & complex_top10%,strangle2,0.2500,-0.1367,719.8768,109
+gap>1% & vix_gap>5%,strangle1,0.0500,-0.1372,717.9598,40
+vix_gap>5% & rsi_extreme,strangle2,0.2500,-0.1373,717.6102,4
+prev_move>1.5%,follow_gap,0.1000,-0.1382,713.8003,200
+vix>20 & first_friday,strangle2,0.1000,-0.1391,710.0200,15
+first_friday,strangle2,0.1000,-0.1391,710.0200,15
+vix>25 & vix_gap>5%,strangle1,0.1000,-0.1398,707.2747,32
+first_friday,straddle,0.5000,-0.1418,698.8481,56
+vix_gap>5% & prev_move>1.5%,straddle,0.1000,-0.1421,697.6889,27
+gap>0.5% & bb_wide,strangle2,0.0500,-0.1422,697.2919,132
+vix>20 & first_friday,strangle1,0.2500,-0.1422,697.2103,22
+vix_gap>5% & bb_wide,follow_gap,0.1000,-0.1423,696.7703,76
+vix>25 & bb_wide,strangle0.5,0.5000,-0.1433,693.0251,140
+vix>20,fade_gap,0.1000,-0.1439,690.6250,428
+bb_wide & near_52w_low,strangle1,0.2500,-0.1441,689.4428,67
+vix>25 & simple_top10%,strangle1,0.5000,-0.1443,688.7536,83
+vix_gap>5% & prev_move>1.5%,strangle2,0.1000,-0.1443,688.7183,17
+first_friday & bb_wide,follow_gap,0.5000,-0.1451,685.5062,31
+vix>25 & vix_gap>5%,follow_gap,0.1000,-0.1454,684.5243,32
+vix_gap>5% & bb_wide,strangle1,0.0500,-0.1456,683.7317,76
+first_friday & near_52w_low,strangle1,0.5000,-0.1456,683.4690,5
+bb_wide & streak<=-3,follow_gap,0.2500,-0.1458,682.7805,61
+gap>0.5% & vix_gap>5%,strangle0.5,0.0500,-0.1458,682.6961,83
+vix_gap>5% & near_52w_low,strangle2,0.1000,-0.1464,680.5197,9
+first_friday & streak<=-3,fade_gap,0.5000,-0.1470,677.8747,8
+first_friday & near_52w_low,strangle2,0.2500,-0.1478,674.8469,4
+vix_gap>5% & prev_move>1.5%,follow_gap,0.0500,-0.1479,674.5496,27
+first_friday & simple_top10%,strangle1,0.2500,-0.1480,674.1247,8
+vix>20 & near_52w_low,fade_gap,0.1000,-0.1481,673.8395,87
+near_52w_low,fade_gap,0.1000,-0.1481,673.8395,87
+below_sma50 & near_52w_low,fade_gap,0.1000,-0.1481,673.8395,87
+prev_move>1.5% & macd_neg,strangle0.5,0.2500,-0.1482,673.4005,127
+vix>25 & vix_gap>5%,strangle2,0.0500,-0.1485,672.2078,32
+vix>25,strangle2,0.0500,-0.1494,668.4661,184
+vix>20 & vix>25,strangle2,0.0500,-0.1494,668.4661,184
+vix>25 & prev_move>1.5%,strangle1,0.2500,-0.1498,667.1193,83
+first_friday & streak<=-3,strangle1,0.2500,-0.1500,666.3328,8
+vix_gap>5% & bb_wide,strangle2,0.0500,-0.1501,665.9929,33
+first_friday & complex_top10%,fade_gap,0.2500,-0.1504,664.8407,8
+gap>1% & first_friday,fade_gap,0.1000,-0.1514,660.8053,15
+vix>20 & vix_gap>5%,strangle0.5,0.1000,-0.1515,660.2816,74
+vix>25 & first_friday,follow_gap,0.5000,-0.1518,659.0933,8
+vix_gap>5% & macd_neg,strangle0.5,0.0500,-0.1528,655.4092,76
+vix_gap>5% & rsi_extreme,strangle1,0.1000,-0.1531,654.3125,13
+streak<=-3 & near_52w_low,straddle,0.2500,-0.1536,652.3126,20
+first_friday & macd_neg,strangle1,0.5000,-0.1546,648.3262,30
+vix>25 & streak<=-3,strangle1,0.2500,-0.1551,646.5118,31
+vix_gap>5% & bb_wide,strangle0.5,0.1000,-0.1562,642.2404,76
+streak<=-3,strangle1,0.1000,-0.1564,641.6615,115
+vix>25 & near_52w_low,strangle2,0.1000,-0.1571,638.7616,72
+bb_wide & simple_top10%,strangle1,0.5000,-0.1574,637.5731,85
+bb_wide & near_52w_low,fade_gap,0.1000,-0.1601,627.6594,67
+bb_wide,strangle2,0.0500,-0.1602,627.1128,211
+vix>20 & bb_wide,strangle2,0.0500,-0.1602,627.1128,211
+near_52w_low & macd_neg,follow_gap,0.5000,-0.1607,625.5039,68
+prev_move>1.5% & first_friday,fade_gap,0.1000,-0.1615,622.2530,9
+vix_gap>5% & rsi_extreme,fade_gap,0.2500,-0.1618,621.3333,13
+rsi_extreme & macd_neg,follow_gap,0.1000,-0.1624,619.0284,34
+streak<=-3 & near_52w_low,strangle1,0.1000,-0.1638,614.0555,20
+vix>25 & prev_move>1.5%,straddle,0.5000,-0.1669,602.5474,83
+vix_gap>5% & rsi_extreme,straddle,0.2500,-0.1683,597.6932,13
+near_52w_low & simple_top10%,strangle2,0.1000,-0.1691,594.9092,48
+rsi_extreme & complex_top10%,follow_gap,0.1000,-0.1694,593.7367,12
+rsi_extreme & complex_top10%,strangle2,0.5000,-0.1696,592.8951,12
+vix_gap>5% & macd_neg,strangle2,0.0500,-0.1699,591.8683,31
+simple_top10%,strangle1,0.5000,-0.1706,589.5140,100
+gap>0.5% & vix>25,follow_gap,0.2500,-0.1711,587.7945,120
+below_sma50 & streak<=-3,strangle2,0.1000,-0.1718,585.2105,35
+gap>0.5% & first_friday,strangle2,0.2500,-0.1733,579.8558,10
+first_friday & bb_wide,strangle2,0.2500,-0.1734,579.6418,10
+gap>0.5% & vix>25,strangle2,0.0500,-0.1734,579.5182,120
+rsi_extreme & macd_neg,fade_gap,0.5000,-0.1737,578.4964,34
+streak<=-3 & simple_top10%,follow_gap,0.2500,-0.1739,577.8692,18
+gap>0.5%,fade_gap,0.1000,-0.1740,577.5128,557
+gap>1% & below_sma50,fade_gap,0.2500,-0.1753,573.0765,118
+vix_gap>5% & below_sma50,strangle1,0.1000,-0.1756,571.7473,52
+vix>25 & prev_move>1.5%,follow_gap,0.2500,-0.1757,571.6908,83
+rsi_extreme & bb_wide,follow_gap,0.0500,-0.1763,569.4766,104
+vix>25 & macd_neg,follow_gap,0.2500,-0.1777,564.6487,118
+bb_wide & simple_top10%,strangle2,0.2500,-0.1779,563.9350,76
+bb_wide & streak<=-3,fade_gap,0.2500,-0.1780,563.5918,61
+first_friday & rsi_extreme,fade_gap,0.2500,-0.1791,559.8625,7
+prev_move>1.5%,strangle2,0.0500,-0.1796,558.1043,107
+vix>20 & prev_move>1.5%,strangle2,0.0500,-0.1796,558.1043,107
+streak<=-3 & near_52w_low,strangle2,0.1000,-0.1806,554.6096,18
+gap>1% & first_friday,straddle,0.5000,-0.1815,551.6829,15
+vix>20 & vix_gap>5%,strangle1,0.0500,-0.1818,550.6666,74
+gap>1% & below_sma50,strangle2,0.1000,-0.1843,542.3856,82
+vix>20 & prev_move>1.5%,straddle,0.2500,-0.1850,540.1666,139
+vix_gap>5% & below_sma50,strangle2,0.0500,-0.1854,538.8273,38
+gap>1% & vix_gap>5%,strangle2,0.1000,-0.1856,538.1509,21
+first_friday & streak<=-3,follow_gap,0.5000,-0.1857,537.6357,8
+below_sma50 & macd_neg,strangle2,0.0500,-0.1862,536.1157,146
+gap>1% & complex_top10%,strangle1,0.5000,-0.1872,532.6611,102
+vix_gap>5% & simple_top10%,strangle0.5,0.2500,-0.1889,527.2399,17
+gap>1% & prev_move>1.5%,fade_gap,0.1000,-0.1903,522.6653,51
+first_friday,fade_gap,0.1000,-0.1921,516.8828,56
+rsi_extreme,straddle,0.1000,-0.1933,512.9770,141
+streak<=-3 & macd_neg,follow_gap,0.1000,-0.1937,511.8673,87
+gap>1% & vix_gap>5%,fade_gap,0.2500,-0.1949,507.9737,40
+vix>25 & vix_gap>5%,straddle,0.2500,-0.1990,495.3170,32
+rsi_extreme,strangle0.5,0.0500,-0.2000,492.1302,141
+gap>0.5% & gap>1%,strangle2,0.1000,-0.2001,491.9503,99
+gap>1%,strangle2,0.1000,-0.2001,491.9503,99
+gap>1% & vix>20,strangle2,0.1000,-0.2001,491.9503,99
+below_sma50 & near_52w_low,strangle1,0.2500,-0.2006,490.3290,87
+near_52w_low,strangle1,0.2500,-0.2006,490.3290,87
+vix>20 & near_52w_low,strangle1,0.2500,-0.2006,490.3290,87
+vix_gap>5%,follow_gap,0.0500,-0.2011,488.7995,145
+streak<=-3 & near_52w_low,follow_gap,0.2500,-0.2018,486.5553,20
+gap>1% & complex_top10%,fade_gap,0.2500,-0.2029,483.4076,102
+bb_wide & complex_top10%,fade_gap,0.2500,-0.2031,482.6979,127
+below_sma50 & bb_wide,strangle2,0.0500,-0.2032,482.3721,185
+vix>20 & vix_gap>5%,fade_gap,0.1000,-0.2039,480.3879,74
+vix_gap>5% & prev_move>1.5%,strangle0.5,0.1000,-0.2046,478.3663,27
+prev_move>1.5% & streak<=-3,strangle1,0.2500,-0.2057,475.0398,31
+prev_move>1.5% & first_friday,strangle2,0.2500,-0.2058,474.6789,4
+rsi_extreme & bb_wide,strangle1,0.0500,-0.2059,474.3057,104
+vix_gap>5% & prev_move>1.5%,fade_gap,0.2500,-0.2068,471.7629,27
+gap>0.5% & bb_wide,fade_gap,0.1000,-0.2083,467.1407,309
+rsi_extreme & bb_wide,strangle0.5,0.1000,-0.2098,462.9554,104
+prev_move>1.5% & streak<=-3,fade_gap,0.2500,-0.2109,459.6632,31
+prev_move>1.5% & first_friday,straddle,0.5000,-0.2118,456.8849,9
+vix_gap>5% & near_52w_low,follow_gap,0.2500,-0.2122,455.7957,9
+gap>0.5% & vix_gap>5%,strangle2,0.0500,-0.2125,454.9071,37
+macd_neg,follow_gap,0.1000,-0.2132,452.9098,645
+streak<=-3 & macd_neg,strangle1,0.1000,-0.2137,451.5400,87
+prev_move>1.5% & first_friday,strangle0.5,0.2500,-0.2157,445.8710,9
+streak<=-3 & macd_neg,strangle0.5,0.2500,-0.2175,440.8408,87
+gap>0.5% & bb_wide,strangle1,0.1000,-0.2225,426.7467,308
+first_friday & complex_top10%,strangle0.5,0.5000,-0.2228,425.9624,8
+vix_gap>5% & bb_wide,straddle,0.2500,-0.2236,423.9459,76
+vix>25 & complex_top10%,fade_gap,0.2500,-0.2250,419.9702,108
+below_sma50 & near_52w_low,strangle2,0.1000,-0.2256,418.5232,76
+vix>20 & near_52w_low,strangle2,0.1000,-0.2256,418.5232,76
+near_52w_low,strangle2,0.1000,-0.2256,418.5232,76
+gap>0.5% & prev_move>1.5%,follow_gap,0.2500,-0.2265,416.0227,107
+gap>0.5% & bb_wide,straddle,0.5000,-0.2283,411.0692,309
+rsi_extreme,follow_gap,0.0500,-0.2289,409.5446,141
+rsi_extreme & streak<=-3,strangle2,0.5000,-0.2293,408.4310,5
+vix_gap>5% & simple_top10%,strangle1,0.2500,-0.2299,406.9244,17
+vix>20 & first_friday,follow_gap,0.5000,-0.2300,406.6289,22
+gap>0.5% & near_52w_low,fade_gap,0.1000,-0.2306,405.1583,59
+vix>25 & prev_move>1.5%,strangle2,0.1000,-0.2312,403.5284,83
+gap>1% & streak<=-3,fade_gap,0.5000,-0.2316,402.4981,31
+vix_gap>5% & prev_move>1.5%,strangle1,0.1000,-0.2318,401.8779,27
+first_friday & bb_wide,strangle0.5,0.2500,-0.2320,401.4778,31
+vix>20 & macd_neg,follow_gap,0.2500,-0.2322,400.8150,250
+rsi_extreme & near_52w_low,follow_gap,0.2500,-0.2332,398.3350,7
+near_52w_low & complex_top10%,follow_gap,0.5000,-0.2333,398.0475,65
+vix>20 & vix_gap>5%,straddle,0.2500,-0.2367,389.4165,74
+gap>1% & first_friday,strangle2,0.5000,-0.2375,387.1683,6
+first_friday & complex_top10%,strangle2,0.5000,-0.2376,387.0515,6
+first_friday & bb_wide,fade_gap,0.1000,-0.2377,386.8232,31
+near_52w_low & macd_neg,strangle2,0.1000,-0.2381,385.8342,59
+gap>0.5% & macd_neg,strangle2,0.1000,-0.2396,381.9442,119
+simple_top10%,strangle2,0.2500,-0.2411,378.2226,89
+vix>20 & simple_top10%,strangle2,0.2500,-0.2411,378.2226,89
+vix_gap>5% & first_friday,fade_gap,0.5000,-0.2423,375.2448,2
+first_friday & streak<=-3,strangle2,0.5000,-0.2424,375.0189,2
+vix>20 & macd_neg,strangle2,0.0500,-0.2447,369.3066,177
+macd_neg,strangle2,0.0500,-0.2447,369.3066,177
+vix>25 & macd_neg,strangle2,0.1000,-0.2450,368.7063,118
+near_52w_low & macd_neg,fade_gap,0.1000,-0.2460,366.2399,68
+vix>20 & prev_move>1.5%,follow_gap,0.1000,-0.2527,350.3234,139
+gap>0.5% & vix_gap>5%,follow_gap,0.1000,-0.2539,347.5402,83
+bb_wide & simple_top10%,follow_gap,0.5000,-0.2548,345.2473,85
+below_sma50 & simple_top10%,fade_gap,0.2500,-0.2557,343.3143,90
+gap>1% & vix>20,follow_gap,0.2500,-0.2562,342.0453,128
+vix>20 & streak<=-3,strangle0.5,0.5000,-0.2567,340.9415,54
+bb_wide & macd_neg,strangle2,0.1000,-0.2567,340.8770,130
+streak<=-3 & complex_top10%,fade_gap,0.2500,-0.2589,335.9899,25
+gap>0.5% & complex_top10%,fade_gap,0.2500,-0.2591,335.4886,131
+gap>1% & simple_top10%,strangle2,0.2500,-0.2606,332.0420,57
+rsi_extreme & simple_top10%,follow_gap,0.2500,-0.2622,328.6495,11
+gap>1% & rsi_extreme,strangle2,0.5000,-0.2624,328.0361,10
+first_friday & below_sma50,strangle2,0.2500,-0.2633,326.1166,12
+vix_gap>5%,straddle,0.1000,-0.2654,321.4664,145
+vix_gap>5% & simple_top10%,strangle2,0.2500,-0.2654,321.4568,14
+gap>1% & vix_gap>5%,straddle,0.5000,-0.2655,321.2794,40
+prev_move>1.5% & rsi_extreme,follow_gap,0.2500,-0.2664,319.3431,15
+vix>25 & vix_gap>5%,fade_gap,0.2500,-0.2675,316.8694,32
+gap>0.5% & near_52w_low,strangle2,0.1000,-0.2679,315.9741,54
+below_sma50 & bb_wide,fade_gap,0.2500,-0.2700,311.4952,284
+first_friday & complex_top10%,strangle1,0.5000,-0.2703,310.9333,8
+first_friday & bb_wide,straddle,0.5000,-0.2703,310.8603,31
+gap>1% & rsi_extreme,follow_gap,0.2500,-0.2704,310.6751,20
+bb_wide & near_52w_low,strangle2,0.1000,-0.2707,310.1690,64
+bb_wide,strangle1,0.0500,-0.2708,294.4656,643
+vix>20 & simple_top10%,fade_gap,0.2500,-0.2711,309.2907,94
+gap>1% & streak<=-3,follow_gap,0.2500,-0.2718,307.8277,31
+rsi_extreme & streak<=-3,fade_gap,0.5000,-0.2720,307.2595,6
+vix_gap>5% & macd_neg,fade_gap,0.1000,-0.2723,306.6022,76
+first_friday & simple_top10%,fade_gap,0.2500,-0.2731,304.9568,8
+vix_gap>5%,strangle0.5,0.0500,-0.2764,298.1809,145
+gap>1% & vix_gap>5%,strangle1,0.1000,-0.2770,296.9579,40
+prev_move>1.5% & near_52w_low,fade_gap,0.2500,-0.2770,296.8604,37
+vix_gap>5% & macd_neg,strangle1,0.0500,-0.2804,289.9794,76
+streak<=-3 & near_52w_low,strangle0.5,0.2500,-0.2821,286.5977,20
+gap>1% & vix>25,fade_gap,0.2500,-0.2821,286.5841,69
+vix>25 & bb_wide,follow_gap,0.2500,-0.2835,283.8565,140
+vix_gap>5% & prev_move>1.5%,follow_gap,0.1000,-0.2845,281.8252,27
+gap>0.5% & prev_move>1.5%,strangle2,0.1000,-0.2859,279.0839,62
+vix_gap>5% & below_sma50,strangle0.5,0.2500,-0.2860,279.0177,52
+vix>20 & vix_gap>5%,strangle2,0.0500,-0.2870,277.0207,51
+vix_gap>5%,strangle2,0.0500,-0.2870,277.0207,51
+vix_gap>5% & simple_top10%,fade_gap,0.2500,-0.2895,272.2077,17
+vix>20 & rsi_extreme,follow_gap,0.2500,-0.2907,269.8008,17
+rsi_extreme & below_sma50,follow_gap,0.2500,-0.2920,267.4329,18
+first_friday & simple_top10%,strangle0.5,0.5000,-0.2925,266.5338,8
+vix>25 & vix_gap>5%,strangle0.5,0.2500,-0.2961,259.8358,32
+below_sma50 & simple_top10%,strangle2,0.2500,-0.2964,259.1605,87
+vix>25 & first_friday,strangle2,0.5000,-0.2967,258.5875,8
+macd_neg & complex_top10%,strangle2,0.2500,-0.2969,258.3215,93
+vix>25 & near_52w_low,strangle0.5,0.5000,-0.2989,254.5743,72
+streak<=-3 & near_52w_low,fade_gap,0.2500,-0.2994,253.7126,20
+streak<=-3 & macd_neg,fade_gap,0.2500,-0.3007,251.4867,87
+gap>0.5% & vix_gap>5%,strangle0.5,0.1000,-0.3022,248.7538,83
+gap>0.5% & below_sma50,strangle2,0.0500,-0.3038,245.9004,147
+gap>0.5% & vix_gap>5%,strangle1,0.0500,-0.3052,243.4618,83
+vix_gap>5% & rsi_extreme,strangle2,0.5000,-0.3086,237.6043,4
+bb_wide,follow_gap,0.1000,-0.3086,257.9110,647
+vix>25 & vix_gap>5%,strangle2,0.1000,-0.3089,237.0185,32
+first_friday & near_52w_low,fade_gap,0.5000,-0.3092,236.4729,5
+vix_gap>5% & simple_top10%,straddle,0.5000,-0.3105,234.2700,17
+prev_move>1.5% & near_52w_low,strangle2,0.2500,-0.3105,234.2187,35
+vix_gap>5% & macd_neg,strangle0.5,0.1000,-0.3114,232.6980,76
+vix_gap>5% & streak<=-3,follow_gap,0.2500,-0.3116,232.4843,14
+vix_gap>5% & bb_wide,strangle2,0.1000,-0.3119,231.9308,33
+vix>25 & rsi_extreme,strangle2,0.5000,-0.3125,230.8524,16
+vix_gap>5% & rsi_extreme,follow_gap,0.2500,-0.3149,226.9103,13
+vix>25 & macd_neg,strangle0.5,0.5000,-0.3160,225.1034,118
+near_52w_low & simple_top10%,follow_gap,0.5000,-0.3161,224.9805,48
+first_friday & below_sma50,fade_gap,0.2500,-0.3168,223.7800,23
+vix_gap>5% & rsi_extreme,strangle0.5,0.2500,-0.3179,222.0021,13
+bb_wide & near_52w_low,strangle0.5,0.5000,-0.3190,220.2956,67
+vix_gap>5% & below_sma50,straddle,0.5000,-0.3206,217.6931,52
+vix>25 & simple_top10%,fade_gap,0.2500,-0.3214,216.3440,83
+first_friday & near_52w_low,strangle2,0.5000,-0.3239,212.4026,4
+first_friday & rsi_extreme,strangle1,0.5000,-0.3256,209.7178,7
+vix_gap>5%,fade_gap,0.1000,-0.3258,209.5217,145
+vix_gap>5% & bb_wide,strangle1,0.1000,-0.3279,206.2812,76
+vix>20 & first_friday,fade_gap,0.2500,-0.3279,206.1854,22
+gap>0.5% & streak<=-3,strangle2,0.2500,-0.3287,205.0510,30
+near_52w_low & simple_top10%,fade_gap,0.2500,-0.3289,204.6880,48
+prev_move>1.5% & first_friday,strangle1,0.2500,-0.3303,202.5939,9
+vix>25 & rsi_extreme,follow_gap,0.2500,-0.3332,198.2069,16
+gap>1% & prev_move>1.5%,strangle2,0.2500,-0.3356,194.6521,32
+first_friday & bb_wide,strangle1,0.2500,-0.3358,194.4429,31
+first_friday & simple_top10%,strangle2,0.5000,-0.3364,193.5508,7
+gap>0.5% & simple_top10%,strangle1,0.5000,-0.3371,192.4998,86
+near_52w_low & macd_neg,strangle1,0.2500,-0.3381,191.1188,68
+vix_gap>5% & complex_top10%,strangle2,0.2500,-0.3393,189.3742,20
+vix>25 & bb_wide,strangle2,0.1000,-0.3394,189.1617,140
+prev_move>1.5%,strangle1,0.1000,-0.3394,189.1389,200
+vix_gap>5% & macd_neg,strangle2,0.1000,-0.3402,188.0955,31
+vix>20 & bb_wide,strangle1,0.2500,-0.3406,187.5083,282
+macd_neg,strangle1,0.0500,-0.3419,185.5876,643
+prev_move>1.5% & bb_wide,straddle,0.5000,-0.3420,185.5102,133
+gap>1% & vix_gap>5%,strangle0.5,0.2500,-0.3424,184.9953,40
+vix_gap>5% & below_sma50,fade_gap,0.2500,-0.3435,183.4301,52
+prev_move>1.5% & below_sma50,strangle2,0.1000,-0.3439,182.8186,99
+vix>20 & streak<=-3,fade_gap,0.2500,-0.3455,180.5752,54
+simple_top10%,fade_gap,0.2500,-0.3458,180.1677,100
+first_friday & macd_neg,fade_gap,0.2500,-0.3460,179.9857,30
+vix>20 & complex_top10%,fade_gap,0.2500,-0.3462,179.7176,167
+vix>25 & streak<=-3,follow_gap,0.2500,-0.3473,178.1590,31
+first_friday & streak<=-3,strangle1,0.5000,-0.3475,177.9164,8
+gap>0.5%,follow_gap,0.1000,-0.3483,176.8500,557
+prev_move>1.5% & near_52w_low,strangle0.5,0.5000,-0.3514,172.6188,37
+vix_gap>5% & near_52w_low,strangle2,0.2500,-0.3530,170.5514,9
+gap>0.5% & first_friday,follow_gap,0.5000,-0.3547,168.2683,32
+prev_move>1.5% & macd_neg,straddle,0.5000,-0.3552,167.6192,127
+gap>0.5% & vix>25,fade_gap,0.2500,-0.3565,165.9016,120
+gap>0.5% & vix>20,follow_gap,0.2500,-0.3575,164.7409,244
+vix>20 & first_friday,strangle0.5,0.5000,-0.3584,163.5641,22
+gap>0.5% & vix_gap>5%,straddle,0.2500,-0.3592,162.4831,83
+vix>20 & near_52w_low,strangle0.5,0.5000,-0.3598,161.7160,87
+near_52w_low,strangle0.5,0.5000,-0.3598,161.7160,87
+below_sma50 & near_52w_low,strangle0.5,0.5000,-0.3598,161.7160,87
+vix_gap>5% & rsi_extreme,straddle,0.5000,-0.3603,161.1003,13
+gap>0.5% & vix>20,strangle2,0.0500,-0.3619,159.1642,180
+gap>0.5%,strangle2,0.0500,-0.3619,159.1642,180
+macd_neg,fade_gap,0.1000,-0.3627,158.0713,645
+vix_gap>5% & prev_move>1.5%,straddle,0.2500,-0.3629,157.8546,27
+prev_move>1.5% & bb_wide,strangle2,0.1000,-0.3635,157.1136,87
+gap>0.5% & rsi_extreme,fade_gap,0.2500,-0.3637,156.8636,47
+vix>20 & below_sma50,strangle2,0.0500,-0.3638,156.7644,233
+below_sma50,strangle2,0.0500,-0.3638,156.7644,233
+streak<=-3 & near_52w_low,straddle,0.5000,-0.3639,156.7001,20
+vix>20 & below_sma50,strangle0.5,0.5000,-0.3640,156.5639,283
+gap>0.5% & first_friday,strangle0.5,0.5000,-0.3645,155.9237,32
+gap>0.5% & first_friday,fade_gap,0.2500,-0.3646,155.7391,32
+vix>20 & vix_gap>5%,strangle1,0.1000,-0.3648,155.5917,74
+bb_wide & streak<=-3,strangle0.5,0.5000,-0.3652,155.1047,61
+rsi_extreme,strangle1,0.0500,-0.3654,154.7589,138
+vix_gap>5% & simple_top10%,follow_gap,0.5000,-0.3659,154.2182,17
+vix_gap>5% & below_sma50,follow_gap,0.2500,-0.3688,150.6809,52
+vix_gap>5% & below_sma50,strangle2,0.1000,-0.3693,150.0845,38
+gap>0.5% & rsi_extreme,strangle1,0.2500,-0.3711,148.0473,47
+bb_wide,fade_gap,0.1000,-0.3749,129.1966,647
+vix_gap>5% & rsi_extreme,strangle1,0.2500,-0.3756,142.7814,13
+gap>1% & vix_gap>5%,follow_gap,0.2500,-0.3759,142.4599,40
+prev_move>1.5% & complex_top10%,fade_gap,0.2500,-0.3760,142.3072,50
+bb_wide & near_52w_low,follow_gap,0.5000,-0.3762,142.1369,67
+gap>0.5% & simple_top10%,strangle2,0.2500,-0.3784,139.6646,75
+rsi_extreme & bb_wide,follow_gap,0.1000,-0.3787,139.2743,104
+gap>1% & first_friday,fade_gap,0.2500,-0.3790,138.9163,15
+first_friday,strangle2,0.2500,-0.3802,137.5774,15
+vix>20 & first_friday,strangle2,0.2500,-0.3802,137.5774,15
+vix>25 & streak<=-3,strangle0.5,0.5000,-0.3806,137.2138,31
+prev_move>1.5% & first_friday,fade_gap,0.2500,-0.3810,136.6974,9
+streak<=-3 & simple_top10%,strangle2,0.5000,-0.3817,135.9680,17
+vix_gap>5% & macd_neg,straddle,0.2500,-0.3826,134.9538,76
+first_friday & complex_top10%,fade_gap,0.5000,-0.3830,134.5750,8
+prev_move>1.5% & simple_top10%,fade_gap,0.2500,-0.3832,134.3191,45
+gap>0.5% & rsi_extreme,strangle2,0.5000,-0.3857,131.5905,13
+vix_gap>5% & complex_top10%,follow_gap,0.5000,-0.3880,129.1775,26
+streak<=-3 & complex_top10%,strangle2,0.5000,-0.3890,128.1671,20
+first_friday & rsi_extreme,fade_gap,0.5000,-0.3892,127.9537,7
+prev_move>1.5% & below_sma50,straddle,0.5000,-0.3931,123.8698,136
+vix>25 & bb_wide,fade_gap,0.2500,-0.3968,120.1798,140
+macd_neg & complex_top10%,fade_gap,0.2500,-0.3977,119.2563,118
+rsi_extreme & bb_wide,straddle,0.2500,-0.3982,118.7600,104
+gap>0.5% & streak<=-3,strangle0.5,0.5000,-0.4002,116.7984,65
+first_friday & macd_neg,strangle2,0.5000,-0.4026,114.4579,8
+rsi_extreme & complex_top10%,follow_gap,0.2500,-0.4034,113.7530,12
+rsi_extreme,strangle2,0.5000,-0.4048,112.3800,17
+vix>20 & rsi_extreme,strangle2,0.5000,-0.4048,112.3800,17
+rsi_extreme & bb_wide,strangle2,0.5000,-0.4048,112.3800,17
+rsi_extreme & below_sma50,strangle2,0.5000,-0.4048,112.3800,17
+rsi_extreme & macd_neg,strangle2,0.5000,-0.4048,112.3800,17
+gap>0.5% & bb_wide,strangle0.5,0.2500,-0.4050,112.2184,309
+vix>25,fade_gap,0.2500,-0.4050,112.2007,184
+vix>20 & vix>25,fade_gap,0.2500,-0.4050,112.2007,184
+first_friday & simple_top10%,strangle1,0.5000,-0.4054,111.7957,8
+gap>0.5% & vix_gap>5%,strangle2,0.1000,-0.4076,109.7597,37
+gap>0.5% & bb_wide,strangle2,0.1000,-0.4094,108.1341,132
+vix>25 & vix_gap>5%,strangle1,0.2500,-0.4118,105.9790,32
+streak<=-3,follow_gap,0.2500,-0.4139,104.1077,115
+gap>1% & first_friday,strangle0.5,0.5000,-0.4148,103.2762,15
+prev_move>1.5% & streak<=-3,strangle2,0.2500,-0.4156,102.6039,20
+gap>1% & vix>25,follow_gap,0.5000,-0.4163,101.9671,69
+prev_move>1.5% & macd_neg,follow_gap,0.2500,-0.4165,101.8106,127
+vix_gap>5% & complex_top10%,strangle1,0.5000,-0.4166,101.6884,26
+gap>1% & near_52w_low,fade_gap,0.2500,-0.4180,100.5167,35
+bb_wide & macd_neg,follow_gap,0.2500,-0.4196,99.0980,274
+vix>25 & vix_gap>5%,follow_gap,0.2500,-0.4236,95.7982,32
+streak<=-3 & near_52w_low,strangle1,0.2500,-0.4251,94.5491,20
+prev_move>1.5% & first_friday,strangle2,0.5000,-0.4260,93.7738,4
+vix>20 & vix_gap>5%,follow_gap,0.2500,-0.4299,90.6130,74
+vix>25 & below_sma50,strangle0.5,0.5000,-0.4302,90.4168,171
+streak<=-3 & macd_neg,straddle,0.5000,-0.4317,89.2615,87
+vix_gap>5% & complex_top10%,fade_gap,0.5000,-0.4319,89.0458,26
+vix>25 & below_sma50,strangle2,0.1000,-0.4323,88.7534,171
+vix_gap>5%,follow_gap,0.1000,-0.4334,87.8966,145
+vix_gap>5% & prev_move>1.5%,strangle2,0.2500,-0.4356,86.2384,17
+below_sma50 & macd_neg,strangle1,0.2500,-0.4366,85.4551,303
+vix>25 & below_sma50,follow_gap,0.2500,-0.4381,84.3258,171
+near_52w_low & complex_top10%,fade_gap,0.2500,-0.4387,83.8668,65
+rsi_extreme,strangle0.5,0.1000,-0.4404,82.6044,141
+gap>0.5% & complex_top10%,follow_gap,0.5000,-0.4411,82.0659,131
+below_sma50 & bb_wide,follow_gap,0.2500,-0.4421,81.3843,284
+gap>0.5% & vix>25,strangle2,0.1000,-0.4432,80.5336,120
+vix_gap>5% & rsi_extreme,fade_gap,0.5000,-0.4449,79.3314,13
+vix>20 & prev_move>1.5%,strangle2,0.1000,-0.4459,78.6656,107
+prev_move>1.5%,strangle2,0.1000,-0.4459,78.6656,107
+vix_gap>5% & streak<=-3,strangle2,0.5000,-0.4479,77.1996,8
+bb_wide & simple_top10%,fade_gap,0.2500,-0.4487,76.6862,85
+vix>20,strangle2,0.0500,-0.4489,76.5121,292
+prev_move>1.5% & first_friday,strangle0.5,0.5000,-0.4505,75.4015,9
+streak<=-3,strangle2,0.2500,-0.4507,75.2930,41
+vix>20 & streak<=-3,strangle2,0.2500,-0.4507,75.2930,41
+rsi_extreme & macd_neg,strangle0.5,0.5000,-0.4543,72.8581,34
+gap>0.5%,strangle1,0.0500,-0.4572,70.9713,556
+below_sma50 & streak<=-3,strangle1,0.2500,-0.4574,70.8215,65
+prev_move>1.5% & bb_wide,fade_gap,0.2500,-0.4601,69.0785,133
+gap>0.5% & streak<=-3,strangle1,0.2500,-0.4608,68.6005,65
+complex_top10%,fade_gap,0.2500,-0.4632,67.0880,174
+gap>1% & near_52w_low,strangle2,0.2500,-0.4639,66.6507,33
+gap>0.5% & first_friday,strangle2,0.5000,-0.4670,64.7872,10
+first_friday & bb_wide,strangle2,0.5000,-0.4671,64.7307,10
+vix>25 & streak<=-3,strangle2,0.2500,-0.4671,64.7181,31
+gap>0.5% & below_sma50,fade_gap,0.2500,-0.4672,64.6452,238
+vix>20 & complex_top10%,follow_gap,0.5000,-0.4683,63.9878,167
+rsi_extreme & bb_wide,strangle1,0.1000,-0.4698,63.0963,104
+gap>0.5% & streak<=-3,follow_gap,0.2500,-0.4701,62.9047,65
+vix_gap>5%,strangle1,0.0500,-0.4703,62.7806,145
+gap>1% & simple_top10%,fade_gap,0.2500,-0.4706,62.6091,67
+rsi_extreme,follow_gap,0.1000,-0.4730,61.1875,141
+vix>25 & simple_top10%,strangle2,0.2500,-0.4732,61.1221,83
+vix>20 & below_sma50,follow_gap,0.2500,-0.4738,60.7398,283
+gap>1% & bb_wide,fade_gap,0.2500,-0.4745,60.3426,141
+gap>1% & complex_top10%,follow_gap,0.5000,-0.4790,57.8054,102
+vix>20 & vix_gap>5%,strangle0.5,0.2500,-0.4791,57.7744,74
+vix>20 & vix>25,strangle0.5,0.5000,-0.4804,57.0210,184
+vix>25,strangle0.5,0.5000,-0.4804,57.0210,184
+prev_move>1.5% & streak<=-3,follow_gap,0.5000,-0.4824,55.9612,31
+vix>25,strangle2,0.1000,-0.4827,55.7964,184
+vix>20 & vix>25,strangle2,0.1000,-0.4827,55.7964,184
+vix>25 & macd_neg,fade_gap,0.2500,-0.4827,55.7827,118
+vix_gap>5% & near_52w_low,follow_gap,0.5000,-0.4860,54.0133,9
+streak<=-3 & near_52w_low,strangle2,0.2500,-0.4868,53.6273,18
+rsi_extreme & near_52w_low,follow_gap,0.5000,-0.4875,53.2440,7
+below_sma50 & macd_neg,strangle2,0.1000,-0.4918,51.0485,146
+gap>1% & complex_top10%,strangle2,0.2500,-0.4922,50.8822,79
+vix>25 & vix_gap>5%,straddle,0.5000,-0.4951,49.4264,32
+vix>20 & complex_top10%,strangle2,0.2500,-0.4954,49.2775,141
+complex_top10%,strangle2,0.2500,-0.4954,49.2775,141
+below_sma50 & streak<=-3,strangle0.5,0.5000,-0.4959,49.0374,65
+gap>1% & streak<=-3,strangle2,0.5000,-0.4964,48.7884,16
+streak<=-3 & macd_neg,strangle2,0.2500,-0.4968,48.6184,32
+vix_gap>5% & simple_top10%,strangle0.5,0.5000,-0.4970,48.5127,17
+vix_gap>5% & prev_move>1.5%,strangle0.5,0.2500,-0.4999,47.1428,27
+below_sma50 & streak<=-3,follow_gap,0.2500,-0.5013,46.4527,65
+vix>25 & below_sma50,fade_gap,0.2500,-0.5019,46.1911,171
+vix>20 & bb_wide,follow_gap,0.2500,-0.5039,45.2864,282
+gap>0.5% & simple_top10%,fade_gap,0.2500,-0.5039,45.2655,86
+rsi_extreme & macd_neg,follow_gap,0.2500,-0.5049,44.8309,34
+gap>1% & bb_wide,strangle2,0.2500,-0.5069,43.9279,74
+near_52w_low & macd_neg,strangle0.5,0.5000,-0.5079,43.4839,68
+vix_gap>5% & macd_neg,strangle1,0.1000,-0.5087,43.1221,76
+gap>0.5% & simple_top10%,follow_gap,0.5000,-0.5089,43.0526,86
+gap>1% & vix_gap>5%,strangle2,0.2500,-0.5089,43.0173,21
+first_friday & below_sma50,strangle1,0.5000,-0.5108,42.2075,23
+vix>20 & prev_move>1.5%,strangle0.5,0.2500,-0.5130,41.2828,139
+streak<=-3 & simple_top10%,follow_gap,0.5000,-0.5138,40.9386,18
+vix_gap>5%,strangle0.5,0.1000,-0.5149,40.4684,145
+gap>1% & first_friday,strangle1,0.5000,-0.5151,40.4063,15
+vix>20 & macd_neg,strangle1,0.2500,-0.5157,40.1324,250
+complex_top10%,follow_gap,0.5000,-0.5169,39.6476,174
+near_52w_low & complex_top10%,strangle1,0.5000,-0.5177,39.3387,65
+vix_gap>5%,strangle2,0.1000,-0.5199,38.4188,51
+vix>20 & vix_gap>5%,strangle2,0.1000,-0.5199,38.4188,51
+near_52w_low & complex_top10%,strangle2,0.2500,-0.5202,38.3123,60
+vix_gap>5% & bb_wide,fade_gap,0.2500,-0.5216,37.7674,76
+below_sma50 & macd_neg,fade_gap,0.2500,-0.5223,37.4791,303
+prev_move>1.5% & below_sma50,strangle1,0.2500,-0.5223,37.4748,136
+vix>25 & streak<=-3,fade_gap,0.5000,-0.5305,34.3898,31
+rsi_extreme & bb_wide,fade_gap,0.2500,-0.5305,34.3856,104
+vix>20,straddle,0.5000,-0.5312,34.1249,428
+prev_move>1.5% & below_sma50,fade_gap,0.2500,-0.5328,33.5528,136
+streak<=-3 & near_52w_low,follow_gap,0.5000,-0.5329,33.4926,20
+vix>20 & bb_wide,strangle2,0.1000,-0.5333,33.3748,211
+bb_wide,strangle2,0.1000,-0.5333,33.3748,211
+vix_gap>5% & below_sma50,strangle1,0.2500,-0.5336,33.2546,52
+vix_gap>5% & bb_wide,strangle0.5,0.2500,-0.5373,31.9721,76
+gap>0.5% & bb_wide,follow_gap,0.2500,-0.5378,31.7888,309
+prev_move>1.5% & macd_neg,strangle1,0.2500,-0.5385,31.5569,127
+below_sma50 & bb_wide,strangle2,0.1000,-0.5394,31.2608,185
+gap>1% & streak<=-3,strangle1,0.5000,-0.5397,31.1573,31
+first_friday,strangle1,0.2500,-0.5431,30.0002,56
+first_friday & simple_top10%,fade_gap,0.5000,-0.5437,29.8139,8
+vix_gap>5% & macd_neg,follow_gap,0.2500,-0.5448,29.4717,76
+vix>20 & simple_top10%,follow_gap,0.5000,-0.5486,28.2507,94
+vix>25 & prev_move>1.5%,fade_gap,0.2500,-0.5487,28.2295,83
+gap>0.5% & vix_gap>5%,strangle1,0.1000,-0.5488,28.1734,83
+gap>0.5% & vix_gap>5%,fade_gap,0.2500,-0.5522,27.1525,83
+vix_gap>5% & prev_move>1.5%,strangle1,0.2500,-0.5525,27.0408,27
+prev_move>1.5% & bb_wide,strangle1,0.2500,-0.5561,25.9934,133
+gap>0.5% & vix>20,strangle1,0.2500,-0.5575,25.5661,244
+vix>25 & simple_top10%,follow_gap,0.5000,-0.5610,24.5896,83
+first_friday & bb_wide,fade_gap,0.2500,-0.5611,24.5448,31
+vix>25,follow_gap,0.2500,-0.5626,24.1449,184
+vix>20 & vix>25,follow_gap,0.2500,-0.5626,24.1449,184
+streak<=-3,fade_gap,0.2500,-0.5634,23.9274,115
+near_52w_low & simple_top10%,strangle1,0.5000,-0.5639,23.7764,48
+gap>0.5% & below_sma50,strangle1,0.2500,-0.5655,23.3530,238
+below_sma50 & simple_top10%,follow_gap,0.5000,-0.5660,23.2152,90
+first_friday,follow_gap,0.5000,-0.5680,22.6732,56
+vix>20 & first_friday,strangle1,0.5000,-0.5687,22.5026,22
+near_52w_low,follow_gap,0.5000,-0.5706,22.0186,87
+below_sma50 & near_52w_low,follow_gap,0.5000,-0.5706,22.0186,87
+vix>20 & near_52w_low,follow_gap,0.5000,-0.5706,22.0186,87
+rsi_extreme & simple_top10%,follow_gap,0.5000,-0.5711,21.8831,11
+gap>1%,follow_gap,0.2500,-0.5712,21.8576,228
+gap>0.5% & gap>1%,follow_gap,0.2500,-0.5712,21.8576,228
+complex_top10% & simple_top10%,follow_gap,0.5000,-0.5718,21.7172,76
+rsi_extreme,straddle,0.2500,-0.5759,20.6931,141
+below_sma50 & streak<=-3,strangle2,0.2500,-0.5759,20.6802,35
+vix_gap>5% & simple_top10%,strangle1,0.5000,-0.5762,20.6255,17
+vix_gap>5% & bb_wide,follow_gap,0.2500,-0.5783,20.1125,76
+vix>20 & macd_neg,strangle2,0.1000,-0.5805,19.6011,177
+macd_neg,strangle2,0.1000,-0.5805,19.6011,177
+vix>25 & near_52w_low,fade_gap,0.2500,-0.5807,19.5406,72
+gap>0.5% & prev_move>1.5%,strangle1,0.2500,-0.5814,19.3767,107
+first_friday,fade_gap,0.2500,-0.5876,17.9943,56
+gap>1% & macd_neg,strangle0.5,0.5000,-0.5887,17.7579,141
+streak<=-3 & near_52w_low,strangle0.5,0.5000,-0.5937,16.7083,20
+first_friday & below_sma50,strangle2,0.5000,-0.5964,16.1517,12
+macd_neg & complex_top10%,follow_gap,0.5000,-0.5979,15.8649,118
+gap>1% & prev_move>1.5%,fade_gap,0.2500,-0.5994,15.5591,51
+rsi_extreme & macd_neg,strangle1,0.5000,-0.6020,15.0694,34
+vix>20 & below_sma50,fade_gap,0.2500,-0.6040,14.6898,283
+prev_move>1.5% & rsi_extreme,follow_gap,0.5000,-0.6068,14.1864,15
+gap>0.5% & below_sma50,strangle2,0.1000,-0.6087,13.8470,147
+vix_gap>5% & rsi_extreme,follow_gap,0.5000,-0.6099,13.6366,13
+vix_gap>5% & prev_move>1.5%,follow_gap,0.2500,-0.6123,13.2164,27
+vix>20 & vix_gap>5%,straddle,0.5000,-0.6133,13.0527,74
+prev_move>1.5% & macd_neg,strangle2,0.2500,-0.6136,13.0037,69
+bb_wide & macd_neg,fade_gap,0.2500,-0.6136,13.0019,274
+vix>25 & near_52w_low,follow_gap,0.5000,-0.6145,12.8436,72
+vix>20 & prev_move>1.5%,fade_gap,0.2500,-0.6150,12.7637,139
+prev_move>1.5% & below_sma50,follow_gap,0.2500,-0.6159,12.6223,136
+vix_gap>5% & prev_move>1.5%,fade_gap,0.5000,-0.6178,12.3123,27
+vix>25 & complex_top10%,strangle2,0.2500,-0.6197,12.0037,108
+prev_move>1.5% & near_52w_low,follow_gap,0.5000,-0.6225,11.5656,37
+vix>20 & vix_gap>5%,fade_gap,0.2500,-0.6232,11.4622,74
+prev_move>1.5% & streak<=-3,strangle1,0.5000,-0.6240,11.3440,31
+gap>1% & vix>25,strangle2,0.2500,-0.6244,11.2853,69
+prev_move>1.5% & near_52w_low,strangle1,0.5000,-0.6256,11.1080,37
+vix_gap>5%,straddle,0.2500,-0.6299,10.4785,145
+vix_gap>5% & rsi_extreme,strangle0.5,0.5000,-0.6306,10.3792,13
+vix_gap>5% & bb_wide,straddle,0.5000,-0.6310,10.3245,76
+gap>0.5% & prev_move>1.5%,fade_gap,0.2500,-0.6313,10.2828,107
+below_sma50 & macd_neg,follow_gap,0.2500,-0.6316,10.2359,303
+prev_move>1.5% & first_friday,strangle1,0.5000,-0.6322,10.1614,9
+gap>0.5% & complex_top10%,strangle2,0.2500,-0.6337,9.9532,105
+gap>1% & vix_gap>5%,strangle1,0.2500,-0.6349,9.7890,40
+bb_wide & near_52w_low,fade_gap,0.2500,-0.6379,9.4018,65
+vix>25 & streak<=-3,strangle1,0.5000,-0.6382,9.3620,31
+vix>25 & prev_move>1.5%,strangle0.5,0.5000,-0.6382,9.3554,83
+prev_move>1.5% & macd_neg,fade_gap,0.2500,-0.6399,9.1437,127
+macd_neg & simple_top10%,follow_gap,0.5000,-0.6408,9.0245,73
+rsi_extreme & below_sma50,follow_gap,0.5000,-0.6439,8.6489,18
+prev_move>1.5%,strangle0.5,0.2500,-0.6446,8.5597,200
+vix>20 & rsi_extreme,follow_gap,0.5000,-0.6447,8.5465,17
+vix_gap>5% & simple_top10%,strangle2,0.5000,-0.6456,8.4354,14
+streak<=-3 & macd_neg,follow_gap,0.2500,-0.6506,7.8615,87
+gap>1% & prev_move>1.5%,strangle1,0.5000,-0.6509,7.8255,51
+vix_gap>5% & streak<=-3,follow_gap,0.5000,-0.6520,7.7045,14
+vix_gap>5% & near_52w_low,strangle2,0.5000,-0.6551,7.3707,9
+gap>0.5% & rsi_extreme,strangle0.5,0.5000,-0.6606,6.7993,47
+simple_top10%,follow_gap,0.5000,-0.6618,6.6818,100
+below_sma50,strangle1,0.2500,-0.6630,6.5602,419
+prev_move>1.5% & streak<=-3,fade_gap,0.5000,-0.6637,6.4983,31
+vix_gap>5% & simple_top10%,fade_gap,0.5000,-0.6637,6.4929,17
+below_sma50 & complex_top10%,strangle2,0.2500,-0.6642,6.4464,127
+vix>25 & vix_gap>5%,strangle0.5,0.5000,-0.6650,6.3674,32
+rsi_extreme,strangle1,0.1000,-0.6675,6.1402,138
+gap>0.5% & near_52w_low,fade_gap,0.2500,-0.6683,6.0647,59
+streak<=-3 & near_52w_low,fade_gap,0.5000,-0.6688,6.0227,20
+gap>0.5% & macd_neg,follow_gap,0.2500,-0.6695,5.9591,329
+prev_move>1.5% & bb_wide,follow_gap,0.2500,-0.6718,5.7477,133
+vix>20 & bb_wide,fade_gap,0.2500,-0.6743,5.5400,282
+gap>1% & rsi_extreme,follow_gap,0.5000,-0.6757,5.4173,20
+gap>0.5% & streak<=-3,fade_gap,0.5000,-0.6760,5.3913,65
+vix_gap>5% & prev_move>1.5%,straddle,0.5000,-0.6769,5.3208,27
+vix>25 & rsi_extreme,follow_gap,0.5000,-0.6791,5.1391,16
+gap>0.5% & vix_gap>5%,follow_gap,0.2500,-0.6817,4.9335,83
+prev_move>1.5% & first_friday,fade_gap,0.5000,-0.6822,4.8998,9
+gap>0.5%,strangle2,0.1000,-0.6834,4.8054,180
+gap>0.5% & vix>20,strangle2,0.1000,-0.6834,4.8054,180
+near_52w_low & simple_top10%,strangle2,0.2500,-0.6837,4.7842,47
+gap>1% & macd_neg,fade_gap,0.2500,-0.6857,4.6301,141
+first_friday,strangle0.5,0.5000,-0.6869,4.5494,56
+vix>25 & near_52w_low,strangle2,0.2500,-0.6873,4.5135,70
+streak<=-3 & macd_neg,strangle1,0.2500,-0.6893,4.3733,87
+gap>0.5% & below_sma50,follow_gap,0.2500,-0.6897,4.3460,238
+first_friday & bb_wide,strangle0.5,0.5000,-0.6907,4.2797,31
+gap>0.5% & first_friday,strangle1,0.5000,-0.6908,4.2708,32
+vix>25 & complex_top10%,follow_gap,0.5000,-0.6909,4.2660,108
+below_sma50,fade_gap,0.2500,-0.6909,4.2646,419
+gap>0.5% & vix_gap>5%,strangle0.5,0.2500,-0.6926,4.1446,83
+vix>25 & vix_gap>5%,strangle2,0.2500,-0.6942,4.0436,32
+vix_gap>5% & rsi_extreme,strangle1,0.5000,-0.6961,3.9173,13
+gap>0.5% & near_52w_low,strangle1,0.5000,-0.6969,3.8656,59
+vix_gap>5% & macd_neg,fade_gap,0.2500,-0.6990,3.7364,76
+vix_gap>5% & bb_wide,strangle2,0.2500,-0.7002,3.6592,33
+bb_wide & streak<=-3,strangle2,0.5000,-0.7007,3.6316,31
+vix_gap>5% & macd_neg,strangle0.5,0.2500,-0.7009,3.6183,76
+vix>20 & streak<=-3,follow_gap,0.5000,-0.7027,3.5099,54
+gap>1% & first_friday,fade_gap,0.5000,-0.7041,3.4297,15
+rsi_extreme,fade_gap,0.2500,-0.7055,3.3493,141
+vix>20 & streak<=-3,strangle1,0.5000,-0.7061,3.3161,54
+rsi_extreme & bb_wide,strangle0.5,0.2500,-0.7064,3.2947,104
+streak<=-3 & complex_top10%,fade_gap,0.5000,-0.7089,3.1609,25
+vix>20 & prev_move>1.5%,strangle1,0.2500,-0.7121,2.9899,139
+vix>20 & first_friday,fade_gap,0.5000,-0.7127,2.9587,22
+vix>20 & below_sma50,strangle2,0.1000,-0.7155,2.8189,233
+below_sma50,strangle2,0.1000,-0.7155,2.8189,233
+rsi_extreme & complex_top10%,follow_gap,0.5000,-0.7165,2.7689,12
+vix_gap>5% & macd_neg,strangle2,0.2500,-0.7169,2.7489,31
+gap>1% & streak<=-3,follow_gap,0.5000,-0.7171,2.7384,31
+below_sma50 & complex_top10%,follow_gap,0.5000,-0.7207,2.5700,146
+gap>1% & vix_gap>5%,strangle0.5,0.5000,-0.7233,2.4524,40
+gap>1% & vix_gap>5%,fade_gap,0.5000,-0.7293,2.1971,40
+first_friday & below_sma50,fade_gap,0.5000,-0.7314,2.1160,23
+gap>0.5% & vix_gap>5%,straddle,0.5000,-0.7324,2.0769,83
+first_friday,strangle2,0.5000,-0.7324,2.0748,15
+vix>20 & first_friday,strangle2,0.5000,-0.7324,2.0748,15
+streak<=-3,strangle1,0.2500,-0.7337,2.0242,115
+vix_gap>5% & below_sma50,strangle0.5,0.5000,-0.7340,2.0144,52
+vix>25 & vix_gap>5%,fade_gap,0.5000,-0.7345,1.9942,32
+gap>0.5% & near_52w_low,strangle2,0.2500,-0.7345,1.9937,53
+gap>1% & below_sma50,strangle2,0.2500,-0.7374,1.8885,82
+vix_gap>5%,strangle1,0.1000,-0.7397,1.8074,145
+vix>25 & streak<=-3,follow_gap,0.5000,-0.7408,1.7707,31
+gap>1% & below_sma50,strangle1,0.5000,-0.7415,1.7467,118
+gap>0.5% & gap>1%,fade_gap,0.2500,-0.7437,1.6736,228
+gap>1%,fade_gap,0.2500,-0.7437,1.6736,228
+vix>20 & prev_move>1.5%,straddle,0.5000,-0.7445,1.6484,139
+vix_gap>5% & macd_neg,straddle,0.5000,-0.7445,1.6478,76
+prev_move>1.5%,follow_gap,0.2500,-0.7472,1.5621,188
+vix_gap>5% & complex_top10%,strangle2,0.5000,-0.7493,1.4970,20
+vix>20 & vix_gap>5%,strangle1,0.2500,-0.7496,1.4880,72
+bb_wide,strangle1,0.1000,-0.7508,1.3092,642
+gap>0.5% & vix>20,fade_gap,0.2500,-0.7514,1.4357,243
+gap>0.5% & prev_move>1.5%,strangle2,0.2500,-0.7564,1.2990,62
+bb_wide & streak<=-3,strangle1,0.5000,-0.7593,1.2215,61
+vix_gap>5% & below_sma50,strangle2,0.2500,-0.7605,1.1924,38
+streak<=-3 & near_52w_low,strangle1,0.5000,-0.7635,1.1190,20
+vix>20 & near_52w_low,fade_gap,0.2500,-0.7650,1.0854,82
+below_sma50 & near_52w_low,fade_gap,0.2500,-0.7650,1.0854,82
+near_52w_low,fade_gap,0.2500,-0.7650,1.0854,82
+vix>20,follow_gap,0.2500,-0.7656,1.0701,425
+vix>20,strangle2,0.1000,-0.7661,1.0588,283
+vix_gap>5% & bb_wide,strangle1,0.2500,-0.7690,0.9962,76
+vix>20 & prev_move>1.5%,follow_gap,0.2500,-0.7702,0.9692,131
+below_sma50 & streak<=-3,fade_gap,0.5000,-0.7710,0.9531,65
+gap>0.5% & prev_move>1.5%,strangle0.5,0.5000,-0.7726,0.9214,100
+vix>25 & vix_gap>5%,strangle1,0.5000,-0.7749,0.8747,32
+vix>25 & vix_gap>5%,follow_gap,0.5000,-0.7751,0.8712,32
+gap>1% & vix_gap>5%,follow_gap,0.5000,-0.7754,0.8650,40
+first_friday & macd_neg,fade_gap,0.5000,-0.7758,0.8580,30
+macd_neg,strangle1,0.1000,-0.7768,0.8385,563
+gap>0.5% & macd_neg,fade_gap,0.2500,-0.7770,0.8355,300
+gap>0.5%,strangle1,0.1000,-0.7781,0.8147,483
+vix>20 & macd_neg,fade_gap,0.2500,-0.7786,0.8060,198
+below_sma50,follow_gap,0.2500,-0.7794,0.7909,399
+gap>0.5%,straddle,0.5000,-0.7802,0.7770,455
+rsi_extreme & bb_wide,follow_gap,0.2500,-0.7805,0.7706,76
+prev_move>1.5% & complex_top10%,strangle2,0.5000,-0.7811,0.7611,45
+gap>0.5% & vix_gap>5%,strangle2,0.2500,-0.7822,0.7416,37
+rsi_extreme,strangle0.5,0.2500,-0.7828,0.7313,109
+bb_wide,strangle0.5,0.2500,-0.7831,0.6642,518
+vix_gap>5%,fade_gap,0.2500,-0.7840,0.7113,94
+vix_gap>5%,follow_gap,0.2500,-0.7847,0.7010,123
+prev_move>1.5%,straddle,0.5000,-0.7855,0.6877,168
+gap>1%,strangle2,0.2500,-0.7858,0.6836,99
+gap>1% & vix>20,strangle2,0.2500,-0.7858,0.6836,99
+gap>0.5% & gap>1%,strangle2,0.2500,-0.7858,0.6836,99
+prev_move>1.5%,fade_gap,0.2500,-0.7858,0.6827,142
+prev_move>1.5% & streak<=-3,strangle2,0.5000,-0.7883,0.6442,20
+vix_gap>5%,straddle,0.5000,-0.7884,0.6430,95
+macd_neg,straddle,0.5000,-0.7886,0.6390,469
+gap>0.5% & vix>20,strangle0.5,0.5000,-0.7887,0.6376,242
+bb_wide & streak<=-3,follow_gap,0.5000,-0.7900,0.6189,61
+gap>0.5% & macd_neg,strangle2,0.2500,-0.7904,0.6131,113
+bb_wide,straddle,0.5000,-0.7909,0.5321,484
+gap>1% & vix>25,fade_gap,0.5000,-0.7910,0.6035,55
+macd_neg,strangle0.5,0.2500,-0.7916,0.5951,501
+vix_gap>5%,strangle0.5,0.2500,-0.7917,0.5939,119
+vix>20 & bb_wide,strangle0.5,0.5000,-0.7918,0.5922,280
+gap>0.5% & first_friday,fade_gap,0.5000,-0.7936,0.5680,32
+rsi_extreme & bb_wide,straddle,0.5000,-0.7944,0.5568,93
+gap>0.5%,strangle0.5,0.2500,-0.7951,0.5470,456
+rsi_extreme,follow_gap,0.2500,-0.7972,0.5199,95
+below_sma50 & macd_neg,strangle0.5,0.5000,-0.7981,0.5078,301
+vix_gap>5% & prev_move>1.5%,strangle2,0.5000,-0.7984,0.5050,17
+vix>25 & macd_neg,follow_gap,0.5000,-0.7991,0.4956,102
+complex_top10% & simple_top10%,fade_gap,0.5000,-0.7999,0.4855,62
+rsi_extreme,straddle,0.5000,-0.8000,0.4847,98
+vix>20,strangle1,0.2500,-0.8000,0.4846,374
+gap>0.5% & bb_wide,fade_gap,0.2500,-0.8004,0.4802,187
+gap>0.5%,follow_gap,0.2500,-0.8010,0.4729,361
+gap>1% & below_sma50,follow_gap,0.5000,-0.8011,0.4718,102
+macd_neg,follow_gap,0.2500,-0.8029,0.4506,329
+bb_wide,follow_gap,0.2500,-0.8032,0.5427,386
+bb_wide,fade_gap,0.2500,-0.8041,0.3281,297
+vix>25 & macd_neg,strangle1,0.5000,-0.8042,0.4359,111
+gap>0.5% & gap>1%,strangle1,0.2500,-0.8054,0.4228,224
+gap>1%,strangle1,0.2500,-0.8054,0.4228,224
+vix>25 & below_sma50,strangle1,0.5000,-0.8054,0.4227,143
+vix_gap>5% & prev_move>1.5%,strangle0.5,0.5000,-0.8056,0.4209,25
+vix>20 & vix_gap>5%,follow_gap,0.5000,-0.8060,0.4166,66
+gap>0.5%,fade_gap,0.2500,-0.8061,0.4154,282
+vix>20 & macd_neg,strangle0.5,0.5000,-0.8062,0.4143,239
+prev_move>1.5% & macd_neg,strangle0.5,0.5000,-0.8067,0.4087,90
+near_52w_low & macd_neg,strangle2,0.2500,-0.8068,0.4084,55
+near_52w_low,strangle2,0.2500,-0.8068,0.4082,71
+vix>20 & near_52w_low,strangle2,0.2500,-0.8068,0.4082,71
+below_sma50 & near_52w_low,strangle2,0.2500,-0.8068,0.4082,71
+bb_wide & near_52w_low,strangle2,0.2500,-0.8072,0.4040,59
+vix>25 & prev_move>1.5%,follow_gap,0.5000,-0.8076,0.3999,78
+macd_neg,fade_gap,0.2500,-0.8080,0.3953,295
+gap>0.5% & vix_gap>5%,strangle1,0.2500,-0.8081,0.3944,66
+near_52w_low & macd_neg,fade_gap,0.2500,-0.8082,0.3928,59
+vix_gap>5% & below_sma50,follow_gap,0.5000,-0.8084,0.3916,48
+vix>20,fade_gap,0.2500,-0.8088,0.3875,260
+bb_wide & near_52w_low,strangle1,0.5000,-0.8098,0.3772,57
+streak<=-3,strangle0.5,0.5000,-0.8106,0.3696,98
+gap>0.5% & rsi_extreme,follow_gap,0.5000,-0.8114,0.3619,31
+vix_gap>5% & macd_neg,follow_gap,0.5000,-0.8115,0.3611,56
+vix_gap>5% & macd_neg,strangle0.5,0.5000,-0.8117,0.3589,55
+below_sma50,strangle0.5,0.5000,-0.8119,0.3566,409
+bb_wide & macd_neg,strangle0.5,0.5000,-0.8126,0.3499,237
+gap>1% & macd_neg,follow_gap,0.5000,-0.8127,0.3490,109
+vix>20,strangle0.5,0.5000,-0.8131,0.3456,313
+gap>1% & prev_move>1.5%,strangle2,0.5000,-0.8132,0.3448,32
+vix>25 & prev_move>1.5%,strangle2,0.2500,-0.8136,0.3413,75
+gap>0.5% & streak<=-3,strangle2,0.5000,-0.8144,0.3335,30
+gap>0.5% & below_sma50,strangle0.5,0.5000,-0.8150,0.3280,234
+gap>1% & near_52w_low,fade_gap,0.5000,-0.8150,0.3280,24
+vix>20 & below_sma50,follow_gap,0.5000,-0.8156,0.3234,152
+vix>20 & vix>25,strangle1,0.5000,-0.8156,0.3232,142
+vix>25,strangle1,0.5000,-0.8156,0.3232,142
+prev_move>1.5%,strangle1,0.2500,-0.8157,0.3223,142
+gap>0.5% & bb_wide,strangle1,0.2500,-0.8158,0.3211,235
+bb_wide,fade_gap,0.5000,-0.8160,0.1599,82
+prev_move>1.5% & bb_wide,strangle0.5,0.5000,-0.8167,0.3137,93
+gap>0.5% & vix_gap>5%,follow_gap,0.5000,-0.8168,0.3129,54
+prev_move>1.5% & below_sma50,strangle0.5,0.5000,-0.8169,0.3119,99
+rsi_extreme & bb_wide,strangle1,0.2500,-0.8173,0.3082,81
+vix_gap>5% & below_sma50,fade_gap,0.5000,-0.8175,0.3073,41
+vix>25 & bb_wide,strangle2,0.2500,-0.8179,0.3039,106
+vix>20 & vix_gap>5%,strangle0.5,0.5000,-0.8183,0.3002,60
+vix_gap>5% & macd_neg,strangle1,0.2500,-0.8185,0.2989,69
+prev_move>1.5% & bb_wide,follow_gap,0.5000,-0.8185,0.2982,74
+vix>25 & below_sma50,strangle2,0.2500,-0.8192,0.2930,113
+bb_wide & streak<=-3,fade_gap,0.5000,-0.8193,0.2924,42
+vix>25 & bb_wide,strangle1,0.5000,-0.8193,0.2921,116
+vix_gap>5% & prev_move>1.5%,follow_gap,0.5000,-0.8200,0.2862,21
+first_friday,fade_gap,0.5000,-0.8202,0.2851,37
+gap>0.5% & streak<=-3,follow_gap,0.5000,-0.8207,0.2811,50
+gap>0.5% & rsi_extreme,fade_gap,0.5000,-0.8208,0.2800,45
+streak<=-3,follow_gap,0.5000,-0.8209,0.2793,71
+rsi_extreme & bb_wide,fade_gap,0.5000,-0.8211,0.2778,58
+gap>0.5% & macd_neg,strangle0.5,0.5000,-0.8212,0.2773,211
+gap>1% & vix>20,follow_gap,0.5000,-0.8213,0.2764,113
+gap>1% & bb_wide,follow_gap,0.5000,-0.8216,0.2741,122
+vix>20 & streak<=-3,fade_gap,0.5000,-0.8216,0.2740,40
+vix>25 & bb_wide,follow_gap,0.5000,-0.8225,0.2668,92
+prev_move>1.5% & simple_top10%,strangle2,0.5000,-0.8227,0.2654,36
+gap>0.5% & vix_gap>5%,fade_gap,0.5000,-0.8228,0.2648,35
+gap>0.5% & vix>25,strangle2,0.2500,-0.8230,0.2633,93
+near_52w_low & simple_top10%,fade_gap,0.5000,-0.8231,0.2630,24
+gap>0.5% & macd_neg,strangle1,0.2500,-0.8231,0.2630,248
+streak<=-3 & macd_neg,strangle0.5,0.5000,-0.8235,0.2600,62
+gap>0.5% & vix>25,strangle1,0.5000,-0.8236,0.2590,115
+gap>0.5% & prev_move>1.5%,follow_gap,0.5000,-0.8240,0.2561,70
+vix_gap>5%,strangle2,0.2500,-0.8242,0.2546,43
+vix>20 & vix_gap>5%,strangle2,0.2500,-0.8242,0.2546,43
+vix>25 & macd_neg,fade_gap,0.5000,-0.8242,0.2545,42
+gap>0.5% & simple_top10%,fade_gap,0.5000,-0.8245,0.2521,44
+gap>1% & prev_move>1.5%,fade_gap,0.5000,-0.8251,0.2482,29
+vix>20 & prev_move>1.5%,follow_gap,0.5000,-0.8253,0.2467,69
+simple_top10%,fade_gap,0.5000,-0.8256,0.2446,45
+below_sma50 & simple_top10%,fade_gap,0.5000,-0.8256,0.2446,45
+vix>20 & simple_top10%,fade_gap,0.5000,-0.8256,0.2446,45
+gap>1%,strangle0.5,0.5000,-0.8260,0.2419,191
+gap>0.5% & gap>1%,strangle0.5,0.5000,-0.8260,0.2419,191
+vix_gap>5% & prev_move>1.5%,strangle1,0.5000,-0.8260,0.2418,24
+vix_gap>5% & bb_wide,fade_gap,0.5000,-0.8263,0.2399,42
+vix_gap>5% & bb_wide,follow_gap,0.5000,-0.8267,0.2372,56
+prev_move>1.5%,strangle2,0.2500,-0.8268,0.2366,84
+vix>20 & prev_move>1.5%,strangle2,0.2500,-0.8268,0.2366,84
+bb_wide & complex_top10%,fade_gap,0.5000,-0.8275,0.2315,64
+gap>1% & vix>20,strangle1,0.5000,-0.8280,0.2280,125
+macd_neg & complex_top10%,fade_gap,0.5000,-0.8282,0.2269,47
+first_friday & bb_wide,fade_gap,0.5000,-0.8292,0.2205,28
+vix>20 & vix_gap>5%,fade_gap,0.5000,-0.8296,0.2176,35
+below_sma50 & streak<=-3,follow_gap,0.5000,-0.8297,0.2172,50
+prev_move>1.5% & below_sma50,follow_gap,0.5000,-0.8297,0.2171,60
+vix>25,follow_gap,0.5000,-0.8298,0.2164,97
+vix>20 & vix>25,follow_gap,0.5000,-0.8298,0.2164,97
+vix>25 & below_sma50,follow_gap,0.5000,-0.8300,0.2153,97
+vix>20 & prev_move>1.5%,strangle0.5,0.5000,-0.8302,0.2140,96
+bb_wide & macd_neg,strangle2,0.2500,-0.8310,0.2094,108
+vix>20 & prev_move>1.5%,fade_gap,0.5000,-0.8310,0.2088,68
+prev_move>1.5% & simple_top10%,fade_gap,0.5000,-0.8313,0.2071,31
+gap>1% & vix_gap>5%,strangle1,0.5000,-0.8316,0.2056,32
+gap>0.5% & rsi_extreme,strangle1,0.5000,-0.8322,0.2018,32
+macd_neg & simple_top10%,fade_gap,0.5000,-0.8322,0.2016,43
+vix_gap>5% & bb_wide,strangle0.5,0.5000,-0.8324,0.2003,65
+gap>0.5% & bb_wide,strangle2,0.2500,-0.8325,0.2002,111
+gap>1% & simple_top10%,fade_gap,0.5000,-0.8331,0.1961,34
+below_sma50 & bb_wide,fade_gap,0.5000,-0.8332,0.1960,129
+rsi_extreme & bb_wide,strangle0.5,0.5000,-0.8335,0.1940,46
+gap>0.5% & vix_gap>5%,strangle0.5,0.5000,-0.8335,0.1938,59
+prev_move>1.5% & below_sma50,strangle2,0.2500,-0.8336,0.1937,84
+bb_wide,strangle0.5,0.5000,-0.8337,0.1598,285
+prev_move>1.5% & complex_top10%,fade_gap,0.5000,-0.8341,0.1906,32
+below_sma50 & complex_top10%,fade_gap,0.5000,-0.8342,0.1897,56
+gap>0.5% & vix>25,follow_gap,0.5000,-0.8344,0.1886,84
+prev_move>1.5% & bb_wide,strangle2,0.2500,-0.8346,0.1876,74
+gap>0.5% & below_sma50,follow_gap,0.5000,-0.8348,0.1864,99
+vix>20 & below_sma50,fade_gap,0.5000,-0.8350,0.1855,117
+rsi_extreme,fade_gap,0.5000,-0.8355,0.1829,60
+gap>1% & bb_wide,strangle1,0.5000,-0.8355,0.1828,123
+streak<=-3 & macd_neg,follow_gap,0.5000,-0.8356,0.1820,46
+vix_gap>5% & macd_neg,fade_gap,0.5000,-0.8357,0.1816,35
+streak<=-3 & macd_neg,fade_gap,0.5000,-0.8357,0.1814,54
+vix>25 & prev_move>1.5%,fade_gap,0.5000,-0.8359,0.1805,42
+prev_move>1.5%,follow_gap,0.5000,-0.8359,0.1804,85
+gap>0.5% & vix>20,follow_gap,0.5000,-0.8359,0.1803,159
+first_friday & bb_wide,strangle1,0.5000,-0.8361,0.1794,28
+gap>1% & macd_neg,fade_gap,0.5000,-0.8363,0.1781,58
+vix>25 & complex_top10%,fade_gap,0.5000,-0.8365,0.1772,31
+gap>1% & macd_neg,strangle2,0.5000,-0.8368,0.1758,57
+vix>20 & bb_wide,strangle2,0.2500,-0.8368,0.1754,143
+bb_wide,strangle2,0.2500,-0.8368,0.1754,143
+vix>25 & simple_top10%,fade_gap,0.5000,-0.8373,0.1732,42
+gap>1%,fade_gap,0.5000,-0.8373,0.1730,45
+gap>0.5% & gap>1%,fade_gap,0.5000,-0.8373,0.1730,45
+prev_move>1.5% & macd_neg,follow_gap,0.5000,-0.8374,0.1725,49
+bb_wide & near_52w_low,fade_gap,0.5000,-0.8375,0.1717,22
+vix>25 & near_52w_low,fade_gap,0.5000,-0.8375,0.1717,22
+below_sma50 & near_52w_low,fade_gap,0.5000,-0.8375,0.1717,22
+near_52w_low,fade_gap,0.5000,-0.8375,0.1717,22
+vix>20 & near_52w_low,fade_gap,0.5000,-0.8375,0.1717,22
+streak<=-3,fade_gap,0.5000,-0.8376,0.1712,48
+vix>20,fade_gap,0.5000,-0.8379,0.1696,69
+vix_gap>5%,follow_gap,0.5000,-0.8379,0.1695,49
+bb_wide & simple_top10%,fade_gap,0.5000,-0.8380,0.1695,45
+below_sma50 & macd_neg,strangle2,0.2500,-0.8380,0.1693,108
+gap>0.5% & bb_wide,fade_gap,0.5000,-0.8380,0.1691,67
+macd_neg,fade_gap,0.5000,-0.8383,0.1678,98
+gap>0.5% & macd_neg,follow_gap,0.5000,-0.8383,0.1675,44
+rsi_extreme & macd_neg,follow_gap,0.5000,-0.8384,0.1674,24
+prev_move>1.5%,fade_gap,0.5000,-0.8384,0.1671,66
+gap>0.5% & bb_wide,strangle0.5,0.5000,-0.8384,0.1670,168
+below_sma50 & streak<=-3,strangle1,0.5000,-0.8385,0.1667,52
+below_sma50 & macd_neg,follow_gap,0.5000,-0.8386,0.1663,42
+bb_wide,strangle1,0.2500,-0.8386,0.1246,302
+streak<=-3 & near_52w_low,strangle2,0.5000,-0.8388,0.1652,18
+gap>1% & complex_top10%,fade_gap,0.5000,-0.8391,0.1635,38
+below_sma50,fade_gap,0.5000,-0.8391,0.1634,107
+near_52w_low & macd_neg,fade_gap,0.5000,-0.8395,0.1614,22
+gap>1% & below_sma50,fade_gap,0.5000,-0.8396,0.1612,49
+gap>0.5% & below_sma50,fade_gap,0.5000,-0.8398,0.1600,75
+gap>1% & vix>20,fade_gap,0.5000,-0.8400,0.1589,45
+gap>0.5% & complex_top10%,fade_gap,0.5000,-0.8401,0.1588,43
+gap>0.5% & bb_wide,follow_gap,0.5000,-0.8401,0.1585,142
+gap>0.5% & vix>25,fade_gap,0.5000,-0.8403,0.1575,58
+below_sma50 & macd_neg,fade_gap,0.5000,-0.8404,0.1571,99
+vix>25 & streak<=-3,strangle2,0.5000,-0.8404,0.1570,29
+vix>25 & near_52w_low,strangle1,0.5000,-0.8404,0.1569,54
+vix>20 & vix_gap>5%,strangle1,0.5000,-0.8407,0.1558,34
+vix_gap>5%,fade_gap,0.5000,-0.8408,0.1553,43
+gap>1% & bb_wide,fade_gap,0.5000,-0.8410,0.1543,46
+complex_top10%,fade_gap,0.5000,-0.8411,0.1537,44
+vix>20 & complex_top10%,fade_gap,0.5000,-0.8411,0.1537,44
+near_52w_low & complex_top10%,fade_gap,0.5000,-0.8412,0.1530,22
+vix>25 & macd_neg,strangle2,0.2500,-0.8415,0.1518,84
+macd_neg,strangle0.5,0.5000,-0.8417,0.1509,212
+prev_move>1.5% & macd_neg,fade_gap,0.5000,-0.8418,0.1505,68
+vix>20 & bb_wide,fade_gap,0.5000,-0.8418,0.1504,83
+vix>20 & vix>25,strangle2,0.2500,-0.8420,0.1493,106
+vix>25,strangle2,0.2500,-0.8420,0.1493,106
+gap>1%,follow_gap,0.5000,-0.8423,0.1481,115
+gap>0.5% & gap>1%,follow_gap,0.5000,-0.8423,0.1481,115
+vix>25 & below_sma50,fade_gap,0.5000,-0.8423,0.1480,49
+vix>25 & bb_wide,fade_gap,0.5000,-0.8424,0.1475,49
+gap>0.5% & streak<=-3,strangle1,0.5000,-0.8424,0.1473,60
+gap>0.5% & macd_neg,fade_gap,0.5000,-0.8428,0.1459,63
+vix>25,fade_gap,0.5000,-0.8430,0.1447,50
+vix>20 & vix>25,fade_gap,0.5000,-0.8430,0.1447,50
+prev_move>1.5% & near_52w_low,fade_gap,0.5000,-0.8431,0.1444,26
+gap>1% & macd_neg,strangle1,0.5000,-0.8431,0.1442,93
+vix_gap>5%,strangle1,0.2500,-0.8434,0.1428,73
+gap>0.5% & prev_move>1.5%,fade_gap,0.5000,-0.8440,0.1400,53
+vix>20,strangle2,0.2500,-0.8442,0.1395,138
+gap>0.5% & vix>20,fade_gap,0.5000,-0.8445,0.1380,57
+below_sma50,follow_gap,0.5000,-0.8446,0.1375,45
+below_sma50 & bb_wide,follow_gap,0.5000,-0.8454,0.1342,62
+rsi_extreme,follow_gap,0.5000,-0.8460,0.1313,29
+gap>0.5% & near_52w_low,fade_gap,0.5000,-0.8462,0.1307,25
+first_friday,strangle1,0.5000,-0.8462,0.1305,33
+vix>20 & below_sma50,strangle1,0.5000,-0.8465,0.1292,204
+vix>20 & macd_neg,fade_gap,0.5000,-0.8466,0.1289,83
+vix>20 & macd_neg,follow_gap,0.5000,-0.8467,0.1286,51
+vix>20 & bb_wide,follow_gap,0.5000,-0.8469,0.1277,120
+vix>20 & macd_neg,strangle1,0.5000,-0.8470,0.1271,144
+rsi_extreme,strangle1,0.2500,-0.8471,0.1270,70
+below_sma50 & bb_wide,strangle2,0.2500,-0.8474,0.1254,122
+gap>0.5%,fade_gap,0.5000,-0.8477,0.1244,68
+streak<=-3 & macd_neg,strangle2,0.5000,-0.8479,0.1236,29
+gap>0.5% & below_sma50,strangle2,0.2500,-0.8482,0.1225,93
+bb_wide & macd_neg,fade_gap,0.5000,-0.8482,0.1224,104
+vix>20 & near_52w_low,strangle1,0.5000,-0.8482,0.1223,56
+near_52w_low,strangle1,0.5000,-0.8482,0.1223,56
+below_sma50 & near_52w_low,strangle1,0.5000,-0.8482,0.1223,56
+prev_move>1.5% & below_sma50,fade_gap,0.5000,-0.8494,0.1174,77
+rsi_extreme,strangle0.5,0.5000,-0.8495,0.1172,54
+vix>20,follow_gap,0.5000,-0.8499,0.1156,81
+vix_gap>5% & bb_wide,strangle2,0.5000,-0.8501,0.1150,21
+near_52w_low & macd_neg,strangle1,0.5000,-0.8501,0.1149,45
+prev_move>1.5% & below_sma50,strangle1,0.5000,-0.8503,0.1143,87
+bb_wide & macd_neg,follow_gap,0.5000,-0.8505,0.1135,41
+vix>25 & prev_move>1.5%,strangle1,0.5000,-0.8508,0.1123,64
+vix_gap>5% & below_sma50,strangle1,0.5000,-0.8509,0.1117,47
+gap>1% & vix_gap>5%,strangle2,0.5000,-0.8510,0.1114,21
+vix>25 & vix_gap>5%,strangle2,0.5000,-0.8511,0.1110,21
+macd_neg,strangle1,0.2500,-0.8515,0.1095,286
+vix_gap>5% & macd_neg,strangle1,0.5000,-0.8517,0.1087,35
+rsi_extreme & bb_wide,follow_gap,0.5000,-0.8520,0.1079,30
+prev_move>1.5% & macd_neg,strangle1,0.5000,-0.8522,0.1072,76
+gap>0.5%,strangle1,0.2500,-0.8527,0.1053,245
+vix>20 & below_sma50,strangle2,0.2500,-0.8527,0.1051,122
+below_sma50,strangle2,0.2500,-0.8527,0.1051,122
+gap>0.5%,strangle2,0.2500,-0.8528,0.1050,97
+gap>0.5% & vix>20,strangle2,0.2500,-0.8528,0.1050,97
+gap>0.5%,strangle0.5,0.5000,-0.8543,0.0996,220
+prev_move>1.5% & bb_wide,fade_gap,0.5000,-0.8548,0.0981,58
+macd_neg,strangle2,0.2500,-0.8552,0.0967,100
+vix>20 & macd_neg,strangle2,0.2500,-0.8552,0.0967,100
+vix_gap>5% & below_sma50,strangle2,0.5000,-0.8552,0.0965,21
+vix>20 & streak<=-3,strangle2,0.5000,-0.8553,0.0964,36
+streak<=-3,strangle2,0.5000,-0.8553,0.0964,36
+vix_gap>5%,strangle0.5,0.5000,-0.8556,0.0953,61
+below_sma50 & streak<=-3,strangle2,0.5000,-0.8557,0.0948,29
+gap>0.5%,follow_gap,0.5000,-0.8559,0.0944,43
+macd_neg,follow_gap,0.5000,-0.8567,0.0918,47
+gap>1% & bb_wide,strangle2,0.5000,-0.8567,0.0917,55
+vix>25 & bb_wide,strangle2,0.5000,-0.8573,0.0899,66
+bb_wide & simple_top10%,strangle2,0.5000,-0.8574,0.0896,47
+prev_move>1.5% & below_sma50,strangle2,0.5000,-0.8580,0.0876,47
+bb_wide & complex_top10%,strangle2,0.5000,-0.8583,0.0867,75
+vix>20 & prev_move>1.5%,strangle1,0.5000,-0.8586,0.0857,76
+gap>1% & vix>25,strangle2,0.5000,-0.8596,0.0829,37
+vix>25 & prev_move>1.5%,strangle2,0.5000,-0.8600,0.0818,41
+gap>1% & simple_top10%,strangle2,0.5000,-0.8605,0.0803,38
+vix>20 & bb_wide,strangle1,0.5000,-0.8605,0.0802,158
+vix>25 & below_sma50,strangle2,0.5000,-0.8606,0.0800,63
+prev_move>1.5% & bb_wide,strangle1,0.5000,-0.8607,0.0797,82
+below_sma50,strangle1,0.5000,-0.8608,0.0793,215
+vix_gap>5% & macd_neg,strangle2,0.5000,-0.8609,0.0789,19
+vix>20 & prev_move>1.5%,strangle2,0.5000,-0.8614,0.0777,47
+prev_move>1.5%,strangle2,0.5000,-0.8614,0.0777,47
+complex_top10% & simple_top10%,strangle2,0.5000,-0.8615,0.0775,41
+vix>20,strangle1,0.5000,-0.8616,0.0770,165
+gap>0.5% & vix>20,strangle1,0.5000,-0.8620,0.0760,137
+below_sma50 & macd_neg,strangle1,0.5000,-0.8622,0.0755,149
+bb_wide,follow_gap,0.5000,-0.8622,0.1078,30
+vix>20 & complex_top10%,strangle2,0.5000,-0.8623,0.0751,65
+complex_top10%,strangle2,0.5000,-0.8623,0.0751,65
+vix>25 & near_52w_low,strangle2,0.5000,-0.8624,0.0749,25
+gap>0.5% & vix_gap>5%,strangle2,0.5000,-0.8626,0.0744,21
+prev_move>1.5%,strangle0.5,0.5000,-0.8627,0.0741,110
+vix>25 & macd_neg,strangle2,0.5000,-0.8631,0.0729,49
+vix>20 & vix_gap>5%,strangle2,0.5000,-0.8634,0.0723,22
+vix_gap>5%,strangle2,0.5000,-0.8634,0.0723,22
+near_52w_low & simple_top10%,strangle2,0.5000,-0.8636,0.0716,20
+prev_move>1.5%,strangle1,0.5000,-0.8645,0.0692,89
+gap>0.5% & below_sma50,strangle1,0.5000,-0.8646,0.0690,139
+bb_wide,strangle1,0.5000,-0.8658,0.0330,20
+gap>0.5% & simple_top10%,strangle2,0.5000,-0.8662,0.0652,42
+vix_gap>5% & bb_wide,strangle1,0.5000,-0.8668,0.0636,40
+bb_wide & macd_neg,strangle1,0.5000,-0.8668,0.0636,131
+prev_move>1.5% & macd_neg,strangle2,0.5000,-0.8669,0.0634,42
+gap>0.5% & vix_gap>5%,strangle1,0.5000,-0.8669,0.0633,31
+streak<=-3 & macd_neg,strangle1,0.5000,-0.8671,0.0629,49
+gap>0.5% & prev_move>1.5%,strangle1,0.5000,-0.8682,0.0604,68
+prev_move>1.5% & near_52w_low,strangle2,0.5000,-0.8685,0.0596,25
+gap>1%,strangle1,0.5000,-0.8690,0.0587,105
+gap>0.5% & gap>1%,strangle1,0.5000,-0.8690,0.0587,105
+macd_neg,strangle1,0.5000,-0.8697,0.0571,160
+below_sma50 & bb_wide,strangle1,0.5000,-0.8699,0.0565,170
+prev_move>1.5% & bb_wide,strangle2,0.5000,-0.8704,0.0556,47
+macd_neg & complex_top10%,strangle2,0.5000,-0.8706,0.0552,51
+gap>0.5% & below_sma50,strangle2,0.5000,-0.8706,0.0551,52
+gap>0.5%,strangle1,0.5000,-0.8709,0.0544,116
+gap>0.5% & prev_move>1.5%,strangle2,0.5000,-0.8711,0.0540,36
+gap>0.5% & vix>25,strangle2,0.5000,-0.8712,0.0539,49
+gap>0.5% & bb_wide,strangle2,0.5000,-0.8719,0.0525,50
+below_sma50 & complex_top10%,strangle2,0.5000,-0.8720,0.0522,54
+vix>25 & simple_top10%,strangle2,0.5000,-0.8722,0.0517,45
+simple_top10%,strangle2,0.5000,-0.8722,0.0517,48
+vix>20 & simple_top10%,strangle2,0.5000,-0.8722,0.0517,48
+below_sma50 & simple_top10%,strangle2,0.5000,-0.8722,0.0517,48
+macd_neg & simple_top10%,strangle2,0.5000,-0.8729,0.0504,45
+vix>25,strangle2,0.5000,-0.8730,0.0501,55
+vix>20 & vix>25,strangle2,0.5000,-0.8730,0.0501,55
+gap>1% & below_sma50,strangle2,0.5000,-0.8731,0.0500,40
+gap>1% & complex_top10%,strangle2,0.5000,-0.8733,0.0495,42
+below_sma50 & macd_neg,strangle2,0.5000,-0.8735,0.0492,56
+bb_wide & macd_neg,strangle2,0.5000,-0.8735,0.0491,56
+rsi_extreme & bb_wide,strangle1,0.5000,-0.8742,0.0479,38
+gap>1% & near_52w_low,strangle2,0.5000,-0.8742,0.0479,24
+streak<=-3,strangle1,0.5000,-0.8750,0.0465,65
+vix>20 & below_sma50,strangle2,0.5000,-0.8758,0.0449,72
+below_sma50,strangle2,0.5000,-0.8758,0.0449,72
+near_52w_low,strangle2,0.5000,-0.8762,0.0442,26
+below_sma50 & near_52w_low,strangle2,0.5000,-0.8762,0.0442,26
+bb_wide & near_52w_low,strangle2,0.5000,-0.8762,0.0442,26
+vix>20 & near_52w_low,strangle2,0.5000,-0.8762,0.0442,26
+gap>0.5% & near_52w_low,strangle2,0.5000,-0.8766,0.0435,23
+vix>25 & complex_top10%,strangle2,0.5000,-0.8769,0.0430,47
+below_sma50 & bb_wide,strangle2,0.5000,-0.8777,0.0416,68
+gap>1%,strangle2,0.5000,-0.8784,0.0403,46
+gap>1% & vix>20,strangle2,0.5000,-0.8784,0.0403,46
+gap>0.5% & gap>1%,strangle2,0.5000,-0.8784,0.0403,46
+gap>0.5% & macd_neg,strangle2,0.5000,-0.8787,0.0399,51
+gap>0.5% & bb_wide,strangle1,0.5000,-0.8787,0.0399,117
+vix>20,strangle2,0.5000,-0.8792,0.0390,50
+gap>0.5%,strangle2,0.5000,-0.8798,0.0382,52
+gap>0.5% & vix>20,strangle2,0.5000,-0.8798,0.0382,52
+gap>0.5% & macd_neg,strangle1,0.5000,-0.8798,0.0381,121
+rsi_extreme,strangle1,0.5000,-0.8802,0.0375,38
+vix>20 & bb_wide,strangle2,0.5000,-0.8802,0.0374,69
+bb_wide,strangle2,0.5000,-0.8802,0.0374,69
+gap>0.5% & complex_top10%,strangle2,0.5000,-0.8807,0.0367,44
+vix_gap>5%,strangle1,0.5000,-0.8809,0.0364,40
+near_52w_low & macd_neg,strangle2,0.5000,-0.8815,0.0355,26
+near_52w_low & complex_top10%,strangle2,0.5000,-0.8822,0.0345,27
+vix>20 & macd_neg,strangle2,0.5000,-0.8838,0.0321,59
+macd_neg,strangle2,0.5000,-0.8838,0.0321,59

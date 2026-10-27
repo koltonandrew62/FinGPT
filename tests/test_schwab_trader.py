@@ -95,16 +95,10 @@ def test_backtest_survives_a_split_mid_hold():
     prices["close"]["XLK"] = prices["open"]["XLK"] = 100 * 1.001 ** np.arange(n)
     idx = prices["close"].index
     splits = {"XLK": [(idx[310].date().isoformat(), 2.0)]}
-    import schwab_trader.backtest as bt
-    orig = bt.split_factor
-    bt.split_factor = lambda s, d: orig(s, d, splits)
-    try:
-        cfg = StrategyConfig(universe="sectors", lookback="12", top_n=1, trend_filter="none")
-        # min_trade_value stops the weekly top-up so the split's effect is isolated
-        res = run_backtest(prices, cfg, idx[300], idx[-1], 1500.0,
-                           Costs(slippage_bps=0, sec_fee_rate=0, cash_buffer=0, min_trade_value=0.2))
-    finally:
-        bt.split_factor = orig
+    cfg = StrategyConfig(universe="sectors", lookback="12", top_n=1, trend_filter="none")
+    # min_trade_value stops the weekly top-up so the split's effect is isolated
+    res = run_backtest(prices, cfg, idx[300], idx[-1], 1500.0,
+                       Costs(slippage_bps=0, sec_fee_rate=0, cash_buffer=0, min_trade_value=0.2), splits=splits)
     # Real price before the split was 2x the adjusted one, so only half as many shares fit.
     first = res.trades.iloc[0]
     assert first.shares == int(1500 // (prices["open"]["XLK"].iloc[300] * 2))
@@ -230,9 +224,13 @@ def test_calendar_holidays_and_order_times():
     assert is_trading_day(dt.date(2026, 10, 26))
     assert first_trading_day_of_week(dt.date(2027, 1, 16)) == dt.date(2027, 1, 19)   # MLK Monday
     assert order_time(dt.date(2026, 11, 2)) == "Mon Nov 02, 2026 9:35 AM ET"
-    when = trade_dates(dt.date(2026, 10, 23), hold_weeks=13)
+    sunday_evening = pd.Timestamp("2026-10-25 18:30", tz="America/New_York")
+    when = trade_dates(dt.date(2026, 10, 23), hold_weeks=13, now=sunday_evening)
     assert when["buy"] == dt.date(2026, 10, 26) and when["review"] == dt.date(2026, 11, 2)
     assert when["sell"] == dt.date(2027, 1, 25)
+    # run late on Monday night: the Monday 9:35 buy has passed, so buy at Tuesday's open
+    late = trade_dates(dt.date(2026, 10, 23), now=pd.Timestamp("2026-10-26 23:00", tz="America/New_York"))
+    assert late["buy"] == dt.date(2026, 10, 27) and late["review"] == dt.date(2026, 11, 2)
 
 
 def test_weekly_report_lists_buy_and_sell_times():
@@ -241,10 +239,13 @@ def test_weekly_report_lists_buy_and_sell_times():
         ["XLK", "XLF", "XLV", "XLE", "XLI", "XLY", "XLP", "XLU", "XLB", "XLRE", "XLC",
          "QQQ", "IWM", "EFA", "EEM", "GLD", "TLT", "SPY"])}
     closes = make_prices(paths, start="2025-08-01")["close"]
-    strat = strategy_section(closes, 1500.0, previous={"XLF": "2026-01-05"})
-    subject, text, page = render(strat, None, 1500.0)
+    from schwab_trader.sizing import accounts_from_env
+    accounts = accounts_from_env()
+    strat = strategy_section(closes, accounts, previous={"XLF": "2026-01-05"})
+    subject, text, page = render(strat, None, accounts)
     assert strat["picks"] and subject.startswith("Weekly picks")
     assert "BUY " + strat["buy_at"] in text and "9:35 AM ET" in text and "SELL XLF" in text
+    assert "You:" in text and "Dad:" in text                          # sized for both accounts
 
 
 # ------------------------------------------------------------- live trader
@@ -337,3 +338,80 @@ def test_0dte_trade_settles_at_close_intrinsic_with_costs():
     expected = t.contracts * ((intrinsic - half_spread(intrinsic)) * 100 - COMMISSION)
     assert t.proceeds == pytest.approx(expected)
     assert t.cost <= 0.5 * 1500 and t.contracts == int(t.contracts)   # whole contracts within the budget
+
+
+# ---------------------------------------------------------------- scorecard
+def _stock_panel(n=320):
+    idx = pd.bdate_range("2023-01-02", periods=n)
+    rng = np.random.default_rng(1)
+    close = pd.DataFrame({
+        "UP": 100 * np.exp(np.cumsum(0.002 + 0.02 * rng.standard_normal(n))),      # strong, volatile riser
+        "DOWN": 100 * np.exp(np.cumsum(-0.002 + 0.004 * rng.standard_normal(n))),  # steady faller
+        "FLAT": 100 * np.exp(np.cumsum(0.008 * rng.standard_normal(n))),
+        "MID": 100 * np.exp(np.cumsum(0.0005 + 0.01 * rng.standard_normal(n))),
+    }, index=idx)
+    volume = pd.DataFrame(1e6, index=idx, columns=close.columns)
+    return close, volume
+
+
+def test_scorecard_scores_buys_rejects_and_put_list():
+    from schwab_trader.scorecard import VETO, components, weekly_table
+    close, volume = _stock_panel()
+    comp = components(close, volume)
+    t = weekly_table(comp, close.index[-1])
+    assert t.score.between(0, 100).all()
+    assert t.loc["UP", "verdict"] == "BUY" and t.loc["DOWN", "verdict"] == "PUT/SHORT"
+    assert t.index[0] == "UP"
+    rejected = t[t.verdict == "REJECT"]
+    assert all(r.failed for _, r in rejected.iterrows())             # every reject names its failing component
+    assert all(min(t.loc[s, ["momentum", "high_volatility"]]) < VETO for s in rejected.index)
+
+
+def test_scorecard_long_weights_fn_has_no_lookahead():
+    from schwab_trader.scorecard import components, long_weights_fn
+    close, volume = _stock_panel()
+    fn = long_weights_fn(components(close, volume), top_n=2)
+    w = fn(close.iloc[:-1])
+    changed = close.copy()
+    changed.iloc[-1] *= 10                                           # tomorrow's move must not matter
+    assert fn(changed.iloc[:-1]) == w and abs(sum(w.values()) - len(w) / 2) < 1e-9
+
+
+# ------------------------------------------------------------------- sizing
+def test_accounts_and_share_plans():
+    from schwab_trader.sizing import accounts_from_env, contracts, share_plan
+    you, dad = accounts_from_env()
+    assert (you.value, you.margin) == (1500, False) and dad.strategy_dollars == 150_000 and dad.margin
+    plan = share_plan({"XLE": 0.5, "XLK": 0.5}, {"XLE": 69.33, "XLK": 183.23}, dad)
+    assert sum(d for _, d in plan.values()) <= 150_000 and plan["XLE"][0] > 1000
+    assert contracts(250.0, you) == 0 and contracts(250.0, dad) == 15   # $30 vs $3,750 options budgets
+
+
+# ------------------------------------------------------------ 0DTE / vol model
+def test_vol_features_use_only_data_known_at_the_open():
+    from schwab_trader.vol_model import features
+    idx = pd.bdate_range("2024-01-01", periods=300)
+    rng = np.random.default_rng(2)
+    c = 100 * np.exp(np.cumsum(0.01 * rng.standard_normal(300)))
+    q = pd.DataFrame({"open": c * 0.999, "high": c * 1.01, "low": c * 0.99, "close": c, "volume": 1e6}, index=idx)
+    vix = pd.DataFrame({"open": 15.0, "close": 15.0}, index=idx)
+    f1 = features(q, vix)
+    q2 = q.copy()
+    q2.iloc[-1, q2.columns.get_indexer(["high", "low", "close", "volume"])] = [500, 1, 300, 9e9]
+    f2 = features(q2, vix)
+    pd.testing.assert_series_equal(f1.iloc[-1], f2.iloc[-1])           # today's close/high/low never leak
+
+
+def test_zero_dte_legs_and_straddle_payoff():
+    from schwab_trader.options_backtest import COMMISSION, half_spread
+    from schwab_trader.zero_dte_research import legs, run_0dte
+    assert legs("strangle1", 400.0, True) == [(True, 404), (False, 396)]
+    assert legs("follow_gap", 400.2, False) == [(False, 400)]
+    idx = pd.bdate_range("2025-01-06", periods=3)
+    q = pd.DataFrame({"open": [400.0, 400.0, 400.0], "close": [400.0, 400.0, 410.0]}, index=idx)
+    flags = pd.Series([False, False, True], index=idx)
+    eq, tr = run_0dte(q, pd.Series(20.0, index=idx), flags, "straddle", 0.5, pd.Series(1.0, index=idx),
+                      idx[0], idx[-1], 10_000.0)
+    t = tr.iloc[0]
+    assert t.proceeds == pytest.approx(t.contracts * ((10.0 - half_spread(10.0)) * 100 - COMMISSION))  # call leg only
+    assert eq.iloc[-1] == pytest.approx(10_000.0 - t.cost + t.proceeds)
