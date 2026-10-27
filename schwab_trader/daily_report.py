@@ -1,4 +1,4 @@
-"""Dad's daily plan email (Sunday-Friday, 8:30 AM ET) for his $1.5M margin account:
+"""Daily trading plan email (Sunday-Friday, 8:30 AM ET; sized for a $1.5M margin account):
 market trends and patterns, Asia overnight, after-hours and pre-market moves, EPS
 picks, regular stock picks (dip-buys), options plays on those picks, QQQ options and
 the earnings calendar. Rules and win rates come from daily_research.py
@@ -433,8 +433,9 @@ def qqq_section(px, vix_frame, moves, nxt, summary) -> list[str]:
     base = {-0.01, -0.005, 0.0, 0.005, 0.01}
     near = gap is not None and np.isfinite(gap) and min(abs(gap - g) for g in base) < 0.001
     gaps = sorted(base | ({round(gap, 4)} if gap is not None and np.isfinite(gap) and not near else set()))
-    acct = [Account("Dad", ACCOUNT, 1.0, CONDOR_RISK, True)]
+    acct = [Account("Size", ACCOUNT, 1.0, CONDOR_RISK, True)]
     table = [l.replace(" Tuesday-Friday: same rule each morning.", "")
+              .replace(f"({CONDOR_RISK:.2%} of {money(ACCOUNT)})", f"({CONDOR_RISK:.0%} of the account)")
              for l in monday_table(qqq.loc[:end], spy.loc[:end], vix_frame.loc[:end], acct, gaps=gaps)]
     if gap is not None and np.isfinite(gap):
         row = min(gaps, key=lambda g: abs(g - gap))
@@ -520,12 +521,12 @@ def build(ext_paths, past_json, next_json, now: pd.Timestamp | None = None) -> t
     past = load_calendar(past_json) if past_json else []
     upcoming = load_calendar(next_json) if next_json else []
 
-    head = [f"DAD'S DAILY PLAN for {nxt:%a %b %d, %Y} - $1.5M account (orders at 9:35 AM ET unless noted)",
+    head = [f"DAILY TRADING PLAN for {nxt:%a %b %d, %Y} (orders at 9:35 AM ET unless noted)",
             f"Data: daily closes through {last:%a %b %d}; after-hours/pre-market as of "
             + (max(m["as_of"] for m in moves.values()).strftime("%a %I:%M %p ET") if moves else "n/a")
             + ("" if is_trading_day(now.date()) else f". Markets are closed today ({now:%A}); this plan is for {nxt:%A}."),
-            "Account split: half in EPS picks (5 slots of $150,000), half in dip-buys (3 slots of $250,000); "
-            "each options play risks at most 1% ($15,000); 0DTE QQQ condors at most 2%.", ""]
+            "Sizing: half the account in EPS picks (5 equal slots), half in dip-buys (3 equal slots); "
+            "each options play risks at most 1% of the account; 0DTE QQQ condors at most 2%.", ""]
     over, asia_live = overnight_section(px, moves, summary)
     mkt = market_section(px, vix, asia_live, nxt, summary)
     eps_lines, eps_plays, eps_sells = eps_section(px, past, moves, pd.Timestamp(nxt), summary, ACCOUNT * EPS_SHARE)
@@ -537,9 +538,10 @@ def build(ext_paths, past_json, next_json, now: pd.Timestamp | None = None) -> t
     combo = summary.get("combined")
     tail = [""]
     if combo:
-        tail.append(f"WHOLE PLAN BACKTEST 2021-2026 ($1.5M, all of the above together): {money(combo['test_final'])} "
-                    f"({pct(combo['test_cagr'])}/yr) vs S&P {money(combo['spy_final'])}; worst drop {pct(combo['test_maxdd'], 0)}; "
-                    f"{combo['test_win_rate']:.0%} of {combo['test_trades']:,} trades won.")
+        grow = lambda final: f"${100 * final / ACCOUNT:,.0f}"
+        tail.append(f"WHOLE PLAN BACKTEST 2021-2026 (all of the above together): {pct(combo['test_cagr'])}/yr - each $100 "
+                    f"grew to {grow(combo['test_final'])} vs {grow(combo['spy_final'])} in the S&P 500; worst drop "
+                    f"{pct(combo['test_maxdd'], 0)}; {combo['test_win_rate']:.0%} of {combo['test_trades']:,} trades won.")
     tail.append("Not financial advice. Backtests use modelled option prices and the largest stocks of 2021; real results will differ.")
     text = "\n".join(head + mkt + over + eps_lines + dip_lines + opt + qqq + pats + cal + tail)
     buys = [p["symbol"] for p in eps_plays + dip_plays]
