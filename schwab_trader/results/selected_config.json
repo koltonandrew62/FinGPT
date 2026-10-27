@@ -1,0 +1,21 @@
+{
+  "label": "sectors+ 3/6/12 top1 none voladj rev1 weekly",
+  "universe": "sectors+",
+  "lookback": "3/6/12",
+  "top_n": 1,
+  "trend_filter": "none",
+  "risk_adjusted": true,
+  "reversal_weight": 1.0,
+  "final_value": 14410.126987504796,
+  "cagr": 0.14450710301169623,
+  "sharpe": 0.6526807585633664,
+  "max_drawdown": -0.5246626493256253,
+  "volatility": 0.25705578613070557,
+  "spy_cagr": 0.08340773399576173,
+  "trades": 1431,
+  "pct_weeks_up": 0.5561926605504587,
+  "pct_weeks_beat_spy": 0.5172018348623854,
+  "pct_rolling_1y_beat_spy": 0.5875221015407931,
+  "worst_rolling_1y_vs_spy": -0.34003856911370023,
+  "years_beat_spy": "10/17"
+}
