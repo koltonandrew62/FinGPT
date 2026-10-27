@@ -2,7 +2,7 @@
 
 Accounts come from the ACCOUNTS environment variable, one per comma:
     name:value:strategy_share:options_risk:cash|margin
-e.g. ACCOUNTS="You:1500:1.0:0:cash,Dad:1500000:0.10:0.02:margin"
+e.g. ACCOUNTS="You:1500:1.0:0:cash,Dad:1500000:1.0:0.02:margin"
 
   strategy_share  fraction of the account the stock/ETF strategies may run
   options_risk    most of the account one options trade may lose (0 = no options in this account)
@@ -15,9 +15,9 @@ from dataclasses import dataclass
 
 from .strategy import whole_share_targets
 
-# Your account trades shares only; Dad's runs the share strategy with 10% of the account
+# Your account trades shares only; Dad's runs the share strategy with the whole $1.5M
 # and the 0DTE condor with at most 2% of it at risk per trade (the size backtested).
-DEFAULT_ACCOUNTS = "You:1500:1.0:0:cash,Dad:1500000:0.10:0.02:margin"
+DEFAULT_ACCOUNTS = "You:1500:1.0:0:cash,Dad:1500000:1.0:0.02:margin"
 
 
 @dataclass(frozen=True)

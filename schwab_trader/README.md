@@ -1,18 +1,23 @@
 # schwab_trader
 
-A weekly, rules-based ETF rotation for a Charles Schwab account, with backtests, a
-weekly 0-100 stock scorecard, an earnings play book, a volatile-day detector for 0DTE
+A weekly, rules-based share strategy for a Charles Schwab account, with backtests, a
+weekly 0-100 stock scorecard, a volatile-day detector for 0DTE
 QQQ options, a Sunday-evening email sized for two accounts ($1,500 and ~$1.5M), and a
 Schwab order bot that runs in dry-run mode until you say otherwise.
 
-**The strategy (details in [results/STRATEGY_RESULTS.md](results/STRATEGY_RESULTS.md)).**
-Every week, hold the 3 strongest of 59 large US stocks and 17 ETFs by 12-month return
-(skipping the latest month), checking the market trend first: in a downtrend (S&P 500
-below its 200-day average) only names still rising are bought. Over the last 5 years
-$1,500 became **$6,398 (33.6%/yr)** vs **$2,508 (10.8%/yr)** for the S&P 500, and it beat
-the S&P on both uptrend and downtrend days. The price: a −38% worst drop (−45% at
-$150,000), and only about half of positions close at a profit. Nothing tested reached
-200%/yr; the best honest single years were +104% to +126%.
+**The strategies (details in [results/STRATEGY_RESULTS.md](results/STRATEGY_RESULTS.md)).**
+Each account runs the share strategy that grew money fastest at its size, checking the
+market trend first: in a downtrend (S&P 500 below its 200-day average) only names still
+rising over 12 months are bought.
+
+| Account size | Every week, hold | Last 5 years | S&P 500 | Worst drop |
+|---|---|---:|---:|---:|
+| under $25,000 | the 3 strongest of 59 large US stocks + 17 ETFs by 12-month return (skipping the latest month) that the account can afford | $1,500 → **$6,398** (33.6%/yr) | $2,508 | −38% |
+| $25,000 and up | the top 2 of 59 stocks by scorecard v2 (half momentum, half volatility) | $1.5M → **$6.71M** (33.8%/yr) | $2.51M | −52% (−$3.0M from the peak) |
+
+Both beat the S&P on uptrend and downtrend days. Only about half of positions close at a
+profit, and the drops are large. Nothing tested reached 200%/yr; the best honest single
+years were +104% to +126%.
 
 For the $1.5M margin account there is also a high-accuracy options rule: sell a 0DTE
 QQQ iron condor on days the volatility detector rates calm (won 89–93% of trades in
@@ -22,14 +27,15 @@ QQQ iron condor on days the volatility detector rates calm (won 89–93% of trad
 
 Every week (Friday close → Monday 9:35 AM ET):
 1. Checks the market trend (SPY vs. its 200-day average).
-2. Ranks 59 stocks + 17 ETFs by 12-1 momentum and holds the top 3 the account can
-   afford, in equal dollar amounts, whole shares only, no margin.
+2. Ranks the names for each account's strategy (above) and holds the top 3 (under
+   $25k) or top 2 ($25k and up) the account can afford, in equal dollar amounts, whole
+   shares only, no margin.
 3. Emails the picks, shares and dollars for each account, the next morning's 0DTE plan
    for accounts that trade options, and earnings beats/misses.
 
 | File | Purpose |
 |---|---|
-| `active_strategy.py` | **The strategy in use**: trend-checked momentum top 3 |
+| `active_strategy.py` | **The strategies in use**: trend-checked momentum top 3 (under $25k), scorecard v2 top 2 ($25k and up) |
 | `share_competition.py`, `regime_research.py` | How it was chosen; up/downtrend test |
 | `pullback.py`, `condor_research.py` | High-win-rate alternatives (dip-buying 70%; calm-day condors 89–93%) |
 | `profit_sweep.py` | Half of profits moved into options |
@@ -66,23 +72,27 @@ To run it yourself instead (e.g. from your own computer with cron):
 ```bash
 export SMTP_USER=you@gmail.com SMTP_PASSWORD='<gmail app password>' EMAIL_TO=you@gmail.com
 export SEC_USER_AGENT="Your Name you@gmail.com"     # SEC requires a contact for its free API
-export ACCOUNTS="You:1500:1.0:0.02:cash,Dad:1500000:0.10:0.0025:margin"
+export ACCOUNTS="You:1500:1.0:0:cash,Dad:1500000:1.0:0.02:margin"
 python -m schwab_trader.weekly_report
 ```
 
 Gmail needs an **App Password** (Google Account → Security → 2-Step Verification → App
 passwords). Each email has:
-- the ETF rotation's holdings with a **BUY date/time** (next session, 9:35 AM ET) and a
-  **SELL date/time** (next weekly check), plus shares and dollars for every account and
-  the worst backtest drop in dollars;
-- the **0-100 stock scorecard**: top 10, the 5 buys sized per account (flagged when they
-  report earnings that week), rejected stocks with the component that failed, and the
-  put/avoid list;
+- the market trend and each account's holdings with a **BUY date/time** (next session,
+  9:35 AM ET) and a **SELL date/time** (next weekly check), shares and dollars, a
+  warning when a pick reports earnings that week, and the worst backtest drop in dollars;
+- the momentum and scorecard rankings;
+- the next morning's 0DTE QQQ condor plan for accounts that trade options;
 - earnings beats/misses for the last 7 days and who reports in the next 7.
 
+`--with-scorecard` adds the full 0-100 scorecard table and put/avoid list.
+
 `ACCOUNTS` entries are `name:value:strategy_share:options_risk:cash|margin`. The default
-gives the $1.5M account 10% ($150,000) in the strategies and caps options at 0.25%
-($3,750) a trade, because neither has a live track record; change it if you disagree.
+runs the share strategy with all of both accounts, no options for the $1,500 account,
+and at most 2% ($30,000) at risk per condor in the $1.5M account. Lower
+`strategy_share` (e.g. `Dad:1500000:0.10:0.02:margin` for $150,000) to put less of an
+account in the strategy; at $1.5M the backtested worst drop was about −$3.0M from the
+peak.
 
 ## Trading on Schwab
 

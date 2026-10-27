@@ -1,5 +1,6 @@
-"""Run the weekly strategy (active_strategy.py: trend-checked momentum top 3 over 59
-stocks + 17 ETFs) on a Charles Schwab account. DRY RUN unless --live.
+"""Run the weekly strategy for the account's size (active_strategy.py, trend-checked:
+momentum top 3 over 59 stocks + 17 ETFs under $25k, scorecard v2 top 2 over 59 stocks
+from $25k) on a Charles Schwab account. DRY RUN unless --live.
 
 One-time setup
   1. Register at https://developer.schwab.com, create an app with the
@@ -32,7 +33,8 @@ import time
 
 import pandas as pd
 
-from .active_strategy import LABEL, POOL, market_trend, momentum, target_weights
+from .active_strategy import (LARGE_ACCOUNT, POOL, label_for, market_trend, momentum, scorecard_ranking,
+                              target_weights_for)
 from .config import BENCHMARK, STATE_DIR, Costs
 from .data import drop_unfinished_today, fetch_schwab
 from .strategy import whole_share_targets
@@ -220,19 +222,24 @@ def main(argv=None):
     start = (dt.date.today() - dt.timedelta(days=600)).isoformat()
     frames = {s: drop_unfinished_today(df) for s, df in fetch_schwab(client, symbols, start).items()}
     closes = pd.DataFrame({s: f["close"] for s, f in frames.items()}).sort_index()
+    volumes = pd.DataFrame({s: f["volume"] for s, f in frames.items()}).sort_index()
     managed_now = {s: q for s, q in account["positions"].items() if s in POOL}
     held_quotes = get_quotes(client, set(managed_now)) if managed_now else {}
     budget = account["cash"] + sum(q * (held_quotes[s]["bid"] + held_quotes[s]["ask"]) / 2
                                    for s, q in managed_now.items())
     if args.max_capital is not None:
         budget = min(budget, args.max_capital)
-    ranked = list(momentum(closes).index[:15])
+    large = budget >= LARGE_ACCOUNT
+    ranked = list((scorecard_ranking(closes, volumes) if large else momentum(closes)).index[:15])
     quotes = {**held_quotes, **get_quotes(client, set(ranked) - set(held_quotes))}
-    weights = target_weights(closes, budget, lambda s: quotes.get(s, {}).get("ask", float("nan")))
+    weights = target_weights_for(closes, volumes, budget, lambda s: quotes.get(s, {}).get("ask", float("nan")))
     orders, info = plan_orders(weights, account, quotes, POOL, max_capital=args.max_capital)
 
-    print(f"Signal as of {closes.index[-1].date()} ({LABEL}); market {market_trend(closes)}")
-    print("  ranking: " + ", ".join(f"{s} {v:+.0%}" for s, v in momentum(closes).head(6).items()))
+    print(f"Signal as of {closes.index[-1].date()} ({label_for(budget)}); market {market_trend(closes)}")
+    if large:
+        print("  ranking: " + ", ".join(f"{s} {v:.0f}" for s, v in scorecard_ranking(closes, volumes).head(6).items()))
+    else:
+        print("  ranking: " + ", ".join(f"{s} {v:+.0%}" for s, v in momentum(closes).head(6).items()))
     print(f"  target: {info['target'] or 'all cash'}")
     print(f"  account cash ${account['cash']:,.2f}, strategy budget ${info['budget']:,.2f}, "
           f"current strategy holdings {info['managed'] or 'none'}")

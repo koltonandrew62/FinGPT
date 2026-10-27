@@ -5,10 +5,14 @@ and Schwab fees included, last 5 years = 2021-10-25 → 2026-10-23 unless noted.
 stock list is the largest US companies as of October 2021, so 2011–2021 results for
 stock-picking strategies have hindsight; 2021–2026 does not.
 
-## The strategy in the emails: trend-checked momentum top 3
+## The strategies in the emails (by account size)
 
-`share_competition.py` raced 14 share-only strategies with $1,500. Rule fixed before
-running: highest 2021–2026 result among those that also beat SPY in 2011–2021.
+`share_competition.py` raced 14 share-only strategies at each size. Rule fixed before
+running: highest 2021–2026 result among those that also beat SPY in 2011–2021. Under
+$25,000 the emails and the bot use the $1,500 winner; from $25,000 up, the $150,000
+winner.
+
+### $1,500: trend-checked momentum top 3
 
 | Strategy ($1,500, weekly) | Ended at | Per year | Worst drop | Beat SPY both periods |
 |---|---:|---:|---:|---|
@@ -31,8 +35,29 @@ Moving to defensive assets or cash in downtrends did **worse** (−8% and −9%/
 emails use the "absolute" rule — in a downtrend only names still rising over 12 months
 are bought — which never had to bind historically but guards a broad crash.
 
-At $150,000 (your dad's slice) every stock is affordable and it made 25.8%/yr with a
-−45% worst drop.
+### $25,000 and up (your dad's $1.5M): trend-checked scorecard v2 top 2
+
+At $150,000 every stock is affordable, and holding fewer, more volatile names won:
+
+| Strategy ($150,000, weekly) | Ended at | Per year | Worst drop | Beat SPY both periods |
+|---|---:|---:|---:|---|
+| **Scorecard v2 top 2** (winner) | **$687,531** | **34.5%** | −52% | yes |
+| Stocks + ETFs momentum top 2 | $620,542 | 31.9% | −53% | yes |
+| ETF rotation top 1 | $567,561 | 30.5% | −27% | no (lagged 2011–2021) |
+| Stocks + ETFs momentum top 3 (the $1,500 winner) | $487,976 | 25.9% | −45% | yes |
+
+Scorecard v2 = half 12-1 momentum rank, half 63-day volatility rank, over the 59
+stocks; a name scoring under 25 on either is rejected and it needs 60+ overall. With
+the same trend check at the full **$1.5M** (`regime_research.py`):
+
+| | Ended at | Per year | Worst drop | Uptrend days | Downtrend days |
+|---|---:|---:|---:|---:|---:|
+| 2021–2026 | **$6,706,381** | **33.8%** | −52% (−$3.0M from the peak) | +21%/yr vs SPY +10% | +85%/yr vs SPY +14% |
+| SPY | $2,508,112 | 10.8% | −25% | | |
+| 2011–2021 (hindsight universe) | $164M | 54.9% | −48% | +54%/yr vs +8% | +58%/yr vs +42% |
+
+By calendar year (2021–2026): +15%, −31%, +84%, +38%, −5%, +126%. Two stocks at about
+$750,000 each is concentrated; lower `strategy_share` in `ACCOUNTS` to run it on less.
 
 ## Win rates ("accuracy") — the 80% question
 

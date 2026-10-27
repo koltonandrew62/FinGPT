@@ -1,5 +1,5 @@
-"""Weekly picks email: the trend-checked momentum strategy (active_strategy.py) sized
-for every account in ACCOUNTS (see sizing.py), the 0DTE condor plan for accounts that
+"""Weekly picks email: the trend-checked share strategy for each account's size
+(active_strategy.py) sized for every account in ACCOUNTS (see sizing.py), the 0DTE condor plan for accounts that
 trade options, and earnings beats/misses.
 
     python -m schwab_trader.weekly_report                  # yfinance data, email
@@ -20,7 +20,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .active_strategy import LABEL, POOL, market_trend, momentum, target_weights
+from .active_strategy import (BACKTEST, LARGE_ACCOUNT, POOL, WORST_DROP, label_for, market_trend, momentum,
+                              scorecard_ranking, target_weights_for)
 from .calendar_utils import first_trading_day_of_week, next_trading_day, order_time
 from .config import BENCHMARK, DATA_DIR, STATE_DIR
 from .data import COLUMNS, drop_unfinished_today, fetch_schwab, fetch_yfinance, load_prices
@@ -79,11 +80,13 @@ def held_since(closes: pd.DataFrame, picker, max_weeks: int = 52) -> dict:
     return {s: first_trading_day_of_week(f.date() + dt.timedelta(days=1)).isoformat() for s, f in since.items()}
 
 
-def active_section(closes: pd.DataFrame, accounts: list[Account]) -> dict:
-    """The momentum strategy's picks for each account (small accounts skip shares they
-    can't afford, so picks can differ), plus the market trend and the ranking."""
+def active_section(closes: pd.DataFrame, accounts: list[Account], volumes: pd.DataFrame | None = None) -> dict:
+    """Each account's picks from the strategy for its size (momentum top 3 under $25k,
+    scorecard v2 top 2 above; small accounts skip shares they can't afford), plus the
+    market trend and the rankings."""
     coverage = closes.notna().mean(axis=1)
     closes = closes.loc[:coverage[coverage >= 0.9].index[-1]]     # ignore a half-loaded latest day
+    volumes = None if volumes is None else volumes.loc[:closes.index[-1]]
     date = closes.index[-1]
     when = trade_dates(date.date())
     spy = closes[BENCHMARK].dropna()
@@ -93,19 +96,27 @@ def active_section(closes: pd.DataFrame, accounts: list[Account]) -> dict:
         last = frame.iloc[-1]
         return lambda s: float(last[s]) if s in last and np.isfinite(last[s]) else float("nan")
 
+    def picks(frame, dollars):
+        vol = None if volumes is None else volumes.loc[:frame.index[-1]]
+        return target_weights_for(frame, vol, dollars, price_at(frame))
+
     per_account = {}
     for acct in accounts:
         if acct.strategy_dollars <= 0:
             continue
-        weights = target_weights(closes, acct.strategy_dollars, price_at(closes))
-        prev = held_since(closes, lambda c: target_weights(c, acct.strategy_dollars, price_at(c)))
+        weights = picks(closes, acct.strategy_dollars)
+        prev = held_since(closes, lambda c: picks(c, acct.strategy_dollars))
         px = {s: price_at(closes)(s) for s in weights}
+        large = acct.strategy_dollars >= LARGE_ACCOUNT and volumes is not None
         per_account[acct.name] = {"plan": share_plan(weights, px, acct), "prices": px,
+                                  "label": label_for(acct.strategy_dollars if large else 0),
                                   "since": {s: prev.get(s, when["buy"].isoformat()) for s in weights},
                                   "sells": [s for s in prev if s not in weights]}
-    ranking = momentum(closes).head(10)
+    rankings = {"momentum ranking (12-1 month return)": momentum(closes).head(10)}
+    if volumes is not None and any(a["label"] == label_for(LARGE_ACCOUNT) for a in per_account.values()):
+        rankings["scorecard v2 ranking (0-100, buy-grade only)"] = scorecard_ranking(closes, volumes).head(10)
     return {"asof": date.date().isoformat(), "trend": market_trend(closes), "spy": float(spy.iloc[-1]), "sma200": sma200,
-            "accounts": per_account, "ranking": ranking, "prices": price_at(closes), "buy_at": order_time(when["buy"]),
+            "accounts": per_account, "rankings": rankings, "prices": price_at(closes), "buy_at": order_time(when["buy"]),
             "buy_at_date": when["buy"].isoformat(), "review_at": order_time(when["review"])}
 
 
@@ -218,12 +229,12 @@ def render(active: dict, earnings: dict | None, accounts: list[Account], scoreca
              f"MARKET TREND: {active['trend'].upper()} - S&P 500 (SPY) ${active['spy']:,.2f} is {abs(gap):.1%} "
              f"{'above' if gap >= 0 else 'below'} its 200-day average (${active['sma200']:,.2f})"
              + ("" if active["trend"] == "uptrend" else "; only stocks still rising over 12 months are bought"),
-             f"Strategy: {LABEL}",
              "ACCOUNTS: " + "; ".join(f"{a.name} {money(a.value)} ({money(a.strategy_dollars)} in shares"
                                       + (f", options max loss {money(a.options_dollars)}/trade" if a.options_risk > 0
                                          else ", no options") + ")" for a in accounts), ""]
     for name, acct in active["accounts"].items():
         lines.append(f"{name.upper()} - HOLD THESE:" if acct["plan"] else f"{name.upper()} - HOLD: cash")
+        lines.append(f"  strategy: {acct['label']}")
         reports = {r["symbol"]: r["date"] for r in (earnings or {}).get("upcoming", [])}
         for sym, (n, dollars) in acct["plan"].items():
             new = acct["since"][sym] == active["buy_at_date"]
@@ -234,15 +245,18 @@ def render(active: dict, earnings: dict | None, accounts: list[Account], scoreca
                          f"SELL {active['review_at']} only if it drops out{warn}")
         for sym in acct["sells"]:
             lines.append(f"  SELL all {sym} {active['buy_at']}")
-    lines.append("  Worst drop in the backtests: -38% at $1,500, -45% at $150,000 -> " + ", ".join(
-        f"{a.name} about -{money(a.strategy_dollars * (0.38 if a.strategy_dollars < 10_000 else 0.45))}"
-        for a in accounts if a.strategy_dollars > 0))
-    lines += ["", "  momentum ranking (12-1 month return, price):"]
-    for sym, mom in active["ranking"].items():
-        lines.append(f"  {sym:5s} {mom * 100:+7.1f}%  ${active['prices'](sym):,.2f}")
-    lines.append("  Backtest 2021-2026: $1,500 -> $6,398 (+33.6%/yr) vs S&P $2,508; beat the S&P in uptrends "
-                 "(+27%/yr vs +10%) and downtrends (+58%/yr vs +14%). About half of positions close at a profit;"
-                 " the gains come from the big winners.")
+    accts = {a.name: a for a in accounts}
+    lines.append("  Worst peak-to-low drop in the backtests, on today's balance -> " + ", ".join(
+        f"{n} -{WORST_DROP[a['label']]:.0%} = about -{money(accts[n].strategy_dollars * WORST_DROP[a['label']])}"
+        for n, a in active["accounts"].items()))
+    for title, ranking in active["rankings"].items():
+        lines += ["", f"  {title}, price:"]
+        for sym, v in ranking.items():
+            value = f"{v * 100:+7.1f}%" if "momentum" in title else f"{v:7.1f}"
+            lines.append(f"  {sym:5s} {value}  ${active['prices'](sym):,.2f}")
+    for label in dict.fromkeys(a["label"] for a in active["accounts"].values()):
+        lines.append(f"  Backtest 2021-2026, {label.split(' (')[0]}: {BACKTEST[label]}.")
+    lines.append("  About half of positions close at a profit; the gains come from the big winners.")
 
     if options_plan:
         lines += [""] + options_plan
@@ -300,7 +314,7 @@ def main():
     watchlist = [s.strip().upper() for s in args.watchlist.split(",") if s.strip()]
 
     prices = recent_prices(args.source, list(dict.fromkeys(list(POOL) + [BENCHMARK])))
-    active = active_section(prices["close"], accounts)
+    active = active_section(prices["close"], accounts, prices["volume"])
     options_plan = None
     if any(a.options_risk > 0 for a in accounts):
         try:

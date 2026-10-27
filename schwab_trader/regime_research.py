@@ -14,7 +14,7 @@ import json
 import numpy as np
 import pandas as pd
 
-from .active_strategy import REGIMES, backtest_weights_fn
+from .active_strategy import REGIMES, backtest_weights_fn, large_account_weights_fn
 from .backtest import buy_and_hold, performance, run_backtest
 from .config import ALL_SYMBOLS, BENCHMARK, DATA_DIR, RESULTS_DIR, SPLITS, StrategyConfig
 from .data import load_prices
@@ -40,6 +40,24 @@ def by_trend(eq: pd.Series, spy: pd.Series, trend: pd.Series) -> dict:
     return out
 
 
+def large_account(prices, splits, trend, cash: float = 1_500_000.0) -> dict:
+    """The large-account strategy (scorecard v2 top 2, trend-checked) at `cash`, by trend."""
+    rows = {}
+    for wname, (a, b) in WINDOWS.items():
+        eq = run_backtest(prices, StrategyConfig(), a, b, cash, weights_fn=large_account_weights_fn(prices["volume"]),
+                          splits=splits).equity
+        spy = buy_and_hold(prices, BENCHMARK, a, b, cash)
+        m, ms = performance(eq), performance(spy)
+        rows[wname] = {"final": m["final_value"], "cagr": m["cagr"], "max_drawdown": m["max_drawdown"],
+                       "largest_dollar_drop": float((eq - eq.cummax()).min()), "spy_final": ms["final_value"],
+                       "spy_cagr": ms["cagr"], "by_trend": by_trend(eq, spy, trend)}
+        print(f"  large account {wname}: ${rows[wname]['final']:,.0f} {m['cagr']:+.1%}/yr maxDD {m['max_drawdown']:.1%} "
+              f"(SPY ${ms['final_value']:,.0f} {ms['cagr']:+.1%}/yr)")
+        for t, v in rows[wname]["by_trend"].items():
+            print(f"     {t:9s} {v['days']:4d} days: {v['strategy_per_yr']:+.0%}/yr vs SPY {v['spy_per_yr']:+.0%}/yr")
+    return rows
+
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     syms = list(dict.fromkeys(list(ALL_SYMBOLS) + list(EARNINGS_UNIVERSE) + ["IEF"]))
@@ -47,7 +65,7 @@ def main():
     splits = {**SPLITS, **json.loads((DATA_DIR / "splits.json").read_text())}
     spy_close = prices["close"][BENCHMARK]
     trend = (spy_close > spy_close.rolling(200).mean()).map({True: "uptrend", False: "downtrend"}).shift(1)
-    report = {}
+    report = {"large_account_1.5M": large_account(prices, splits, trend)}
     for regime in REGIMES:
         rows = {}
         for wname, (a, b) in WINDOWS.items():

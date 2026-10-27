@@ -233,22 +233,42 @@ def test_calendar_holidays_and_order_times():
     assert late["buy"] == dt.date(2026, 10, 27) and late["review"] == dt.date(2026, 11, 2)
 
 
-def _pool_prices(n=300, start="2025-08-01"):
+def _pool_prices(n=300, start="2025-08-01", with_volume=False):
+    """Every pool name rising, later names faster and more volatile; SPY in an uptrend."""
     from schwab_trader.active_strategy import POOL
-    paths = {sym: 100 * (1.0 + 0.0001 * i) ** np.arange(n) for i, sym in enumerate(POOL)}
+    rng = np.random.default_rng(0)
+    paths = {sym: 100 * (1.0 + 0.0001 * i) ** np.arange(n) * np.exp((0.001 + 0.0002 * i) * rng.standard_normal(n))
+             for i, sym in enumerate(POOL)}
     paths["SPY"] = 100 * 1.0005 ** np.arange(n)
-    return make_prices(paths, start=start)["close"]
+    close = make_prices(paths, start=start)["close"]
+    return (close, pd.DataFrame(1e6, index=close.index, columns=close.columns)) if with_volume else close
 
 
 def test_weekly_report_lists_buy_and_sell_times_for_each_account():
+    from schwab_trader.active_strategy import LABEL, LARGE_LABEL
     from schwab_trader.sizing import accounts_from_env
     from schwab_trader.weekly_report import active_section
     accounts = accounts_from_env()
-    active = active_section(_pool_prices(), accounts)
+    closes, volumes = _pool_prices(with_volume=True)
+    active = active_section(closes, accounts, volumes)
     subject, text, page = render(active, None, accounts)
     assert subject.startswith("Weekly picks") and "MARKET TREND: UPTREND" in text
     assert "9:35 AM ET" in text and "YOU - HOLD THESE" in text and "DAD - HOLD THESE" in text
-    assert all(len(a["plan"]) == 3 for a in active["accounts"].values())
+    you, dad = active["accounts"]["You"], active["accounts"]["Dad"]
+    assert (you["label"], len(you["plan"])) == (LABEL, 3) and (dad["label"], len(dad["plan"])) == (LARGE_LABEL, 2)
+    assert "scorecard v2 ranking" in text and "$1.5M -> $6.71M" in text and "$1,500 -> $6,398" in text
+
+
+def test_strategy_follows_account_size():
+    from schwab_trader.active_strategy import LARGE_TOP_N, scorecard_ranking, target_weights, target_weights_for
+    from schwab_trader.earnings_backtest import EARNINGS_UNIVERSE
+    closes, volumes = _pool_prices(with_volume=True)
+    price = lambda s: 50.0
+    assert target_weights_for(closes, volumes, 1500, price) == target_weights(closes, 1500, price)
+    assert target_weights_for(closes, None, 1_500_000, price) == target_weights(closes, 1_500_000, price)
+    big = target_weights_for(closes, volumes, 1_500_000, price)
+    assert list(big) == list(scorecard_ranking(closes, volumes).index[:LARGE_TOP_N])
+    assert len(big) == LARGE_TOP_N and set(big) <= set(EARNINGS_UNIVERSE)       # stocks only, no ETFs
 
 
 def test_active_strategy_skips_unaffordable_and_checks_trend():
@@ -426,9 +446,9 @@ def test_scorecard_long_weights_fn_has_no_lookahead():
 def test_accounts_and_share_plans():
     from schwab_trader.sizing import accounts_from_env, contracts, share_plan
     you, dad = accounts_from_env()
-    assert (you.value, you.margin, you.options_risk) == (1500, False, 0) and dad.strategy_dollars == 150_000
+    assert (you.value, you.margin, you.options_risk) == (1500, False, 0) and dad.strategy_dollars == 1_500_000
     plan = share_plan({"XLE": 0.5, "XLK": 0.5}, {"XLE": 69.33, "XLK": 183.23}, dad)
-    assert sum(d for _, d in plan.values()) <= 150_000 and plan["XLE"][0] > 1000
+    assert sum(d for _, d in plan.values()) <= 1_500_000 and plan["XLE"][0] > 10_000
     assert contracts(250.0, you) == 0 and contracts(250.0, dad) == 120  # no options vs a $30,000 cap
 
 
