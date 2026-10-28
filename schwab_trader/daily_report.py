@@ -956,7 +956,7 @@ def build(ext_paths, past_json, next_json, now: pd.Timestamp | None = None, hold
     t5 = json.loads((TOP5_DIR / "summary.json").read_text()) if (TOP5_DIR / "summary.json").exists() else {}
     cb = t5.get("combined", {}).get("test")
     if cb:
-        head.append(f"Whole plan, backtested on 2021-2026 (rules chosen on 2011-2021): {money(ACCOUNT)} -> {money(cb['final'])} "
+        head.append(f"Whole plan, backtested on 2021-2026 (rules chosen on 2011-2021): the account grew {cb['final'] / ACCOUNT:.1f}x "
                     f"({pct(cb['cagr'])}/yr vs the S&P's {pct(cb['spy_cagr'])}), worst drop {pct(cb['max_drawdown'], 0)}, "
                     f"{cb['win_rate']:.0%} of {cb['trades']:,} trades won.")
     over, asia_live = overnight_section(px, moves, summary, acc)
