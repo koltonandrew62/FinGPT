@@ -11,6 +11,8 @@ result is missing it says which call to repeat and exits with code 2.
 Daily plan email (Sunday-Friday, ~8:30 AM ET):
     python3 -m schwab_trader.routine plan
     python3 -m schwab_trader.routine daily [--holdings FILE]    # -> /tmp/fingpt_routine/daily.txt
+The first `daily` run may answer MISSING with get_option_chains calls (the listed expiry
+dates of the stocks that get a put spread); make them and run `daily` again.
 
 Open check (Monday-Friday, ~9:40 AM ET): the 0DTE QQQ condor decision on the real
 open, with real option bid/ask for the condor and for the morning's put spreads:
@@ -51,7 +53,21 @@ def start(step: str) -> dict:
         f.unlink()
     st = {"step": step, "start": time.time()}
     (WORK / f"{step}.json").write_text(json.dumps(st))
+    if step == "plan":
+        (WORK / "chains_asked.json").unlink(missing_ok=True)
     return st
+
+
+def listed_expiries(paths) -> dict[str, list[str]]:
+    """symbol -> listed option expiry dates, from get_option_chains results (standard
+    100-share chains only; adjusted chains after a split are left out)."""
+    out: dict[str, set] = {}
+    for p in paths:
+        t = Path(p).read_text()
+        for c in json.loads(t[t.index("{"):])["data"]["chains"]:
+            if float(c.get("trade_value_multiplier") or 100) == 100 and c.get("can_open_position", True):
+                out.setdefault(c["symbol"], set()).update(c.get("expiration_dates") or [])
+    return {k: sorted(v) for k, v in out.items()}
 
 
 def since(step: str) -> float:
@@ -82,6 +98,8 @@ def kind_of(payload: dict) -> str:
     data = payload.get("data", payload) if isinstance(payload, dict) else {}
     if isinstance(data, dict) and "instruments" in data:
         return "option_instruments"
+    if isinstance(data, dict) and "chains" in data:
+        return "option_chains"
     res = data.get("results") if isinstance(data, dict) else None
     if not res or not isinstance(res, list) or not isinstance(res[0], dict):
         return "other"
@@ -191,7 +209,17 @@ def daily(holdings: str | None = None, text_out: Path | None = None) -> int:
     if problems:
         print("MISSING:\n  " + "\n  ".join(problems))
         return 2
-    subject, text, rows = build(ext_paths, cal, cal, holdings_path=holdings)
+    asked = set(json.loads((WORK / "chains_asked.json").read_text())) if (WORK / "chains_asked.json").exists() else set()
+    chains = {s: [] for s in asked} | listed_expiries(found.get("option_chains", []))
+    wanted: set = set()
+    subject, text, rows = build(ext_paths, cal, cal, holdings_path=holdings, chains=chains, wanted=wanted)
+    need = sorted(wanted - asked)
+    if need:
+        (WORK / "chains_asked.json").write_text(json.dumps(sorted(asked | set(need))))
+        print("MISSING: the listed option expiries of the stocks that get a put spread (each result is small and shown "
+              f"inline: save it as its own file in {INLINE}/), then run this step again:")
+        print("\n".join("  " + call("get_option_chains", underlying_symbol=s) for s in need))
+        return 2
     bad = [w for w in BANNED if w in text or w in subject]
     if bad:
         print(f"FAILED: the email text contains {bad}")
@@ -282,13 +310,18 @@ def _today_opens(found) -> dict:
     for p in found.get("intraday", []) + found.get("index_intraday", []):              # 5-minute QQQ/SPY, 30-minute VIX
         payload = json.loads(Path(p).read_text()[Path(p).read_text().index("{"):])
         for r in payload["data"]["results"]:
-            bars = [b for b in r.get("bars", []) if pd.Timestamp(b["begins_at"]).tz_convert(ET).date() == today
-                    and pd.Timestamp(b["begins_at"]).tz_convert(ET).time() >= dt.time(9, 30)]
-            if not bars:
-                continue
-            key = "open_price" if "open_price" in bars[0] else "open_value"
             name = "VIX" if r.get("instrument_id") == VIX_ID else r.get("symbol", "index")
-            out[name] = float(bars[0][key])
+            day = [b for b in r.get("bars", []) if pd.Timestamp(b["begins_at"]).tz_convert(ET).date() == today]
+            bars = [b for b in day if pd.Timestamp(b["begins_at"]).tz_convert(ET).time() >= dt.time(9, 30)]
+            if bars:
+                key = "open_price" if "open_price" in bars[0] else "open_value"
+                out[name] = float(bars[0][key])
+            elif name == "VIX" and len(day) >= 2:
+                # a bar shows up only once it has finished, so at 9:40 the 9:30-10:00 VIX bar isn't
+                # there yet; the bar that ends at 9:30 closes at the 9:30 value
+                last, prev = (pd.Timestamp(b["begins_at"]) for b in (day[-1], day[-2]))
+                if (last + (last - prev)).tz_convert(ET).time() == dt.time(9, 30):
+                    out[name] = float(day[-1]["close_value"])
     return out
 
 
@@ -332,9 +365,12 @@ def open_legs() -> int:
         legs += [("QQQ", exp, "call", sc, "sell"), ("QQQ", exp, "call", lc, "buy"),
                  ("QQQ", exp, "put", sp, "sell"), ("QQQ", exp, "put", lp, "buy")]
     j = load()
-    for r in j[(j.plan_date == today.date().isoformat()) & j.kind.str.endswith("put_spread")].itertuples():
+    for r in j[(j.plan_date == today.date().isoformat()) & j.kind.str.endswith("put_spread") & (j.status == "open")].itertuples():
         lg = json.loads(r.legs)
-        legs += [(r.symbol, lg["expiry"], "put", lg["short_put"], "sell"), (r.symbol, lg["expiry"], "put", lg["long_put"], "buy")]
+        for ks, kl in [(lg["short_put"], lg["long_put"])] + ([tuple(lg["alt"])] if lg.get("alt") else []):
+            for k, side in ((ks, "sell"), (kl, "buy")):         # the wider strike steps too, in case these aren't listed
+                if (r.symbol, lg["expiry"], "put", k, side) not in legs:
+                    legs.append((r.symbol, lg["expiry"], "put", k, side))
     state["legs"] = legs
     (WORK / "open_state.json").write_text(json.dumps(state, default=str))
     print(f"QQQ opened {opens['QQQ']:.2f}, VIX {opens['VIX']:.2f}: big-move probability {verdict['prob']:.0%} "
@@ -377,6 +413,49 @@ def open_quotes() -> int:
     return 0
 
 
+def spread_check(j: pd.DataFrame, i, r, leg_quote) -> tuple[str, bool]:
+    """One of the morning's put spreads against the real quotes: the morning's strikes, or the
+    wider strike steps when those aren't listed. A spread not listed, or whose credit is under
+    the backtest's floor, is marked skipped in the journal (it never counts as open)."""
+    from .daily_report import put_spread_credit
+    from .options_backtest import COMMISSION, MULTIPLIER
+    from .sizing import money
+    lg = json.loads(r.legs)
+    exp = lg["expiry"]
+    morning = (lg["short_put"], lg["long_put"])
+    head = f"  {r.symbol} {exp} ${morning[0]:g}/${morning[1]:g} put spread"
+    for ks, kl in [morning] + ([tuple(lg["alt"])] if lg.get("alt") else []):
+        qs, ql = leg_quote(r.symbol, exp, "put", ks), leg_quote(r.symbol, exp, "put", kl)
+        if qs and ql and qs[1] > 0 and ql[1] > 0:
+            break
+    else:
+        j.at[i, "status"], j.at[i, "reason"] = "skipped", "not listed"
+        return f"{head}: not listed - skip it (no listed strikes near these for {exp})", False
+    mid = (qs[0] + qs[1]) / 2 - (ql[0] + ql[1]) / 2
+    floor, n, note = lg.get("min_credit"), int(lg.get("contracts") or 0), ""
+    if (ks, kl) != morning:                       # re-price the listed strikes the way the morning email did
+        m = lg.get("model") or {}
+        if m:
+            credit = put_spread_credit(m["price"], ks, kl, m["t"], m["iv"])
+            max_loss = (ks - kl - credit) * MULTIPLIER + 4 * COMMISSION
+            n = int(m["risk"] // max_loss) if max_loss > 0 else 0
+            floor = round(max(put_spread_credit(m["price"], ks, kl, m["t"], m["iv_fair"]), 0.01), 2) if m.get("iv_fair") else None
+            j.at[i, "model_credit"], j.at[i, "max_loss"] = credit, max_loss
+        lg.update({"short_put": ks, "long_put": kl, "contracts": n, "min_credit": floor, "morning": list(morning)})
+        j.at[i, "legs"] = json.dumps(lg, sort_keys=True)
+        note = f" (the morning's ${morning[0]:g}/${morning[1]:g} strikes aren't listed; these are)"
+    j.at[i, "real_credit"] = mid
+    j.at[i, "real_quotes"] = json.dumps({"short": qs, "long": ql})
+    if floor is not None and mid < floor:
+        j.at[i, "status"], j.at[i, "reason"] = "skipped", "credit below floor"
+        return (f"  {r.symbol} {exp} ${ks:g}/${kl:g} put spread{note}: real mid credit ${mid:.2f} vs estimate "
+                f"${float(j.at[i, 'model_credit']):.2f}; below ${floor:.2f} (what the backtest needed) - skip"), True
+    risk = (ks - kl - mid) * MULTIPLIER + 4 * COMMISSION
+    return (f"  {r.symbol} {exp} ${ks:g}/${kl:g} put spread{note}: real mid credit ${mid:.2f} vs estimate "
+            f"${float(j.at[i, 'model_credit']):.2f}; take it: SELL the ${ks:g} put / BUY the ${kl:g} put, {n} spreads at "
+            f"${mid:.2f} or better (max loss {money(n * risk)})"), True
+
+
 def open_build(text_out: Path | None = None) -> int:
     from .journal import load, record, save
     from .sizing import money
@@ -395,7 +474,8 @@ def open_build(text_out: Path | None = None) -> int:
         return quotes.get(i) if i else None
     today = pd.Timestamp.now(tz=ET).date()
     v, opens = st["verdict"], st["opens"]
-    lines = [f"OPEN CHECK {today:%a %b %d} (9:40 AM ET) - QQQ opened ${opens['QQQ']:,.2f}, VIX {opens['VIX']:.2f}"]
+    lines = [f"OPEN CHECK {today:%a %b %d} ({pd.Timestamp.now(tz=ET):%-I:%M %p} ET) - QQQ opened ${opens['QQQ']:,.2f}, "
+             f"VIX {opens['VIX']:.2f}"]
     actionable = False
     if "condor" in st:
         c = st["condor"]
@@ -431,24 +511,13 @@ def open_build(text_out: Path | None = None) -> int:
     else:
         lines.append(f"0DTE QQQ: big-move probability {v['prob']:.0%} (calm only if <= {v['threshold']:.0%}) -> no condor today")
     j = load()
-    rows = j[(j.plan_date == today.isoformat()) & j.kind.str.endswith("put_spread")]
+    rows = j[(j.plan_date == today.isoformat()) & j.kind.str.endswith("put_spread") & (j.status == "open")]
     if len(rows):
         lines.append("PUT SPREADS FROM THIS MORNING'S EMAIL - real prices at the open:")
     for i, r in rows.iterrows():
-        lg = json.loads(r.legs)
-        qs, ql = leg_quote(r.symbol, lg["expiry"], "put", lg["short_put"]), leg_quote(r.symbol, lg["expiry"], "put", lg["long_put"])
-        head = f"  {r.symbol} {lg['expiry']} ${lg['short_put']:g}/${lg['long_put']:g} put spread"
-        if qs and ql:
-            mid = (qs[0] + qs[1]) / 2 - (ql[0] + ql[1]) / 2
-            j.at[i, "real_credit"] = mid
-            j.at[i, "real_quotes"] = json.dumps({"short": qs, "long": ql})
-            floor = lg.get("min_credit")
-            ok = floor is None or mid >= floor
-            lines.append(f"{head}: real mid credit ${mid:.2f} vs estimate ${r.model_credit:.2f}"
-                         + (f"; take it at ${mid:.2f} or better" if ok else f"; below ${floor:.2f} (what the backtest needed) - skip"))
-            actionable = True
-        else:
-            lines.append(f"{head}: not listed or no quote (check the chain for the nearest listed expiry/strike)")
+        msg, actionable_row = spread_check(j, i, r, leg_quote)
+        lines.append(msg)
+        actionable |= actionable_row
     save(j)
     text = "\n".join(lines)
     print(text)

@@ -735,3 +735,126 @@ def test_top5_ranks_by_rule_average_caps_each_rule_and_skips_open_picks():
     day0 = p[p.date == idx[0]]
     assert list(day0.symbol) == ["S1", "S2", "S4", "S6"]       # 2 from A (best average), then 2 from B, most traded first
     assert list(p[p.date == idx[1]].symbol) == ["S3", "S5"]      # day-1 picks are still open; the two left over get in
+
+
+def test_put_spreads_use_a_listed_expiry_and_skip_earnings():
+    from schwab_trader.daily_report import listed_expiry, spread_lines
+    start = dt.date(2026, 10, 29)                                       # a Thursday
+    assert listed_expiry(start, 10, ["2026-11-20", "2026-12-18"]) == dt.date(2026, 11, 20)   # 16 sessions: within 8-20
+    assert listed_expiry(start, 5, ["2026-11-20"]) is None                                   # too far from ~5 sessions
+    assert listed_expiry(start, 5, ["2026-11-06", "2026-11-13"]) == dt.date(2026, 11, 6)
+    pick = {"config": {"signal": "eps", "structure": "put_spread", "otm": 0.08, "width": 0.05, "dte": 10,
+                       "take_profit": 0.5, "hold": 0}, "label": "eps: sell put spread"}
+    rows = []
+    lines = spread_lines("FLEX", 90.14, 0.35, pick, start, 1.0, 15_000, (), rows, "eps_put_spread", 0.8,
+                         {"FLEX": ["2026-11-20"]})
+    legs = rows[0]["legs"]
+    assert "SELL Nov 20 $83 put / BUY $78 put" in lines[0] and legs["expiry"] == "2026-11-20" and legs["expiry_checked"]
+    assert legs["alt"] == [85.0, 80.0] and legs["model"]["risk"] == 15_000      # the wider $5 strikes, in case
+    rows = []
+    lines = spread_lines("FLEX", 90.14, 0.35, pick, start, 1.0, 15_000, (), rows, "eps_put_spread", 0.8, {"FLEX": ["2026-12-18"]})
+    assert "no listed expiry" in lines[0] and not rows
+    rows = []
+    up = [{"symbol": "FLEX", "date": "2026-11-05", "timing": "pm"}]
+    lines = spread_lines("FLEX", 90.14, 0.35, pick, start, 1.0, 15_000, up, rows, "eps_put_spread", 0.8, {"FLEX": ["2026-11-20"]})
+    assert "skip - it reports earnings 2026-11-05 pm" in lines[0] and not rows
+    rows = []                                                          # chain not looked up yet: flagged for the routine
+    spread_lines("FLEX", 90.14, 0.35, pick, start, 1.0, 15_000, (), rows, "eps_put_spread", 0.8, {})
+    assert rows[0]["legs"]["expiry_checked"] is False
+
+
+def test_position_past_its_stop_before_the_open_is_a_sell_at_the_open():
+    from schwab_trader.daily_report import actions_section, position_lines
+    idx = pd.bdate_range("2026-10-26", periods=4)
+    pos = [{"symbol": "RDDT", "entry": idx[2], "px0": 134.98, "target_px": 139.03, "stop_px": 114.73, "i0": 2, "exit_i": None}]
+    stopped = set()
+    lines, sells, holds = position_lines("top-5 pick", pos, 0.03, 20, dt.date(2026, 10, 30), idx, [],
+                                         prices={"RDDT": 102.5}, stopped=stopped)
+    assert sells == ["RDDT"] and not holds and stopped == {"RDDT"}
+    assert "SELL RDDT  at the open" in lines[0] and "past its $114.73 stop" in lines[0]
+    _, sells, holds = position_lines("top-5 pick", pos, 0.03, 20, dt.date(2026, 10, 30), idx, [], prices={"RDDT": 130.0})
+    assert holds == ["RDDT"] and not sells
+    top = {"buys": [], "shorts": [], "sells": ["RDDT", "VLO"], "covers": [], "holds": [], "short_holds": [], "options": []}
+    text = "\n".join(actions_section([], top, [], [], [], [], [], [], dt.date(2026, 10, 30), stopped))
+    assert "RDDT (top 5) - at the open: already past its stop; VLO (top 5) - at the close" in text
+
+
+def test_open_check_reads_the_vix_open_from_the_bar_ending_at_930(tmp_path):
+    import json
+    from schwab_trader import routine
+    today = pd.Timestamp.now(tz="America/New_York").normalize()
+    at = lambda h, m: (today + pd.Timedelta(hours=h, minutes=m)).tz_convert("UTC").strftime("%Y-%m-%dT%H:%M:%SZ")
+    vix = {"data": {"results": [{"instrument_id": routine.VIX_ID, "bars": [
+        {"begins_at": at(8, 30), "open_value": "17.5", "close_value": "17.4"},
+        {"begins_at": at(9, 0), "open_value": "17.4", "close_value": "17.2"}]}]}}
+    qqq = {"data": {"results": [{"symbol": "QQQ", "bars": [{"begins_at": at(9, 30), "open_price": "700.5"}]}]}}
+    (tmp_path / "v.json").write_text(json.dumps(vix))
+    (tmp_path / "q.json").write_text(json.dumps(qqq))
+    opens = routine._today_opens({"index_intraday": [str(tmp_path / "v.json")], "intraday": [str(tmp_path / "q.json")]})
+    assert opens == {"VIX": 17.2, "QQQ": 700.5}
+
+
+def test_open_check_falls_back_to_listed_strikes_and_skips_what_it_cant_place(tmp_path, monkeypatch):
+    import json
+    from schwab_trader import journal, routine
+    monkeypatch.setattr(journal, "JOURNAL", tmp_path / "rec.csv")
+    model = {"price": 90.14, "t": 16 / 252, "iv": 0.4, "iv_fair": 0.3, "risk": 15_000}
+    base = {"plan_date": "2026-10-30", "kind": "eps_put_spread", "model_credit": 0.9, "max_loss": 400.0}
+    journal.record([{**base, "symbol": "FLEX", "legs": {"expiry": "2026-11-20", "short_put": 83.0, "long_put": 78.0,
+                                                          "alt": [85.0, 80.0], "contracts": 36, "min_credit": 0.5, "model": model}},
+                    {**base, "symbol": "GEN", "legs": {"expiry": "2026-11-20", "short_put": 26.0, "long_put": 24.0,
+                                                         "contracts": 86, "min_credit": 0.2, "model": model}},
+                    {**base, "symbol": "VRT", "legs": {"expiry": "2026-11-13", "short_put": 217.5, "long_put": 205.0,
+                                                         "contracts": 14, "min_credit": 1.94, "model": model}}])
+    quotes = {("FLEX", 85.0): (1.10, 1.20), ("FLEX", 80.0): (0.40, 0.50), ("VRT", 217.5): (2.32, 2.73), ("VRT", 205.0): (0.84, 1.26)}
+    leg_quote = lambda s, e, t, k: quotes.get((s, float(k)))
+    j = journal.load()
+    out = {r.symbol: routine.spread_check(j, i, r, leg_quote) for i, r in j.iterrows()}
+    j = j.set_index("symbol")
+    assert "take it: SELL the $85 put / BUY the $80 put" in out["FLEX"][0] and "aren't listed" in out["FLEX"][0]
+    assert j.at["FLEX", "status"] == "open" and json.loads(j.at["FLEX", "legs"])["short_put"] == 85.0
+    assert j.at["FLEX", "real_credit"] == pytest.approx(0.70)
+    assert j.at["GEN", "status"] == "skipped" and j.at["GEN", "reason"] == "not listed"
+    assert j.at["VRT", "status"] == "skipped" and j.at["VRT", "reason"] == "credit below floor"     # 1.475 < 1.94
+
+
+def test_listed_expiries_come_from_standard_chains_only(tmp_path):
+    import json
+    from schwab_trader.routine import kind_of, listed_expiries
+    chains = {"data": {"chains": [{"symbol": "MSTR", "trade_value_multiplier": "100.0000", "expiration_dates": ["2026-11-06"]},
+                                  {"symbol": "MSTR", "trade_value_multiplier": "100.0000", "expiration_dates": ["2026-11-20"]},
+                                  {"symbol": "MSTR1", "trade_value_multiplier": "50.0000", "expiration_dates": ["2026-11-13"]}]}}
+    assert kind_of(chains) == "option_chains"
+    (tmp_path / "c.json").write_text(json.dumps(chains))
+    assert listed_expiries([str(tmp_path / "c.json")]) == {"MSTR": ["2026-11-06", "2026-11-20"]}
+
+
+def test_top5_picks_are_sold_at_the_close_before_an_earnings_report(tmp_path, monkeypatch):
+    from schwab_trader import journal
+    from schwab_trader.daily_report import position_lines, replay, sell_day_before
+    assert sell_day_before(dt.date(2026, 11, 4), "am") == dt.date(2026, 11, 3)      # before the open: the session before
+    assert sell_day_before(dt.date(2026, 11, 4), "pm") == dt.date(2026, 11, 4)      # after the close: that day's close
+    assert sell_day_before(dt.date(2026, 11, 9), "am") == dt.date(2026, 11, 6)      # Monday morning: Friday's close
+    idx = pd.bdate_range("2026-11-02", periods=8)
+    flat = pd.DataFrame({"A": 100.0}, index=idx)
+    px = {"open": flat, "high": flat * 1.005, "low": flat * 0.995, "close": flat}
+    ent = [{"symbol": "A", "entry": idx[0]}]
+    assert replay(px, ent, 0.03, 20, 10, 0.15)                                       # still held without a report
+    assert not replay(px, ent, 0.03, 20, 10, 0.15, sell_days={"A": {idx[3]}})        # sold at the close before it
+    monkeypatch.setattr(journal, "JOURNAL", tmp_path / "rec.csv")
+    journal.record([{"plan_date": "2026-11-02", "kind": "top5_buy", "symbol": "A", "target": 0.03, "stop": 0.15, "hold": 20},
+                    {"plan_date": "2026-11-02", "kind": "eps", "symbol": "A", "target": 0.03, "stop": 0.15, "hold": 20}])
+    events = pd.DataFrame({"symbol": ["A"], "day": [idx[4]]})                         # the market reacts on session 5
+    rec = journal.evaluate(px, events=events).set_index("kind")
+    assert rec.at["top5_buy", "reason"] == "earnings" and rec.at["top5_buy", "exit_date"] == idx[3].date().isoformat()
+    assert rec.at["eps", "status"] == "open"                                          # the rule is the top-5 list's only
+    early = journal.earnings_sell_index(pd.bdate_range("2026-10-26", periods=5), [3], 1)
+    assert early is None                                                              # before the rule started: held through
+    held = [{"symbol": "A", "entry": pd.Timestamp(idx[0]), "px0": 100.0, "target_px": 103.0, "stop_px": 85.0, "i0": 0, "exit_i": None}]
+    up = [{"symbol": "A", "date": "2026-11-03", "timing": "pm"}]
+    pre = set()
+    lines, sells, _ = position_lines("top-5 pick", held, 0.03, 20, dt.date(2026, 11, 3), idx[:1], up, before_report=pre)
+    assert sells == ["A"] and pre == {"A"} and "reports earnings 2026-11-03 pm" in lines[0]
+    up = [{"symbol": "A", "date": "2026-11-05", "timing": "am"}]
+    lines, _, holds = position_lines("top-5 pick", held, 0.03, 20, dt.date(2026, 11, 3), idx[:1], up, before_report=set())
+    assert holds == ["A"] and "sell at the close on Wed Nov 04" in lines[0]

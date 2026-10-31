@@ -5,7 +5,9 @@ results/journal/recommendations.csv; each later run fills in what happened using
 same rules the email gave (buy at the open of the plan day; limit sell at the target,
 stop if any, else sell at the close of the last session; put spreads and condors
 settled at expiry from the closing price). The 9:40 AM alert adds the real option
-bid/ask at the open next to the model's estimate.
+bid/ask at the open next to the model's estimate, and marks a spread "skipped" when its
+contracts aren't listed or the real credit is under the backtest's floor (a skipped
+spread never counts as open or in the track record).
 
 The track record goes in the daily and weekly emails, and learning.py uses it to cut a
 rule's size when its live results fall well short of its backtest.
@@ -37,6 +39,10 @@ NAMES = {"top5_buy": "top-5 buys", "top5_short": "top-5 shorts", "long_call": "c
          "top5_put_spread": "put spreads on top-5 picks", "dip_put_spread": "put spreads on dip-buys",
          "eps_put_spread": "put spreads on EPS picks", "qqq_put_spread": "QQQ put spreads", "qqq_condor": "QQQ 0DTE condors"}
 SLIP = 0.0005
+# from this session on, top-5 picks are sold at the close before an earnings report (the rule
+# chosen in top5_research); earlier picks were held through, as their emails said
+EARNINGS_EXIT_FROM = "2026-11-02"
+EARNINGS_EXIT_KINDS = ("top5_buy",)
 
 
 def load(path: Path | None = None) -> pd.DataFrame:
@@ -49,6 +55,8 @@ def load(path: Path | None = None) -> pd.DataFrame:
             df[c] = np.nan
     for c in TEXT:
         df[c] = df[c].astype(object)
+    for c in set(COLUMNS) - set(TEXT):                    # whole-number columns would refuse a later fractional value
+        df[c] = pd.to_numeric(df[c], errors="coerce").astype(float)
     return df[COLUMNS]
 
 
@@ -81,8 +89,20 @@ def record(rows: list[dict], path: Path | None = None) -> int:
     return len(new)
 
 
-def _share_outcome(px: dict, r) -> dict | None:
-    """Same engine as the backtest: buy at the plan day's open; target / stop / time."""
+def earnings_sell_index(idx, days, i0: int, start: str = EARNINGS_EXIT_FROM) -> int | None:
+    """The session (index into idx) at whose close a position entered at i0 is sold before a
+    report: the one before the first reaction day after the entry day, if on or after `start`."""
+    days = np.sort(np.asarray([d for d in days if d >= 0], dtype=int))
+    k = np.searchsorted(days, i0 + 1)
+    if k >= len(days):
+        return None
+    i = int(days[k]) - 1
+    return i if idx[i] >= pd.Timestamp(start) else None
+
+
+def _share_outcome(px: dict, r, sell_i: int | None = None) -> dict | None:
+    """Same engine as the backtest: buy at the plan day's open; target / stop / time, or the
+    close of session `sell_i` (the one before an earnings report)."""
     idx = px["close"].index
     s, day = r.symbol, pd.Timestamp(r.plan_date)
     if s not in px["close"] or day not in idx:
@@ -103,6 +123,8 @@ def _share_outcome(px: dict, r) -> dict | None:
             px_out, why = (min(o[i], stp) if k else stp), "stop"
         elif h[i] >= tgt:
             px_out, why = (max(o[i], tgt) if k else tgt), "target"
+        elif i == sell_i:
+            px_out, why = c[i], "earnings"
         elif k == hold - 1:
             px_out, why = c[i], "time"
         else:
@@ -178,13 +200,19 @@ def _option_outcome(px: dict, r) -> dict | None:
             "return": (credit - owed) / risk, "reason": "expiry", "status": "closed"}
 
 
-def evaluate(px: dict, path: Path | None = None) -> pd.DataFrame:
-    """Fill in outcomes of open recommendations from the daily bars in `px`."""
+def evaluate(px: dict, path: Path | None = None, events: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Fill in outcomes of open recommendations from the daily bars in `px`; `events`
+    (symbol, day = earnings reaction day) for the sell-before-earnings rule."""
     df = load(path)
     if not len(df):
         return df
+    idx = px["close"].index
+    react = {s: idx.get_indexer(pd.DatetimeIndex(g.day)) for s, g in events.groupby("symbol")} if events is not None else {}
     for i, r in df[df.status == "open"].iterrows():
-        out = (_share_outcome(px, r) if r.kind in SHARE_KINDS else _short_outcome(px, r) if r.kind in SHORT_KINDS
+        sell_i = None
+        if r.kind in EARNINGS_EXIT_KINDS and r.symbol in react and pd.Timestamp(r.plan_date) in idx:
+            sell_i = earnings_sell_index(idx, react[r.symbol], idx.get_loc(pd.Timestamp(r.plan_date)))
+        out = (_share_outcome(px, r, sell_i) if r.kind in SHARE_KINDS else _short_outcome(px, r) if r.kind in SHORT_KINDS
                else _put_outcome(px, r) if r.kind in ("long_put", "long_call") else _option_outcome(px, r))
         if out:
             for k, v in out.items():
@@ -203,7 +231,8 @@ def track_record(df: pd.DataFrame | None = None) -> dict:
         out[kind] = {"closed": int(len(ret)), "wins": int((ret > 0).sum()),
                      "win_rate": float((ret > 0).mean()) if len(ret) else float("nan"),
                      "avg": float(ret.mean()) if len(ret) else float("nan"),
-                     "open": int((g.status == "open").sum()), "first": str(g.plan_date.min())}
+                     "open": int((g.status == "open").sum()), "skipped": int((g.status == "skipped").sum()),
+                     "first": str(g.plan_date.min())}
     return out
 
 
@@ -226,7 +255,8 @@ def record_lines(acc: dict | None = None, df: pd.DataFrame | None = None) -> lis
                if v["closed"] else "none closed yet")
         unit = "" if kind in SHARE_KINDS + SHORT_KINDS else " of the cost" if kind in ("long_put", "long_call") else " of the max loss"
         ref = f" | backtest {bt[kind]['win_rate']:.0%}" if kind in bt and bt[kind].get("win_rate") else ""
-        lines.append(f"    {NAMES[kind]:26s} {res}{unit if v['closed'] else ''}; {v['open']} still open{ref}")
+        skip = f"; {v['skipped']} not placed (not listed or credit too low at the open)" if v.get("skipped") else ""
+        lines.append(f"    {NAMES[kind]:26s} {res}{unit if v['closed'] else ''}; {v['open']} still open{skip}{ref}")
     return lines
 
 

@@ -114,8 +114,10 @@ or the account size:
   an earlier email recommended;
 - **TOP 5 STOCKS TO BUY**: the day's five best signals from the rules that tested best (the
   dip-buy and chart-pattern setups, ranked by their 2011–2021 average), each with a limit
-  sell, a −15% stop and a put spread; a clear "calls: no" (calls lost money at real option
-  prices) ([results/top5](results/top5/RESULTS.md));
+  sell, a −15% stop, a sale at the close before an earnings report, and a put spread (none
+  held through a report); a clear "calls: no" (calls lost money at real option prices)
+  ([results/top5](results/top5/RESULTS.md)); a position already past its stop before the
+  open is a SELL at the open;
 - **EPS picks** (last night's and this morning's reports, [B]/[M], gap) with buy and sell
   dates and a put spread each; **short ideas** with their honest record (shorts lost money
   in 2021–2026: [results/shorts](results/shorts/RESULTS.md)); the **QQQ** 0DTE condor plan
@@ -124,9 +126,14 @@ or the account size:
 
 Half the account goes to the top-5 list (10 slots of $75,000), half to EPS picks (5 slots
 of $150,000); each options play risks at most 1% ($15,000), condors 2%. Whole plan,
-2021–2026 (rules chosen on 2011–2021, point-in-time S&P membership): $1.5M → **$3.31M
-(+17.3%/yr)** vs the S&P's $2.51M, worst drop −14%, 85% of 13,280 trades won (mid option
-pricing). Details: [results/top5/RESULTS.md](results/top5/RESULTS.md).
+2021–2026 (rules chosen on 2011–2021, point-in-time S&P membership): $1.5M → **$3.49M
+(+18.5%/yr)** vs the S&P's $2.51M, worst drop −14%, 83% of 12,898 trades won (mid option
+pricing). Details, and what was fixed after the first live week:
+[results/top5/RESULTS.md](results/top5/RESULTS.md).
+
+**Listed contracts.** For each stock that gets a put spread the morning run looks up the
+listed expiries (`get_option_chains`) and uses the one closest to the tested holding time,
+or skips the spread.
 
 **Journal and learning.** Every recommendation goes into
 `results/journal/recommendations.csv` and is scored with the same rules once it
@@ -141,10 +148,13 @@ or yours) with one line per position, e.g. `AAPL 1200`; the next plan then says 
 what is held instead of "if you own it".
 
 **9:40 AM open check (Monday–Friday).** A second scheduled task reads the real open:
-it decides the 0DTE QQQ condor with the actual QQQ open and VIX, prices its four legs
-and the morning's put spreads from **real Robinhood option quotes**, says whether the
-credit is worth taking, records the real prices in the journal, and emails only when
-there's something to do.
+it decides the 0DTE QQQ condor with the actual QQQ open and VIX (the 9:30 value, from the
+30-minute bar that ends then), prices its four legs and the morning's put spreads from
+**real Robinhood option quotes** (falling back to the wider standard strike steps when
+the email's strikes aren't listed), says whether the credit is worth taking, records the
+real prices in the journal, marks spreads it can't place (not listed, or credit under the
+backtest's floor) as skipped so they never count as open, and emails only when there's
+something to do.
 
 ```bash
 python -m schwab_trader.accuracy_research --reuse-market   # rules for each email section

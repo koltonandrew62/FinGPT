@@ -4,7 +4,9 @@ Every evening the signals of the rules that tested well on 2011-2021 (the dip-bu
 and the chart-pattern buy setups whose average 2011-2021 trade made 0.3% or more) are
 ranked by that average, then by how heavily the stock trades; the top five (at most two
 from one rule, and not a stock whose earlier pick could still be open) are the day's
-list. Each pick keeps its rule's limit sell and time limit, plus a -15% stop. EPS picks
+list. Each pick keeps its rule's limit sell and time limit, plus a -15% stop, and is sold
+at the close before an earnings report if that grew the list's money faster in 2011-2021
+(it did). Put spreads on the picks skip stocks that report before they expire. EPS picks
 have their own section. Calls: the call rule (strike, expiry, when to sell) and which
 picks get one are chosen on 2011-2021 at MID option prices (realistic for a buyer); "buy
 calls" only if that made money. (They didn't: the best call rule made money only at
@@ -29,8 +31,8 @@ import pandas as pd
 from .accuracy_research import Exit, arrays, research_setup, simulate, stats
 from .backtest import performance
 from .config import DATA_DIR, RESULTS_DIR, SPLITS
-from .daily_research import (CASH, DESIGN, STOCKS, TEST, OptConfig, calm_vol, in_window, pricing_multipliers,
-                             run_options, trade_stats)
+from .daily_research import (CASH, DESIGN, STOCKS, TEST, OptConfig, calm_vol, in_window, options_portfolio,
+                             pricing_multipliers, run_options, trade_stats)
 
 OUT = RESULTS_DIR / "top5"
 N_PICKS = 5
@@ -38,6 +40,8 @@ MIN_RULE_AVG = 0.003           # a rule joins the list only if its average 2011-
 PER_RULE, STOP = 2, 0.15       # at most 2 picks a day from one rule; every pick gets a -15% stop
 CALL_CONFIGS = [OptConfig("top5", "call", k, 0, dte, tp, hold) for k, dte, tp, hold in
                 itertools.product([0.0, 0.03], [10, 21], [0.5, 1.0], [5, 0])]
+# put spread on each pick, chosen on 2011-2021 over the 10-session version (lower win rate and average)
+PUT_SPREAD = OptConfig("top5", "put_spread", 0.08, 0.05, 5, 0.5, 0)
 
 
 def portfolio_mixed(px, tr: pd.DataFrame, w, slots: int, cash: float) -> pd.Series:
@@ -178,11 +182,23 @@ def main():
         print("no_earnings", ne, stats(tr, DESIGN), stats(tr, TEST), flush=True)
     no_earn = stats(runs[True][1], DESIGN)["avg"] >= stats(runs[False][1], DESIGN)["avg"]
     picks, tr = runs[no_earn]
+    # sell a pick at the close before an earnings report, or hold it through: decided on how
+    # fast the list's own money grew in 2011-2021
+    sold = sell_before_earnings(px, tr, events)
+    grow = {k: {name: performance(portfolio_mixed(px, t, w, 10, CASH)) for name, w in (("design", DESIGN), ("test", TEST))}
+            for k, t in (("hold", tr), ("sell_before", sold))}
+    earnings_exit = bool(grow["sell_before"]["design"]["cagr"] > grow["hold"]["design"]["cagr"])
+    exit_test = {k: {name: {**stats(t, w), "cagr": grow[k][name]["cagr"], "max_drawdown": grow[k][name]["max_drawdown"]}
+                     for name, w in (("design", DESIGN), ("test", TEST))} for k, t in (("hold", tr), ("sell_before", sold))}
+    print("earnings exit", json.dumps(exit_test, default=str), flush=True)
+    if earnings_exit:
+        tr = sold
     picks.to_csv(OUT / "picks.csv", index=False, float_format="%.5f")
     tr.to_csv(OUT / "trades.csv", index=False, float_format="%.5f")
     summary = {"rules": {k: {"design_avg": v["avg"], "exit": v["exit"]} for k, v in rules(acc).items()},
                "no_earnings": bool(no_earn),
                "earnings_test": {str(k): {"design": stats(v[1], DESIGN), "test": stats(v[1], TEST)} for k, v in runs.items()},
+               "earnings_exit": earnings_exit, "earnings_exit_test": exit_test,
                "picks_per_day": float(picks.groupby("date").size().mean()),
                "buy": {"label": "each rule's limit sell, a -15% stop, sell by its last session",
                        "exit": {"target": None, "stop": STOP, "hold": 20},
@@ -220,7 +236,70 @@ def main():
     best = g.sort_values("design_avg_mid", ascending=False).iloc[0]       # realistic (mid) prices decide
     summary["options"] = {"call": {"use": bool(best.design_avg_mid > 0), **best.to_dict()}}
     print("calls:", json.dumps(summary["options"], indent=1, default=str), flush=True)
+    every = runs[False][0]                                  # all picks, to compare spreads held through a report
+    pos = idx.get_indexer(pd.DatetimeIndex(every.date)) + 1
+    every = every[pos < len(idx)].assign(entry=idx[pos[pos < len(idx)]])
+    summary["put_spread"] = put_spread_overlay(px, ent, every[every.symbol.isin(stocks)], events, vol, mults, splits)
+    print("put spread:", json.dumps(summary["put_spread"], indent=1, default=str), flush=True)
     (OUT / "summary.json").write_text(json.dumps(summary, indent=2, default=str))
+
+
+def sell_before_earnings(px: dict, tr: pd.DataFrame, events: pd.DataFrame) -> pd.DataFrame:
+    """The same trades, but sold at the close of the session before the first earnings
+    reaction day after the entry day, when the trade is still open then."""
+    from .accuracy_research import SLIP
+    idx = px["close"].index
+    by = {s: np.sort(idx.get_indexer(pd.DatetimeIndex(g.day))) for s, g in events.groupby("symbol")}
+    t = tr.copy()
+    o, c = px["open"], px["close"]
+    a_, b_ = idx.get_indexer(pd.DatetimeIndex(t.entry)), idx.get_indexer(pd.DatetimeIndex(t.exit))
+    for j, (s, a, b) in enumerate(zip(t.symbol, a_, b_)):
+        d = by.get(s)
+        if d is None or s not in c:
+            continue
+        k = np.searchsorted(d, a + 1)
+        if k < len(d) and d[k] <= b:
+            day = d[k] - 1
+            entry = o.iat[a, o.columns.get_loc(s)] * (1 + SLIP)
+            t.iat[j, t.columns.get_loc("return")] = c.iat[day, c.columns.get_loc(s)] * (1 - SLIP) / entry - 1
+            t.iat[j, t.columns.get_loc("exit")] = idx[day]
+            t.iat[j, t.columns.get_loc("reason")] = "earnings"
+    return t
+
+
+def put_spread_overlay(px, ent, every, events, vol, mults, splits) -> dict:
+    """PUT_SPREAD on each pick in `ent`, skipping any whose stock reports before the spread
+    expires; and, for comparison, on the picks in `every` with and without a report inside."""
+    from dataclasses import asdict
+    from .accuracy_research import sessions_to_earnings
+    idx = px["close"].index
+    f = mults["fair"]["top5"]
+    levels = (("fair", f), ("mid", f * (1 + mults["premium"]) / 2))
+
+    def run(e, m):
+        return run_options(px, e[["symbol", "entry"]], PUT_SPREAD, vol, m, splits)
+
+    def record(t):
+        out = {}
+        for name, w in (("design", DESIGN), ("test", TEST)):
+            out[name] = trade_stats(t, w, "ret") if len(t) else {"trades": 0, "win_rate": np.nan, "avg": np.nan}
+            if len(t):
+                out[name]["cagr_1pct"] = performance(options_portfolio(t, idx, w, CASH, 0.01, 5))["cagr"]
+        return out
+
+    clear = lambda e: e[sessions_to_earnings(px, events, e) > PUT_SPREAD.dte]
+    res = {"config": asdict(PUT_SPREAD), "label": PUT_SPREAD.label().split(": ", 1)[-1],
+           "chosen_over": "the 10-session version (lower 2011-2021 win rate and average)",
+           "skips_earnings": True}
+    for lvl, m in levels:
+        t = run(clear(ent), m)
+        res[lvl] = record(t)
+        if lvl == "mid":
+            t.to_csv(OUT / "put_spread_trades_mid.csv", index=False, float_format="%.4f")
+    near = every[sessions_to_earnings(px, events, every) <= PUT_SPREAD.dte]
+    res["through_earnings_mid"] = record(run(near, levels[1][1]))
+    res["no_earnings_mid"] = record(run(clear(every), levels[1][1]))
+    return res
 
 
 def combined():
@@ -256,8 +335,10 @@ def combined():
         cfg = OptConfig("top5", "call", float(o["otm"]), 0, int(o["dte"]), float(o["take_profit"]), int(o["hold"]))
         overlays["call"] = run_options(px, base, cfg, vol, mults["fair"]["top5"] * (1 + mults["premium"]) / 2, splits)
     if "put_spread" in sm:                               # put spreads on every pick (1% at risk, at most 5 open)
+        from .accuracy_research import sessions_to_earnings
         c = sm["put_spread"]["config"]
         base = ent[ent.symbol.isin(stocks)]
+        base = base[sessions_to_earnings(px, events, base) > c["dte"]]       # none held through a report
         vol = calm_vol(px["close"][stocks])
         splits = {**SPLITS, **json.loads((DATA_DIR / "splits.json").read_text())}
         mults = sm["option_pricing"]
