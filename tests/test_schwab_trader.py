@@ -858,3 +858,42 @@ def test_top5_picks_are_sold_at_the_close_before_an_earnings_report(tmp_path, mo
     up = [{"symbol": "A", "date": "2026-11-05", "timing": "am"}]
     lines, _, holds = position_lines("top-5 pick", held, 0.03, 20, dt.date(2026, 11, 3), idx[:1], up, before_report=set())
     assert holds == ["A"] and "sell at the close on Wed Nov 04" in lines[0]
+
+
+def test_crash_list_shield_rules_and_cash_proxy():
+    from schwab_trader.crash_research import crashes, held, proxy, rule_signal
+    idx = pd.bdate_range("2020-01-01", periods=10)
+    s = pd.Series([100, 110, 99, 88, 95, 111, 112, 100, 101, 105], index=idx, dtype=float)
+    cr = crashes(s, 0.15)
+    assert len(cr) == 1 and cr[0]["peak"] == "2020-01-02" and cr[0]["trough"] == "2020-01-06"
+    assert cr[0]["drop"] == pytest.approx(-0.2) and cr[0]["recovered"] == "2020-01-08"
+    assert crashes(s.iloc[:8], 0.05)[-1]["recovered"] is None                       # still below the peak
+    c = pd.Series([True, True, False, True, True, True, False, False, False, True], index=idx)
+    assert list(held(c, 3)) == [False] * 5 + [True] * 3 + [False, False]          # 3 in a row on, 3 in a row off
+    on = pd.Series([False, True, True, False, False, False, False, False, False, False], index=idx)
+    eq = proxy(s, on, (idx[0], idx[-1]))
+    assert eq.iloc[2] == pytest.approx(110 * 0.999, rel=1e-6)                       # out of the market after day 2's signal
+    assert eq.iloc[3] == pytest.approx(eq.iloc[2])                                   # the -11% day happens in cash
+    long = pd.Series(np.r_[np.linspace(100, 200, 250), np.linspace(200, 120, 60)], index=pd.bdate_range("2019-01-01", periods=310))
+    sig = rule_signal("cross", long)
+    assert not sig.iloc[:250].any() and sig.iloc[-1]                                 # 50-day under the 200-day after the fall
+
+
+def test_email_risk_section_reports_facts_and_the_shield_state():
+    from schwab_trader.daily_report import risk_section
+    idx = pd.bdate_range("2022-01-03", periods=900)
+    up = pd.Series(np.linspace(100, 300, 900), index=idx)
+    px = {"close": pd.DataFrame({"SPY": up, "QQQ": up * 1.5, "AAPL": up})}
+    sm = {"gauges": {"ext200_deciles": list(np.linspace(-0.5, 0.6, 11)), "ext200_at_top_2000": 0.59, "run3_at_top_2000": 4.26,
+                     "rel3_at_top_2000": 2.02, "after_top_decile_ext": {"12m": {"down": 0.13, "median": 0.21, "worst": -0.69}},
+                     "all_days": {"12m": {"down": 0.18, "median": 0.19}}},
+          "crashes": {"NDX": [{"peak": "2000-03-27", "drop": -0.83, "with_shield": -0.30}],
+                      "SPX": [{"peak": "2007-10-09", "drop": -0.57, "with_shield": -0.05}]},
+          "plan": {"without": {"design": {"max_drawdown": -0.23, "cagr": 0.154}},
+                   "with_shield": {"design": {"max_drawdown": -0.21, "cagr": 0.126}}}}
+    shield = {"rule": "S&P 500 50-day average below its 200-day", "on": False, "since": dt.date(2025, 7, 1), "acts": False,
+              "summary": sm}
+    text = "\n".join(risk_section(px, shield))
+    assert "OFF since Jul 01, 2025" in text and "doesn't trade on it" in text
+    assert "fall to -30% (index -83%)" in text and "March 2000 top: +59%" in text and "Breadth: 100%" in text
+    assert "will crash" not in text and "bubble will" not in text                        # facts, no forecasts

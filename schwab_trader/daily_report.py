@@ -235,6 +235,74 @@ def earnings_skip_text() -> str:
             "of the risk a trade on average")
 
 
+# -------------------------------------------------------------- crash shield + bubble gauges
+CRASH_DIR = RESULTS_DIR / "crashes"
+SHIELD_ACTS = False     # True: the plan follows the crash shield even though it failed its 2011-2021 test
+
+
+def shield_state(px) -> dict:
+    """The crash shield on the latest close (SPY stands in for the S&P 500, QQQ for the
+    Nasdaq 100): on/off, since when, and whether the plan acts on it."""
+    p = CRASH_DIR / "summary.json"
+    if not p.exists():
+        return {}
+    from .crash_research import RULES, shield_series
+    sm = json.loads(p.read_text())
+    name = sm["shield"]["rule"]
+    spy, qqq = px["close"]["SPY"].dropna(), px["close"]["QQQ"].dropna()
+    on = shield_series(name, spy, qqq.reindex(spy.index).ffill())
+    change = on.ne(on.shift()).cumsum()
+    since = on[change == change.iloc[-1]].index[0]
+    return {"rule": name, "on": bool(on.iloc[-1]), "since": since.date(), "acts": bool(sm["shield"].get("use") or SHIELD_ACTS),
+            "summary": sm}
+
+
+def risk_section(px, shield: dict) -> list[str]:
+    """Facts only: the crash shield's state and its record, how stretched the Nasdaq 100 is
+    against its own history (1993-), and market breadth."""
+    if not shield:
+        return []
+    sm = shield["summary"]
+    g = sm["gauges"]
+    lines = ["", "MARKET RISK - crash shield and bubble gauges (facts from past prices, not forecasts)"]
+    spy = px["close"]["SPY"].dropna()
+    gap = spy.rolling(50).mean().iloc[-1] / spy.rolling(200).mean().iloc[-1] - 1
+    state = "ON" if shield["on"] else "OFF"
+    lines.append(f"  Crash shield ({shield['rule']}): {state} since {shield['since']:%b %d, %Y} - the S&P 500's 50-day "
+                 f"average is {abs(gap):.1%} {'above' if gap >= 0 else 'below'} its 200-day.")
+    cr = {c["peak"][:4]: c for c in sm["crashes"]["NDX"]} | {"sp" + c["peak"][:4]: c for c in sm["crashes"]["SPX"]}
+    dot, gfc = cr.get("2000"), cr.get("sp2007")
+    p0, p1 = sm["plan"]["without"]["design"], sm["plan"]["with_shield"]["design"]
+    if dot and gfc:
+        lines.append(f"    Tested on the indexes since 1993: it held the Nasdaq 100's 2000-2002 fall to {pct(dot['with_shield'], 0)} "
+                     f"(index {pct(dot['drop'], 0)}) and the S&P 500's 2007-2009 fall to {pct(gfc['with_shield'], 0)} "
+                     f"(index {pct(gfc['drop'], 0)}), but came too late in fast crashes like 2020 and 2025.")
+    if shield["acts"]:
+        lines.append("    While it is on: no new top-5 buys, EPS buys or options plays; positions already open keep their orders.")
+    else:
+        lines.append(f"    On the whole plan 2011-2021 it cut the worst drop only from {pct(p0['max_drawdown'], 0)} to "
+                     f"{pct(p1['max_drawdown'], 0)} while the yearly return fell from {pct(p0['cagr'])} to {pct(p1['cagr'])}, "
+                     "so the plan doesn't trade on it; this line says when it turns on.")
+    qqq = px["close"]["QQQ"].dropna()
+    ext = qqq.iloc[-1] / qqq.iloc[-200:].mean() - 1
+    rank = float(np.interp(ext, g["ext200_deciles"], np.linspace(0, 1, 11)))
+    lines.append(f"  Nasdaq 100 (QQQ) {abs(ext):.1%} {'above' if ext >= 0 else 'below'} its 200-day average: higher than {rank:.0%} of days since 1993 "
+                 f"(March 2000 top: {pct(g['ext200_at_top_2000'], 0)}).")
+    if len(qqq) > 756:
+        run3 = qqq.iloc[-1] / qqq.iloc[-757] - 1
+        rel3 = (qqq.iloc[-1] / spy.iloc[-1]) / (qqq.iloc[-757] / spy.reindex(qqq.index).iloc[-757]) - 1
+        lines.append(f"  3-year rise: QQQ {pct(run3, 0)} (into March 2000: {pct(g['run3_at_top_2000'], 0)}); ahead of the S&P 500 by "
+                     f"{pct(rel3, 0)} (March 2000: {pct(g['rel3_at_top_2000'], 0)}).")
+    a, b = g["after_top_decile_ext"]["12m"], g["all_days"]["12m"]
+    lines.append(f"  After the most stretched 10% of days since 1993 the Nasdaq 100 was higher 12 months later {1 - a['down']:.0%} "
+                 f"of the time (median {pct(a['median'], 0)}, worst {pct(a['worst'], 0)}); after any day: {1 - b['down']:.0%}, "
+                 f"median {pct(b['median'], 0)}.")
+    c = px["close"][[x for x in STOCKS if x in px["close"]]]
+    above = (c.iloc[-1] > c.iloc[-200:].mean()).mean()
+    lines.append(f"  Breadth: {above:.0%} of the S&P 500 / Nasdaq-100 stocks are above their 200-day average.")
+    return lines
+
+
 # -------------------------------------------------------------- sections
 def market_section(px, vix, asia_live, nxt, summary, acc) -> list[str]:
     lines = ["", "MARKET TRENDS (background only - the trade calls are in WHAT TO DO above)"]
@@ -550,6 +618,9 @@ def eps_section(px, calendar, moves, nxt, acc, cash, upcoming=(), ctx=None) -> t
         sym = b["symbol"]
         why = screen(sym, nxt, "eps", pick, px, ctx.get("vix"), ctx.get("asia"), moves.get(sym, {}).get("total"), upcoming,
                      ctx.get("learned"), hold)
+        sh = ctx.get("shield") or {}
+        if sh.get("acts") and sh.get("on"):
+            why.append("the crash shield is on")
         if why:
             lines.append(f"  SKIP {sym:5s} (qualified, but " + "; ".join(why) + ")")
             continue
@@ -711,7 +782,12 @@ def top5_section(px, moves, nxt, cash, upcoming, ctx, journal_rows, exclude=()) 
         lines.append(f"  Calls: NO - buying calls on picks like these lost money at real-world option prices (best call "
                      f"rule: {pct(o['design_avg_mid'], 0)} of the cost a trade in 2011-2021, {pct(o['test_avg_mid'], 0)} in "
                      "2021-2026). Buy the shares; the put spreads are the options play.")
-    lines.append(f"  Today ({money(slot)} each):")
+    sh = ctx.get("shield") or {}
+    if sh.get("acts") and sh.get("on"):
+        lines.append(f"  Today: no new buys - the crash shield is on ({sh['rule']}); the picks above keep their orders.")
+        today = today.iloc[0:0]
+    else:
+        lines.append(f"  Today ({money(slot)} each):")
     for p in today.itertuples():
         price = moves.get(p.symbol, {}).get("price", float(px["close"][p.symbol].iloc[-1]))
         n = int(slot // price)
@@ -915,7 +991,7 @@ def options_section(px, plays, nxt, summary, moves, upcoming=(), journal_rows=No
     return lines
 
 
-def qqq_section(px, vix_frame, moves, nxt, summary, journal_rows=None) -> list[str]:
+def qqq_section(px, vix_frame, moves, nxt, summary, journal_rows=None, shield_on: bool = False) -> list[str]:
     from .vol_alert import monday_table
     lines = ["", "QQQ OPTIONS"]
     qqq = pd.DataFrame({k: px[k]["QQQ"] for k in ("open", "high", "low", "close", "volume")}).dropna(subset=["close"])
@@ -945,7 +1021,9 @@ def qqq_section(px, vix_frame, moves, nxt, summary, journal_rows=None) -> list[s
         lines.append(f"  2) QQQ {cfg.label().split(': ', 1)[1]} ({'dips' if cfg.signal == 'qqq_dip' else 'every week'} while QQQ is "
                      f"above its 200-day average): won {pick['design_mid']['win_rate']:.0%} of trades 2011-2021, "
                      f"{pick['test_mid']['win_rate']:.0%} of {pick['test_mid']['trades']} in 2021-2026")
-        if fires:
+        if fires and shield_on:
+            lines.append("     signal today, but the crash shield is on: no new put spreads")
+        elif fires:
             price = moves.get("QQQ", {}).get("price", float(q.iloc[-1]))
             vol = float(calm_vol(px["close"][["QQQ"]]).iloc[-1]["QQQ"])
             mults = summary["option_pricing"]
@@ -1112,6 +1190,8 @@ def build(ext_paths, past_json, next_json, now: pd.Timestamp | None = None, hold
            "prices": {s: m["price"] for s, m in moves.items() if np.isfinite(m.get("price", np.nan))}}
     if ctx["holdings"] is not None:
         head.append(f"Your holdings: from the holdings email ({len(ctx['holdings'])} positions).")
+    ctx["shield"] = shield_state(px)
+    risk = risk_section(px, ctx["shield"])
     mkt = market_section(px, vix, asia_live, nxt, summary, acc)
     eps_lines, eps_plays, eps_sells, eps_holds = eps_section(px, past, moves, nxt, acc, ACCOUNT * EPS_SHARE, upcoming, ctx)
     dip_lines, _, dip_sells, dip_holds = dip_section(px, moves, nxt, acc, ACCOUNT * DIP_SHARE, upcoming, ctx, new_buys=False)
@@ -1123,13 +1203,14 @@ def build(ext_paths, past_json, next_json, now: pd.Timestamp | None = None, hold
     short_names = [x for x in short_names if x not in taken and x not in top["shorts"]]  # never short what's bought or held
     short_lines = [l for l in short_lines if not (l.startswith("  SHORT ") and l.split()[1] in taken)]
     opt = options_section(px, eps_plays, nxt, summary, moves, upcoming, rows, chains, ctx["wanted"])
-    qqq = qqq_section(px, vix_frame, moves, nxt, summary, rows)
+    qqq = qqq_section(px, vix_frame, moves, nxt, summary, rows,
+                      bool(ctx["shield"].get("acts") and ctx["shield"].get("on")))
     learn_lines = learning_section(learned, size, acc, jdf)
     cal = calendar_section(upcoming, nxt, acc, past)
     spreads = [f"{r['symbol']} put spread" for r in rows if r["kind"].endswith("put_spread")]
     actions = actions_section(eps_plays, top, dip_sells, eps_sells, eps_holds, dip_holds, short_names,
                               list(dict.fromkeys(spreads + top["options"])), nxt, ctx["stopped"], ctx["before_report"])
-    text = "\n".join(head + actions + top_lines + eps_lines + dip_lines + short_lines + opt + qqq + mkt + over
+    text = "\n".join(head + actions + risk + top_lines + eps_lines + dip_lines + short_lines + opt + qqq + mkt + over
                      + learn_lines + cal)
     for p in eps_plays:
         rows.append({"plan_date": nxt.isoformat(), "kind": p["signal"], "symbol": p["symbol"], "ref_price": p["price"],

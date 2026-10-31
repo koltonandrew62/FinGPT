@@ -109,6 +109,10 @@ or the account size:
 - Asia overnight (US-listed Japan/China/Hong Kong/Korea/Taiwan/Australia/India funds in
   Robinhood's 24-hour market), the US sectors and stocks it moves most at the open, and
   after-hours / overnight / pre-market moves;
+- **MARKET RISK** (facts only, no forecasts): the crash shield's state (S&P 500 50-day average
+  below its 200-day, chosen on 1993–2010 with the dot-com bust and 2008), how stretched the
+  Nasdaq 100 is against its own history since 1993 including the March 2000 top, and market
+  breadth ([results/crashes](results/crashes/RESULTS.md));
 - **WHAT TO DO AT THE OPEN**: one list of BUY / SHORT / SELL / HOLD / OPTIONS, with [B]/[M]
   for EPS beats and misses; every stock gets one call, and HOLD/SELL lines only cover trades
   an earlier email recommended;
@@ -134,6 +138,14 @@ pricing). Details, and what was fixed after the first live week:
 **Listed contracts.** For each stock that gets a put spread the morning run looks up the
 listed expiries (`get_option_chains`) and uses the one closest to the tested holding time,
 or skips the spread.
+
+**Crash test.** `crash_research.py` lists every 15%+ crash in the S&P 500 and Nasdaq 100 since
+1993 and runs the whole plan through the 2011–2026 ones: it fell less than the market in each
+(2020: −12% vs the S&P's −34%; 2022: −8% vs the Nasdaq's −35%) except 2011 (−21% vs −19%). The
+crash shield cut the 2000–2002 Nasdaq fall from −83% to −30% for an index holder, but on the
+plan in 2011–2021 it cost 2.8 points a year for a 2-point smaller worst drop, so the plan only
+reports it (`SHIELD_ACTS` in `daily_report.py` turns it on). The plan's stock data starts in
+2010, so it has not been run through a slow multi-year bust.
 
 **Journal and learning.** Every recommendation goes into
 `results/journal/recommendations.csv` and is scored with the same rules once it
@@ -163,6 +175,7 @@ python -m schwab_trader.learning                           # learning, tested ye
 python -m schwab_trader.top5_research                      # the top-5 list, its exits, calls yes/no
 python -m schwab_trader.top5_research --combined           # the whole plan backtest
 python -m schwab_trader.short_research                     # short sales and bearish options
+python -m schwab_trader.crash_research                     # crashes since 1993, crash shield, bubble gauges
 python -m schwab_trader.routine plan                       # the scheduled run: calls to make,
 python -m schwab_trader.routine daily                      #   then the email (+ journal)
 python -m schwab_trader.routine open-plan                  # 9:40 check: open-legs, open-quotes, open-build

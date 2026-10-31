@@ -302,11 +302,15 @@ def put_spread_overlay(px, ent, every, events, vol, mults, splits) -> dict:
     return res
 
 
-def combined():
+def combined(src=None, shield: pd.Series | None = None, save: bool = True) -> tuple[dict, dict]:
     """The whole new plan on $1.5M: half in the top-5 list (10 slots, buys and shorts),
     half in EPS picks (5 slots), put spreads on EPS picks and QQQ put spreads (1% at risk
     each, at most 5 open), calls/puts on top-5 picks when the rule says so (1% each), and
-    the calm-day 0DTE QQQ condor (2%); mid option prices."""
+    the calm-day 0DTE QQQ condor (2%); mid option prices. `src`: the folder with picks.csv
+    and trades.csv (default: results/top5). `shield`: True on sessions the crash shield is
+    on - no EPS buy or options play is opened the next session (top-5 picks arrive shielded
+    in `src`). Returns (results, the plan's equity by window)."""
+    src = src or OUT
     from .accuracy_research import eps_entries as acc_eps_entries, filtered as acc_filtered, portfolio
     from .backtest import buy_and_hold
     from .daily_research import EpsConfig, OUT as DAILY_OUT, condor_overlay, options_portfolio
@@ -314,15 +318,23 @@ def combined():
     arr = arrays(px, syms)
     acc = json.loads((RESULTS_DIR / "accuracy" / "summary.json").read_text())
     sm = json.loads((OUT / "summary.json").read_text())
-    top = pd.read_csv(OUT / "trades.csv", parse_dates=["entry", "exit"])
+    top = pd.read_csv(src / "trades.csv", parse_dates=["entry", "exit"])
     e = acc["eps"]
     r = e["rule"]
     eps_tr = simulate(px, arr, acc_filtered(px, acc_eps_entries(px, events, EpsConfig(r["entry"], r["min_gap"], 1, False,
                                                                                          r.get("min_surprise")))[["symbol", "entry"]],
                                             e["spy_trend"], None), Exit(**e["exit"]), syms)
     overlays = {name: pd.read_csv(DAILY_OUT / f"options_trades_{name}_mid.csv", parse_dates=["entry", "exit"]) for name in ("eps", "qqq")}
-    picks = pd.read_csv(OUT / "picks.csv", parse_dates=["date"])
+    picks = pd.read_csv(src / "picks.csv", parse_dates=["date"])
     idx = px["close"].index
+
+    def unshielded(t: pd.DataFrame) -> pd.DataFrame:
+        if shield is None or not len(t):
+            return t
+        prev = idx[np.maximum(idx.get_indexer(pd.DatetimeIndex(t["entry"])) - 1, 0)]
+        return t[~shield.reindex(prev).fillna(False).to_numpy(dtype=bool)].reset_index(drop=True)
+
+    eps_tr = unshielded(eps_tr)
     pos = idx.get_indexer(pd.DatetimeIndex(picks.date)) + 1
     ent = picks[pos < len(idx)].assign(entry=idx[pos[pos < len(idx)]])
     stocks = [s for s in STOCKS if s in px["close"]]
@@ -344,7 +356,8 @@ def combined():
         mults = sm["option_pricing"]
         overlays["top-5 put spread"] = run_options(px, base, OptConfig(**c), vol,
                                                    mults["fair"]["top5"] * (1 + mults["premium"]) / 2, splits)
-    res = {}
+    overlays = {k: unshielded(v) for k, v in overlays.items()}
+    res, equity = {}, {}
     for name, w in (("design", DESIGN), ("test", TEST)):
         t5 = portfolio_mixed(px, top, w, 10, CASH / 2)
         ep = portfolio(px, eps_tr, w, 5, CASH / 2)
@@ -368,11 +381,14 @@ def combined():
         spy = performance(buy_and_hold(px, "SPY", *w, CASH))
         res[name] = {"final": m["final_value"], "cagr": m["cagr"], "max_drawdown": m["max_drawdown"], "trades": n,
                      "win_rate": wins / n if n else np.nan, "parts": parts, "spy_final": spy["final_value"], "spy_cagr": spy["cagr"]}
-        if name == "test":
-            total.to_csv(OUT / "combined_test_equity.csv", float_format="%.2f")
-    sm["combined"] = res
-    (OUT / "summary.json").write_text(json.dumps(sm, indent=2, default=str))
-    print(json.dumps(res, indent=1, default=str))
+        equity[name] = total
+    if save:
+        equity["test"].to_csv(OUT / "combined_test_equity.csv", float_format="%.2f")
+        equity["design"].to_csv(OUT / "combined_design_equity.csv", float_format="%.2f")
+        sm["combined"] = res
+        (OUT / "summary.json").write_text(json.dumps(sm, indent=2, default=str))
+        print(json.dumps(res, indent=1, default=str))
+    return res, equity
 
 
 if __name__ == "__main__":
