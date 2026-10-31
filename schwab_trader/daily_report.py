@@ -237,7 +237,8 @@ def earnings_skip_text() -> str:
 
 # -------------------------------------------------------------- crash shield + bubble gauges
 CRASH_DIR = RESULTS_DIR / "crashes"
-SHIELD_ACTS = False     # True: the plan follows the crash shield even though it failed its 2011-2021 test
+SHIELD_ACTS = True      # turned on by choice (Oct 31, 2026), though it failed its 2011-2021 test: protection
+                        # for a slow multi-year bust like 2000-2002 at about 3 points a year of return
 
 
 def shield_state(px) -> dict:
@@ -278,7 +279,9 @@ def risk_section(px, shield: dict) -> list[str]:
                      f"(index {pct(dot['drop'], 0)}) and the S&P 500's 2007-2009 fall to {pct(gfc['with_shield'], 0)} "
                      f"(index {pct(gfc['drop'], 0)}), but came too late in fast crashes like 2020 and 2025.")
     if shield["acts"]:
-        lines.append("    While it is on: no new top-5 buys, EPS buys or options plays; positions already open keep their orders.")
+        lines.append("    The plan follows it: while it is on, no new top-5 buys, EPS buys or options plays (positions already open "
+                     f"keep their orders). The cost in testing: 2011-2021 {pct(p1['cagr'])}/yr instead of {pct(p0['cagr'])}, worst "
+                     f"drop {pct(p1['max_drawdown'], 0)} instead of {pct(p0['max_drawdown'], 0)}.")
     else:
         lines.append(f"    On the whole plan 2011-2021 it cut the worst drop only from {pct(p0['max_drawdown'], 0)} to "
                      f"{pct(p1['max_drawdown'], 0)} while the yearly return fell from {pct(p0['cagr'])} to {pct(p1['cagr'])}, "
@@ -1179,8 +1182,12 @@ def build(ext_paths, past_json, next_json, now: pd.Timestamp | None = None, hold
             "earlier email told you to make."]
     t5 = json.loads((TOP5_DIR / "summary.json").read_text()) if (TOP5_DIR / "summary.json").exists() else {}
     cb = t5.get("combined", {}).get("test")
+    shield_now = shield_state(px)
+    if shield_now.get("acts"):                       # the backtest of the plan as it now runs: with the crash shield
+        cb = shield_now["summary"]["plan"]["with_shield"]["test"]
     if cb:
-        head.append(f"Whole plan, backtested on 2021-2026 (rules chosen on 2011-2021): the account grew {cb['final'] / ACCOUNT:.1f}x "
+        head.append(f"Whole plan{' with the crash shield' if shield_now.get('acts') else ''}, backtested on 2021-2026 "
+                    f"(rules chosen on 2011-2021): the account grew {cb['final'] / ACCOUNT:.1f}x "
                     f"({pct(cb['cagr'])}/yr vs the S&P's {pct(cb['spy_cagr'])}), worst drop {pct(cb['max_drawdown'], 0)}, "
                     f"{cb['win_rate']:.0%} of {cb['trades']:,} trades won.")
     over, asia_live = overnight_section(px, moves, summary, acc)
@@ -1190,7 +1197,7 @@ def build(ext_paths, past_json, next_json, now: pd.Timestamp | None = None, hold
            "prices": {s: m["price"] for s, m in moves.items() if np.isfinite(m.get("price", np.nan))}}
     if ctx["holdings"] is not None:
         head.append(f"Your holdings: from the holdings email ({len(ctx['holdings'])} positions).")
-    ctx["shield"] = shield_state(px)
+    ctx["shield"] = shield_now
     risk = risk_section(px, ctx["shield"])
     mkt = market_section(px, vix, asia_live, nxt, summary, acc)
     eps_lines, eps_plays, eps_sells, eps_holds = eps_section(px, past, moves, nxt, acc, ACCOUNT * EPS_SHARE, upcoming, ctx)
@@ -1210,6 +1217,9 @@ def build(ext_paths, past_json, next_json, now: pd.Timestamp | None = None, hold
     spreads = [f"{r['symbol']} put spread" for r in rows if r["kind"].endswith("put_spread")]
     actions = actions_section(eps_plays, top, dip_sells, eps_sells, eps_holds, dip_holds, short_names,
                               list(dict.fromkeys(spreads + top["options"])), nxt, ctx["stopped"], ctx["before_report"])
+    if shield_now.get("acts") and shield_now.get("on"):
+        actions.insert(2, f"  CRASH SHIELD ON since {shield_now['since']:%b %d}: no new buys or options plays until it turns off "
+                          "(see MARKET RISK); open positions keep their orders")
     text = "\n".join(head + actions + risk + top_lines + eps_lines + dip_lines + short_lines + opt + qqq + mkt + over
                      + learn_lines + cal)
     for p in eps_plays:

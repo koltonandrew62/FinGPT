@@ -897,3 +897,19 @@ def test_email_risk_section_reports_facts_and_the_shield_state():
     assert "OFF since Jul 01, 2025" in text and "doesn't trade on it" in text
     assert "fall to -30% (index -83%)" in text and "March 2000 top: +59%" in text and "Breadth: 100%" in text
     assert "will crash" not in text and "bubble will" not in text                        # facts, no forecasts
+
+
+def test_email_says_the_plan_follows_the_shield_when_it_acts():
+    from schwab_trader.daily_report import risk_section
+    idx = pd.bdate_range("2022-01-03", periods=300)
+    up = pd.Series(np.linspace(100, 130, 300), index=idx)
+    px = {"close": pd.DataFrame({"SPY": up, "QQQ": up, "AAPL": up})}
+    sm = {"gauges": {"ext200_deciles": list(np.linspace(-0.5, 0.6, 11)), "ext200_at_top_2000": 0.59, "run3_at_top_2000": 4.26,
+                     "rel3_at_top_2000": 2.02, "after_top_decile_ext": {"12m": {"down": 0.13, "median": 0.21, "worst": -0.69}},
+                     "all_days": {"12m": {"down": 0.18, "median": 0.19}}},
+          "crashes": {"NDX": [], "SPX": []},
+          "plan": {"without": {"design": {"max_drawdown": -0.23, "cagr": 0.154}},
+                   "with_shield": {"design": {"max_drawdown": -0.21, "cagr": 0.126}}}}
+    shield = {"rule": "S&P 500 50-day average below its 200-day", "on": True, "since": dt.date(2026, 11, 2), "acts": True, "summary": sm}
+    text = "\n".join(risk_section(px, shield))
+    assert "ON since Nov 02, 2026" in text and "The plan follows it" in text and "+12.6%/yr instead of +15.4%" in text

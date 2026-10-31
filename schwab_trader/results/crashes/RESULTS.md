@@ -69,9 +69,10 @@ same rule returned less than holding (S&P +7.7%/yr vs +12.1%, Nasdaq 100 +11.6% 
 
 The shield was to go into the plan only if, on 2011–2021, it cut the worst drop by 2+ points at a cost of at
 most 0.5%/yr, or raised the yearly return (decided before the run). It cut the worst drop by 2 points but cost
-2.8 points a year, so **the plan doesn't trade on it**. The email shows its state every day,
-and `SHIELD_ACTS = True` in `daily_report.py` makes the plan follow it (no new top-5 buys, EPS buys or options
-plays while it is on).
+2.8 points a year, so by that rule the plan would only report it. **It is turned on by choice** (Oct 31,
+2026: `SHIELD_ACTS = True` in `daily_report.py`) as protection for a slow multi-year bust: while it is on the
+plan makes no new top-5 buys, EPS buys or options plays, and the email's backtest line shows the plan with
+the shield.
 
 What the test can't show: the plan's stocks have no data before 2010, so the plan itself has never been run
 through a slow, multi-year bust like 2000–2002 — the case where the shield helped most. Its quick crashes were

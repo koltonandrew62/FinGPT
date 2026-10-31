@@ -143,9 +143,12 @@ or skips the spread.
 1993 and runs the whole plan through the 2011–2026 ones: it fell less than the market in each
 (2020: −12% vs the S&P's −34%; 2022: −8% vs the Nasdaq's −35%) except 2011 (−21% vs −19%). The
 crash shield cut the 2000–2002 Nasdaq fall from −83% to −30% for an index holder, but on the
-plan in 2011–2021 it cost 2.8 points a year for a 2-point smaller worst drop, so the plan only
-reports it (`SHIELD_ACTS` in `daily_report.py` turns it on). The plan's stock data starts in
-2010, so it has not been run through a slow multi-year bust.
+plan in 2011–2021 it cost 2.8 points a year for a 2-point smaller worst drop, so by the test
+rule the plan would only report it. **It is turned on by choice** (`SHIELD_ACTS = True` in
+`daily_report.py`), as protection for a slow multi-year bust like 2000–2002, which the plan's
+stock data (from 2010) has never been through: while it is on there are no new top-5 buys,
+EPS buys or options plays. Whole plan with the shield: 2021–2026 +14.3%/yr, worst drop −11%
+(without: +18.5%/yr, −14%); 2011–2021 +12.6%/yr, −21% (without: +15.4%/yr, −23%).
 
 **Journal and learning.** Every recommendation goes into
 `results/journal/recommendations.csv` and is scored with the same rules once it
