@@ -147,8 +147,11 @@ plan in 2011–2021 it cost 2.8 points a year for a 2-point smaller worst drop, 
 rule the plan would only report it. **It is turned on by choice** (`SHIELD_ACTS = True` in
 `daily_report.py`), as protection for a slow multi-year bust like 2000–2002, which the plan's
 stock data (from 2010) has never been through: while it is on there are no new top-5 buys,
-EPS buys or options plays. Whole plan with the shield: 2021–2026 +14.3%/yr, worst drop −11%
-(without: +18.5%/yr, −14%); 2011–2021 +12.6%/yr, −21% (without: +15.4%/yr, −23%).
+EPS buys or options plays. Picks already open get the tested **crash exit**: after the S&P
+500 falls 7%+ in 5 sessions, the ones below their buy price are sold at the next open (chosen
+from 7 exits on 2011–2021: worst drop −21% → −17%). Whole plan with both: 2021–2026 +14.1%/yr,
+worst drop −11% (without either: +18.5%/yr, −14%); 2011–2021 +12.9%/yr, −17% (without:
++15.4%/yr, −23%).
 
 **Journal and learning.** Every recommendation goes into
 `results/journal/recommendations.csv` and is scored with the same rules once it

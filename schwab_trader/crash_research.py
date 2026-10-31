@@ -17,7 +17,11 @@ then fell 83% - and 2008 are in the test. The plan's own stock data starts in 20
 3. Bubble gauges: how stretched the Nasdaq 100 is above its 200-day average and over 3
    years, against its own history including 1999-2000, and what followed similar readings.
 
+4. Crash exits for picks already open (--exits): sell when the shield turns on, after a
+   fast market drop, or when a pick itself drops hard - each tested on the plan as it runs.
+
     python -m schwab_trader.crash_research
+    python -m schwab_trader.crash_research --exits
 """
 from __future__ import annotations
 
@@ -203,6 +207,131 @@ def plan_with(shield: pd.Series | None, work: Path) -> tuple[dict, dict]:
     return t5.combined(src=src, shield=on, save=False)
 
 
+# ------------------------------------------------------------------ crash exits for open picks
+EXITS = {   # name -> (trigger, argument); market triggers are seen at a close and act at the next open
+    "sell every open pick at the next open once the crash shield turns on": ("shield", "all"),
+    "sell the open picks that are below their buy price once the crash shield turns on": ("shield", "losers"),
+    "sell every open pick at the next open after the S&P 500 falls 7%+ in 5 sessions": ("fast", "all"),
+    "sell the losing picks at the next open after the S&P 500 falls 7%+ in 5 sessions": ("fast", "losers"),
+    "sell a pick at the next open after it falls 8%+ in one session": ("drop", 0.08),
+    "sell a pick at the open when it opens 5%+ below the last close": ("gap", 0.05),
+    "sell a pick at the open when it opens 8%+ below the last close": ("gap", 0.08),
+}
+
+
+FAST_DROP, FAST_DAYS = 0.07, 5
+
+
+def fast_drop(close: pd.Series) -> pd.Series:
+    """True after a close at least FAST_DROP below the close FAST_DAYS sessions earlier."""
+    return (close / close.shift(FAST_DAYS) - 1 <= -FAST_DROP).fillna(False)
+
+
+def market_trigger(kind: str, spx: pd.Series, shield: pd.Series) -> pd.Series:
+    if kind == "shield":
+        return shield.astype(bool)
+    return fast_drop(spx)
+
+
+def crash_exit(px: dict, tr: pd.DataFrame, spec: tuple, market: pd.Series | None = None) -> pd.DataFrame:
+    """The same share trades with one crash exit added: a trade still open when the exit
+    fires is sold at that open (or the next open, for signals seen at a close)."""
+    from .accuracy_research import SLIP
+    if not len(tr):
+        return tr
+    idx = px["close"].index
+    kind, arg = spec
+    O, C = px["open"].to_numpy(dtype=float), px["close"].to_numpy(dtype=float)
+    col = {s: j for j, s in enumerate(px["close"].columns)}
+    mk = None if market is None else market.reindex(idx).ffill().fillna(False).to_numpy(dtype=bool)
+    t = tr.copy().reset_index(drop=True)
+    a_, b_ = idx.get_indexer(pd.DatetimeIndex(t.entry)), idx.get_indexer(pd.DatetimeIndex(t.exit))
+    ret, ex, why = t["return"].to_numpy(dtype=float).copy(), t["exit"].to_numpy().copy(), t["reason"].to_numpy(dtype=object).copy()
+    for j, (s, a, b) in enumerate(zip(t.symbol, a_, b_)):
+        k = col.get(s)
+        if k is None or a < 0 or b < 0 or not np.isfinite(O[a, k]):
+            continue
+        entry = O[a, k] * (1 + SLIP)
+        sell = None
+        if kind in ("shield", "fast"):
+            for d in range(a, b):
+                if mk[d] and (arg == "all" or C[d, k] < entry):
+                    sell = d + 1
+                    break
+        elif kind == "drop":
+            for d in range(a, b):
+                ref = C[d - 1, k] if d > a else entry
+                if C[d, k] / ref - 1 <= -arg:
+                    sell = d + 1
+                    break
+        elif kind == "gap":
+            for d in range(a + 1, b + 1):
+                if O[d, k] / C[d - 1, k] - 1 <= -arg:
+                    sell = d
+                    break
+        if sell is not None and sell <= b and np.isfinite(O[sell, k]):
+            ret[j] = O[sell, k] * (1 - SLIP) / entry - 1
+            ex[j] = idx[sell]
+            why[j] = "crash"
+    t["return"], t["exit"], t["reason"] = ret, pd.DatetimeIndex(ex), why
+    return t
+
+
+def test_exits():
+    """Each crash exit on the plan as it runs now (with the crash shield), chosen on 2011-2021."""
+    from .daily_research import DESIGN, TEST
+    from . import top5_research as t5
+    sm = json.loads((OUT / "summary.json").read_text())
+    spx, ndx = load_index("SPX"), load_index("NDX")
+    ndx = ndx.reindex(spx.index).ffill().dropna()
+    spx = spx.loc[ndx.index]
+    on = shield_series(sm["shield"]["rule"], spx, ndx)
+    work = Path(tempfile.mkdtemp(prefix="exits_"))
+    res = {}
+    try:
+        base, base_eq = plan_with(on, work)
+        res["none (the shield only stops new buys)"] = (base, base_eq)
+        src = work / "shield"
+        from .accuracy_research import research_setup
+        px = research_setup()[0]
+        idx = px["close"].index
+        shield_px = on.reindex(idx).ffill().fillna(False).astype(bool)
+        for name, spec in EXITS.items():
+            market = market_trigger(spec[0], spx, on) if spec[0] in ("shield", "fast") else None
+            adj = (lambda p, tr, spec=spec, market=market: crash_exit(p, tr, spec, market))
+            res[name] = t5.combined(src=src, shield=shield_px, save=False, adjust=adj)
+            print(name, json.dumps({w: {k: res[name][0][w][k] for k in ("cagr", "max_drawdown")} for w in ("design", "test")}),
+                  flush=True)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    rows = []
+    for name, (r, eq) in res.items():
+        row = {"exit": name}
+        for w in ("design", "test"):
+            row |= {f"{w}_cagr": r[w]["cagr"], f"{w}_max_drawdown": r[w]["max_drawdown"], f"{w}_final": r[w]["final"],
+                    f"{w}_win_rate": r[w]["win_rate"]}
+        for cr in crashes(spx.loc["2011-02-01":], 0.10):
+            w = "design" if cr["peak"] <= DESIGN[1] else "test"
+            win = DESIGN if w == "design" else TEST
+            a, b = max(cr["peak"], win[0]), min(cr["trough"], win[1])
+            end = min(cr["recovered"] or win[1], win[1])
+            row[f"crash {cr['peak'][:7]}"] = window_return(eq[w], a, b)
+            row[f"crash {cr['peak'][:7]} to recovery"] = window_return(eq[w], a, end)
+        rows.append(row)
+    grid = pd.DataFrame(rows)
+    grid.to_csv(OUT / "exit_grid.csv", index=False, float_format="%.4f")
+    b0 = grid.iloc[0]
+    tried = grid.iloc[1:].sort_values("design_cagr", ascending=False)
+    best = tried.iloc[0]
+    adopt = bool(best.design_cagr > b0.design_cagr or (best.design_max_drawdown - b0.design_max_drawdown >= MIN_DD_CUT
+                                                       and b0.design_cagr - best.design_cagr <= MAX_CAGR_COST))
+    sm["exits"] = {"best": best.exit, "spec": EXITS[best.exit], "use": adopt, "grid": grid.to_dict(orient="records"),
+                   "result": res[best.exit][0]}
+    (OUT / "summary.json").write_text(json.dumps(sm, indent=2, default=str))
+    print(grid.round(4).to_string())
+    print("best:", best.exit, "use:", adopt)
+
+
 def main():
     from .daily_research import DESIGN, TEST
     OUT.mkdir(parents=True, exist_ok=True)
@@ -273,4 +402,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    test_exits() if "--exits" in sys.argv else main()

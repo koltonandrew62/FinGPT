@@ -43,6 +43,10 @@ SLIP = 0.0005
 # chosen in top5_research); earlier picks were held through, as their emails said
 EARNINGS_EXIT_FROM = "2026-11-02"
 EARNINGS_EXIT_KINDS = ("top5_buy",)
+# from the same session on: after the S&P 500 (SPY) falls 7%+ in 5 sessions, top-5 and EPS picks
+# below their buy price at that close are sold at the next open (crash_research --exits)
+CRASH_EXIT_FROM = EARNINGS_EXIT_FROM
+CRASH_EXIT_KINDS = ("top5_buy", "eps")
 
 
 def load(path: Path | None = None) -> pd.DataFrame:
@@ -100,9 +104,10 @@ def earnings_sell_index(idx, days, i0: int, start: str = EARNINGS_EXIT_FROM) -> 
     return i if idx[i] >= pd.Timestamp(start) else None
 
 
-def _share_outcome(px: dict, r, sell_i: int | None = None) -> dict | None:
+def _share_outcome(px: dict, r, sell_i: int | None = None, crash: np.ndarray | None = None) -> dict | None:
     """Same engine as the backtest: buy at the plan day's open; target / stop / time, or the
-    close of session `sell_i` (the one before an earnings report)."""
+    close of session `sell_i` (the one before an earnings report), or the open after a
+    `crash` session (True where the crash exit fired at that close) if below the buy price."""
     idx = px["close"].index
     s, day = r.symbol, pd.Timestamp(r.plan_date)
     if s not in px["close"] or day not in idx:
@@ -119,6 +124,9 @@ def _share_outcome(px: dict, r, sell_i: int | None = None) -> dict | None:
         i = i0 + k
         if i >= len(idx):
             return {"entry_date": day.date().isoformat(), "entry_price": entry}          # still open
+        if crash is not None and k and crash[i - 1] and c[i - 1] < entry and np.isfinite(o[i]):
+            return {"entry_date": day.date().isoformat(), "entry_price": entry, "exit_date": idx[i].date().isoformat(),
+                    "exit_price": o[i], "return": o[i] * (1 - SLIP) / entry - 1, "reason": "crash", "status": "closed"}
         if l[i] <= stp:
             px_out, why = (min(o[i], stp) if k else stp), "stop"
         elif h[i] >= tgt:
@@ -208,11 +216,16 @@ def evaluate(px: dict, path: Path | None = None, events: pd.DataFrame | None = N
         return df
     idx = px["close"].index
     react = {s: idx.get_indexer(pd.DatetimeIndex(g.day)) for s, g in events.groupby("symbol")} if events is not None else {}
+    crash = None
+    if "SPY" in px["close"]:
+        from .crash_research import fast_drop
+        crash = (fast_drop(px["close"]["SPY"]) & (idx >= pd.Timestamp(CRASH_EXIT_FROM))).to_numpy(dtype=bool)
     for i, r in df[df.status == "open"].iterrows():
         sell_i = None
         if r.kind in EARNINGS_EXIT_KINDS and r.symbol in react and pd.Timestamp(r.plan_date) in idx:
             sell_i = earnings_sell_index(idx, react[r.symbol], idx.get_loc(pd.Timestamp(r.plan_date)))
-        out = (_share_outcome(px, r, sell_i) if r.kind in SHARE_KINDS else _short_outcome(px, r) if r.kind in SHORT_KINDS
+        out = (_share_outcome(px, r, sell_i, crash if r.kind in CRASH_EXIT_KINDS else None) if r.kind in SHARE_KINDS
+               else _short_outcome(px, r) if r.kind in SHORT_KINDS
                else _put_outcome(px, r) if r.kind in ("long_put", "long_call") else _option_outcome(px, r))
         if out:
             for k, v in out.items():

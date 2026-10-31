@@ -913,3 +913,59 @@ def test_email_says_the_plan_follows_the_shield_when_it_acts():
     shield = {"rule": "S&P 500 50-day average below its 200-day", "on": True, "since": dt.date(2026, 11, 2), "acts": True, "summary": sm}
     text = "\n".join(risk_section(px, shield))
     assert "ON since Nov 02, 2026" in text and "The plan follows it" in text and "+12.6%/yr instead of +15.4%" in text
+
+
+def test_crash_exits_sell_open_picks_at_the_right_open():
+    from schwab_trader.crash_research import crash_exit
+    idx = pd.bdate_range("2026-03-02", periods=8)
+    o = pd.DataFrame({"A": [100, 101, 102, 90, 91, 92, 93, 94], "B": [50, 50, 50, 50, 50, 50, 50, 50]}, index=idx, dtype=float)
+    c = o + 0.5
+    c["B"] = 49.5                                                             # B closes below its buy price
+    px = {"open": o, "close": c}
+    tr = pd.DataFrame({"symbol": ["A", "B"], "entry": [idx[0], idx[0]], "exit": [idx[7], idx[7]], "reason": ["time", "time"],
+                       "return": [0.0, 0.0]})
+    gap = crash_exit(px, tr, ("gap", 0.08)).set_index("symbol")              # A opens 102.5 -> 90 on session 4
+    assert gap.at["A", "reason"] == "crash" and gap.at["A", "exit"] == idx[3]
+    assert gap.at["A", "return"] == pytest.approx(90 * 0.9995 / (100 * 1.0005) - 1)
+    assert gap.at["B", "reason"] == "time"                                    # no gap: untouched
+    market = pd.Series(False, index=idx)
+    market.iloc[1] = True                                                     # seen at session 2's close
+    allx = crash_exit(px, tr, ("shield", "all"), market).set_index("symbol")
+    assert allx.at["A", "exit"] == idx[2] and allx.at["B", "exit"] == idx[2]  # both sold at session 3's open
+    losers = crash_exit(px, tr, ("shield", "losers"), market).set_index("symbol")
+    assert losers.at["A", "reason"] == "time" and losers.at["B", "reason"] == "crash"   # only the losing pick is sold
+
+
+def test_fast_drop_crash_exit_sells_losing_picks_at_the_next_open(tmp_path, monkeypatch):
+    from schwab_trader import journal
+    from schwab_trader.crash_research import fast_drop
+    from schwab_trader.daily_report import actions_section, crash_losers, position_lines, replay
+    idx = pd.bdate_range("2026-11-02", periods=12)
+    spy = pd.Series([100, 100, 100, 99, 97, 95, 92.5, 93, 94, 95, 96, 97], index=idx, dtype=float)   # -7.5% by session 7
+    fired = fast_drop(spy)
+    assert not fired.iloc[:6].any() and fired.iloc[6]
+    o = pd.DataFrame({"SPY": spy, "A": 100.0, "B": 100.0}, index=idx)
+    c = o.copy()
+    c["A"], c["B"] = 98.0, 103.0                       # A closes below its buy price, B above
+    px = {"open": o, "high": c.combine(o, np.maximum) * 1.001, "low": c.combine(o, np.minimum) * 0.999, "close": c}
+    ent = [{"symbol": "A", "entry": idx[0]}, {"symbol": "B", "entry": idx[0]}]
+    held = replay(px, ent, 0.20, 20, 10, 0.15, crash_days={idx[6]})
+    assert [a["symbol"] for a in held] == ["B"]                          # A was sold at session 8's open
+    monkeypatch.setattr(journal, "JOURNAL", tmp_path / "rec.csv")
+    journal.record([{"plan_date": idx[0].date().isoformat(), "kind": k, "symbol": s, "target": 0.2, "stop": 0.15, "hold": 20}
+                    for k, s in (("top5_buy", "A"), ("top5_buy", "B"), ("dip", "A"))])
+    rec = journal.evaluate(px)
+    a = rec[(rec.kind == "top5_buy") & (rec.symbol == "A")].iloc[0]
+    assert a.reason == "crash" and a.exit_date == idx[7].date().isoformat()
+    assert (rec[rec.symbol == "B"].status == "open").all() and rec[rec.kind == "dip"].iloc[0].status == "open"
+    crash = {"fired": True}
+    pos = [{"symbol": "A", "entry": idx[0], "px0": 100.0, "target_px": 120.0, "stop_px": 85.0, "i0": 0, "exit_i": None},
+           {"symbol": "B", "entry": idx[0], "px0": 100.0, "target_px": 120.0, "stop_px": 85.0, "i0": 0, "exit_i": None}]
+    assert crash_losers(px, pos, crash) == {"A"} and crash_losers(px, pos, {"fired": False}) == set()
+    crashed = set()
+    lines, sells, holds = position_lines("top-5 pick", pos, 0.2, 20, dt.date(2026, 11, 18), idx, [], crash_sell={"A"},
+                                         crashed=crashed)
+    assert sells == ["A"] and holds == ["B"] and crashed == {"A"} and "crash exit sells it at the open" in lines[0]
+    top = {"buys": [], "shorts": [], "sells": ["A"], "covers": [], "holds": ["B"], "short_holds": [], "options": []}
+    assert "A (top 5) - at the open: crash exit" in "\n".join(actions_section([], top, [], [], [], [], [], [],
+                                                                                dt.date(2026, 11, 18), crashed=crashed))

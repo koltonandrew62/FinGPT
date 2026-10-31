@@ -258,6 +258,33 @@ def shield_state(px) -> dict:
             "summary": sm}
 
 
+FAST_DROP_TEXT = "7%+ in 5 sessions"
+
+
+def crash_losers(px, held: list[dict], crash: dict) -> set:
+    """Open positions the crash exit sells at the next open: it fired at the last close and
+    the position closed below its buy price."""
+    if not crash.get("fired"):
+        return set()
+    last = px["close"].iloc[-1]
+    return {a["symbol"] for a in held if np.isfinite(last.get(a["symbol"], np.nan)) and last[a["symbol"]] < a["px0"]}
+
+
+def crash_exit_state(px, shield: dict) -> dict:
+    """The tested crash exit for open picks: on, whether it fired at the last close, the
+    S&P 500's move over the last 5 sessions, and the past sessions it fired (from the start)."""
+    ex = (shield.get("summary") or {}).get("exits") or {}
+    if not ex.get("use") or ex.get("spec", [None])[0] != "fast":
+        return {}
+    from .crash_research import FAST_DAYS, fast_drop
+    from .journal import CRASH_EXIT_FROM
+    spy = px["close"]["SPY"].dropna()
+    fired = fast_drop(spy)
+    days = {d for d in fired[fired].index if d >= pd.Timestamp(CRASH_EXIT_FROM)}
+    return {"name": ex["best"], "fired": bool(fired.iloc[-1]) and spy.index[-1] >= pd.Timestamp(CRASH_EXIT_FROM),
+            "move": float(spy.iloc[-1] / spy.iloc[-1 - FAST_DAYS] - 1), "days": days, "summary": ex}
+
+
 def risk_section(px, shield: dict) -> list[str]:
     """Facts only: the crash shield's state and its record, how stretched the Nasdaq 100 is
     against its own history (1993-), and market breadth."""
@@ -286,6 +313,14 @@ def risk_section(px, shield: dict) -> list[str]:
         lines.append(f"    On the whole plan 2011-2021 it cut the worst drop only from {pct(p0['max_drawdown'], 0)} to "
                      f"{pct(p1['max_drawdown'], 0)} while the yearly return fell from {pct(p0['cagr'])} to {pct(p1['cagr'])}, "
                      "so the plan doesn't trade on it; this line says when it turns on.")
+    crash = shield.get("crash") or {}
+    if crash:
+        res, base = crash["summary"].get("result", {}).get("design"), sm["plan"]["with_shield"]["design"]
+        state = "FIRED - picks below their buy price are sold at the open" if crash["fired"] else "not triggered"
+        lines.append(f"  Crash exit ({crash['name']}): {state}; the S&P 500 is {pct(crash['move'])} over the last 5 sessions.")
+        if res:
+            lines.append(f"    Tested on the plan 2011-2021: {pct(res['cagr'])}/yr, worst drop {pct(res['max_drawdown'], 0)} "
+                         f"(without it {pct(base['cagr'])}/yr, {pct(base['max_drawdown'], 0)}).")
     qqq = px["close"]["QQQ"].dropna()
     ext = qqq.iloc[-1] / qqq.iloc[-200:].mean() - 1
     rank = float(np.interp(ext, g["ext200_deciles"], np.linspace(0, 1, 11)))
@@ -412,10 +447,11 @@ def overnight_section(px, moves, summary, acc) -> tuple[list[str], float | None]
 
 
 def replay(px, entries: list[dict], target: float, hold: int, slots: int, stop: float | None = None,
-           short: bool = False, sell_days: dict | None = None) -> list[dict]:
+           short: bool = False, sell_days: dict | None = None, crash_days: set | None = None) -> list[dict]:
     """Replay past entries (dicts with symbol, entry, priority) with a +target limit sell,
     an optional -stop stop order and a `hold`-session limit, keeping at most `slots` open;
-    `sell_days` (symbol -> sessions) sells at those closes (before an earnings report).
+    `sell_days` (symbol -> sessions) sells at those closes (before an earnings report);
+    `crash_days` (sessions) sells a long position below its buy price at the next open.
     Returns the positions still open after the last close, each with its entry price and
     time-limit session index."""
     idx = px["close"].index
@@ -435,6 +471,9 @@ def replay(px, entries: list[dict], target: float, hold: int, slots: int, stop: 
         exit_i = None
         for i in range(i0, min(i0 + hold, len(idx))):
             j = h.columns.get_loc(e["symbol"])
+            if not short and crash_days and i > i0 and idx[i - 1] in crash_days and px["close"].iat[i - 1, j] < px0:
+                exit_i = i                                      # sold at this open by the crash exit
+                break
             hit = (lo.iat[i, j] <= tgt or h.iat[i, j] >= stp) if short else (h.iat[i, j] >= tgt or lo.iat[i, j] <= stp)
             if hit or idx[i] in (sell_days or {}).get(e["symbol"], ()):
                 exit_i = i
@@ -447,7 +486,8 @@ def replay(px, entries: list[dict], target: float, hold: int, slots: int, stop: 
 
 def position_lines(kind: str, pos: list[dict], target: float, hold: int, nxt: dt.date, idx, upcoming,
                    holdings: dict | None = None, short: bool = False, prices: dict | None = None,
-                   stopped: set | None = None, before_report: set | None = None) -> tuple[list[str], list[str], list[str]]:
+                   stopped: set | None = None, before_report: set | None = None, crash_sell: set | None = None,
+                   crashed: set | None = None) -> tuple[list[str], list[str], list[str]]:
     """HOLD / SELL lines for the positions the rules opened earlier. With `holdings`
     (shares actually owned, from the holdings email) the lines say exactly what is owned
     and positions not owned are left out. With `prices` (latest pre-market prices), a
@@ -471,6 +511,13 @@ def position_lines(kind: str, pos: list[dict], target: float, hold: int, nxt: dt
         now = (prices or {}).get(s)
         past_stop = (now is not None and a.get("stop_px") is not None and np.isfinite(a["stop_px"])
                      and (now >= a["stop_px"] if short else now <= a["stop_px"]))
+        if s in (crash_sell or ()) and not short:
+            lines.append(f"  SELL {s:5s} at the open {mine} ({kind} from {a['entry'].date()} at ~${a['px0']:,.2f}): the S&P 500 "
+                         f"fell {FAST_DROP_TEXT} and this pick closed below its buy price - the crash exit sells it at the open.")
+            sells.append(s)
+            if crashed is not None:
+                crashed.add(s)
+            continue
         if past_stop:
             lines.append(f"  {act_close} {s:5s} at the open {mine} ({kind} from {a['entry'].date()} at ~${a['px0']:,.2f}): "
                          f"it's ~${now:,.2f} before the open, past its ${a['stop_px']:,.2f} {'buy-' if short else ''}stop - "
@@ -611,9 +658,11 @@ def eps_section(px, calendar, moves, nxt, acc, cash, upcoming=(), ctx=None) -> t
             lines.append(f"    {r['symbol']:5s} [{r['beat']}] {r['report']:13s} EPS surprise {pct(r['surprise'])}, {g}")
         if not big:
             lines.append("    none")
-    held = replay(px, only_recommended(past, ["eps"]), target, hold, EPS_SLOTS, stop)
+    crash = (ctx.get("shield") or {}).get("crash") or {}
+    held = replay(px, only_recommended(past, ["eps"]), target, hold, EPS_SLOTS, stop, crash_days=crash.get("days"))
     pl, sells, holds = position_lines("EPS pick", held, target, hold, nxt, idx, upcoming, ctx.get("holdings"),
-                                      prices=ctx.get("prices"), stopped=ctx.get("stopped"))
+                                      prices=ctx.get("prices"), stopped=ctx.get("stopped"),
+                                      crash_sell=crash_losers(px, held, crash), crashed=ctx.get("crashed"))
     plays = []
     for b in sorted(buys, key=lambda b: -b["gap"]):
         if len(plays) >= max(EPS_SLOTS - len(held), 0):
@@ -759,10 +808,12 @@ def top5_section(px, moves, nxt, cash, upcoming, ctx, journal_rows, exclude=()) 
                 sell_days.setdefault(sym, set()).add(idx[k - 1])
     for (t, st, h), g in past.groupby(["x_target", "x_stop", "x_hold"], dropna=False):
         ent = [{"symbol": r.symbol, "entry": idx[idx.get_loc(r.date) + 1], "priority": -r.avg} for r in g.itertuples()]
+        crash = (ctx.get("shield") or {}).get("crash") or {}
         held = replay(px, only_recommended(ent, ["top5_buy"]), None if pd.isna(t) else float(t), int(h), TOP5_SLOTS, float(st),
-                      sell_days=sell_days)
+                      sell_days=sell_days, crash_days=crash.get("days"))
         pl, closes, holds = position_lines("top-5 pick", held, 0.0 if pd.isna(t) else float(t), int(h), nxt, idx, upcoming,
                                            ctx.get("holdings"), prices=ctx.get("prices"), stopped=ctx.get("stopped"),
+                                           crash_sell=crash_losers(px, held, crash), crashed=ctx.get("crashed"),
                                            before_report=ctx.get("before_report") if exit_early else None)
         lines += pl
         out["sells"] += closes
@@ -875,7 +926,7 @@ def short_ideas_section(px, nxt, upcoming, ctx) -> tuple[list[str], list[str]]:
 
 
 def actions_section(eps_plays, top, dip_sells, eps_sells, eps_holds, dip_holds, short_names, options, nxt,
-                    stopped=(), before_report=()) -> list[str]:
+                    stopped=(), before_report=(), crashed=()) -> list[str]:
     """One clear list of what to do at the open."""
     tag = {p["symbol"]: p.get("tag") for p in eps_plays}
     buys = [f"{p['symbol']} [{tag[p['symbol']]}] {p['shares']:,} sh (EPS pick)" for p in eps_plays]
@@ -885,10 +936,12 @@ def actions_section(eps_plays, top, dip_sells, eps_sells, eps_holds, dip_holds, 
     lines.append("  SHORT:      " + (", ".join([f"{s} (top 5)" for s in top["shorts"]] + [f"{s} (short idea)" for s in short_names])
                                      or "nothing"))
     named = [(s, "top 5") for s in top["sells"]] + [(s, "EPS pick") for s in eps_sells] + [(s, "dip-buy") for s in dip_sells]
-    at_close = ", ".join(f"{s} ({k})" for s, k in named if s not in stopped and s not in before_report)
+    at_close = ", ".join(f"{s} ({k})" for s, k in named if s not in stopped and s not in before_report and s not in crashed)
     at_open = ", ".join(f"{s} ({k})" for s, k in named if s in stopped)
+    crash = ", ".join(f"{s} ({k})" for s, k in named if s in crashed and s not in stopped)
     pre = ", ".join(f"{s} ({k})" for s, k in named if s in before_report and s not in stopped)
     parts = ([at_open + " - at the open: already past its stop"] if at_open else []) + \
+        ([crash + " - at the open: crash exit (below its buy price after the S&P 500's fast drop)"] if crash else []) + \
         ([pre + " - at the close, before its earnings report"] if pre else []) + \
         ([at_close + " - at the close if the limit order hasn't filled"] if at_close else [])
     lines.append("  SELL:       " + ("; ".join(parts) or "nothing"))
@@ -1183,17 +1236,22 @@ def build(ext_paths, past_json, next_json, now: pd.Timestamp | None = None, hold
     t5 = json.loads((TOP5_DIR / "summary.json").read_text()) if (TOP5_DIR / "summary.json").exists() else {}
     cb = t5.get("combined", {}).get("test")
     shield_now = shield_state(px)
+    if shield_now:
+        shield_now["crash"] = crash_exit_state(px, shield_now)
     if shield_now.get("acts"):                       # the backtest of the plan as it now runs: with the crash shield
         cb = shield_now["summary"]["plan"]["with_shield"]["test"]
+        if shield_now.get("crash"):                  # ...and the crash exit
+            cb = shield_now["crash"]["summary"]["result"]["test"]
     if cb:
-        head.append(f"Whole plan{' with the crash shield' if shield_now.get('acts') else ''}, backtested on 2021-2026 "
+        head.append(f"Whole plan{' with the crash shield' if shield_now.get('acts') else ''}"
+                    f"{' and crash exit' if shield_now.get('crash') else ''}, backtested on 2021-2026 "
                     f"(rules chosen on 2011-2021): the account grew {cb['final'] / ACCOUNT:.1f}x "
                     f"({pct(cb['cagr'])}/yr vs the S&P's {pct(cb['spy_cagr'])}), worst drop {pct(cb['max_drawdown'], 0)}, "
                     f"{cb['win_rate']:.0%} of {cb['trades']:,} trades won.")
     over, asia_live = overnight_section(px, moves, summary, acc)
     ctx = {"vix": vix, "asia": asia_live, "learned": learned, "holdings": holdings_from(holdings_path), "size": size,
            "past_calendar": past, "events": events, "acc": acc, "chains": chains, "stopped": set(), "before_report": set(),
-           "wanted": wanted if wanted is not None else set(),
+           "wanted": wanted if wanted is not None else set(), "crashed": set(),
            "prices": {s: m["price"] for s, m in moves.items() if np.isfinite(m.get("price", np.nan))}}
     if ctx["holdings"] is not None:
         head.append(f"Your holdings: from the holdings email ({len(ctx['holdings'])} positions).")
@@ -1216,7 +1274,8 @@ def build(ext_paths, past_json, next_json, now: pd.Timestamp | None = None, hold
     cal = calendar_section(upcoming, nxt, acc, past)
     spreads = [f"{r['symbol']} put spread" for r in rows if r["kind"].endswith("put_spread")]
     actions = actions_section(eps_plays, top, dip_sells, eps_sells, eps_holds, dip_holds, short_names,
-                              list(dict.fromkeys(spreads + top["options"])), nxt, ctx["stopped"], ctx["before_report"])
+                              list(dict.fromkeys(spreads + top["options"])), nxt, ctx["stopped"], ctx["before_report"],
+                              ctx["crashed"])
     if shield_now.get("acts") and shield_now.get("on"):
         actions.insert(2, f"  CRASH SHIELD ON since {shield_now['since']:%b %d}: no new buys or options plays until it turns off "
                           "(see MARKET RISK); open positions keep their orders")

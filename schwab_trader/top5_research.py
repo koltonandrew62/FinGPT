@@ -302,14 +302,15 @@ def put_spread_overlay(px, ent, every, events, vol, mults, splits) -> dict:
     return res
 
 
-def combined(src=None, shield: pd.Series | None = None, save: bool = True) -> tuple[dict, dict]:
+def combined(src=None, shield: pd.Series | None = None, save: bool = True, adjust=None) -> tuple[dict, dict]:
     """The whole new plan on $1.5M: half in the top-5 list (10 slots, buys and shorts),
     half in EPS picks (5 slots), put spreads on EPS picks and QQQ put spreads (1% at risk
     each, at most 5 open), calls/puts on top-5 picks when the rule says so (1% each), and
     the calm-day 0DTE QQQ condor (2%); mid option prices. `src`: the folder with picks.csv
     and trades.csv (default: results/top5). `shield`: True on sessions the crash shield is
     on - no EPS buy or options play is opened the next session (top-5 picks arrive shielded
-    in `src`). Returns (results, the plan's equity by window)."""
+    in `src`). `adjust(px, trades)`: extra exits applied to the top-5 and EPS share trades.
+    Returns (results, the plan's equity by window)."""
     src = src or OUT
     from .accuracy_research import eps_entries as acc_eps_entries, filtered as acc_filtered, portfolio
     from .backtest import buy_and_hold
@@ -335,6 +336,8 @@ def combined(src=None, shield: pd.Series | None = None, save: bool = True) -> tu
         return t[~shield.reindex(prev).fillna(False).to_numpy(dtype=bool)].reset_index(drop=True)
 
     eps_tr = unshielded(eps_tr)
+    if adjust is not None:
+        top, eps_tr = adjust(px, top), adjust(px, eps_tr)
     pos = idx.get_indexer(pd.DatetimeIndex(picks.date)) + 1
     ent = picks[pos < len(idx)].assign(entry=idx[pos[pos < len(idx)]])
     stocks = [s for s in STOCKS if s in px["close"]]

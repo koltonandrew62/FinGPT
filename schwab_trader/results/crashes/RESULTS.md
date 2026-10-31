@@ -78,6 +78,29 @@ What the test can't show: the plan's stocks have no data before 2010, so the pla
 through a slow, multi-year bust like 2000–2002 — the case where the shield helped most. Its quick crashes were
 all V-shaped.
 
+## Exits for picks already open (`--exits`)
+
+When something crash-like happens, these change what happens to picks already held. Each was run on the whole
+plan as it now runs (with the crash shield); the one with the best 2011–2021 yearly return goes in if it beats
+the plan without it on that period or cuts its worst drop by 2+ points at a cost of at most 0.5%/yr (decided
+before the run).
+
+| Exit | 2011–2021 | Worst drop | 2021–2026 | Worst drop | 2011 crash | 2020 crash | 2022 crash |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| none (the shield only stops new buys) | +12.6%/yr | −21% | +14.3%/yr | −11% | −16% | −11% | −6% |
+| sell every open pick at the next open once the crash shield turns on | +12.7%/yr | −20% | +13.9%/yr | −11% | −15% | −11% | −8% |
+| sell the open picks that are below their buy price once the crash shield turns on | +12.7%/yr | −20% | +14.0%/yr | −11% | −16% | −11% | −8% |
+| sell every open pick at the next open after the S&P 500 falls 7%+ in 5 sessions | +12.8%/yr | −17% | +14.1%/yr | −11% | −13% | −9% | −6% |
+| sell the losing picks at the next open after the S&P 500 falls 7%+ in 5 sessions | +12.9%/yr | −17% | +14.1%/yr | −11% | −13% | −8% | −6% |
+| sell a pick at the next open after it falls 8%+ in one session | +12.6%/yr | −21% | +14.3%/yr | −11% | −16% | −10% | −7% |
+| sell a pick at the open when it opens 5%+ below the last close | +12.4%/yr | −21% | +13.9%/yr | −11% | −16% | −10% | −6% |
+| sell a pick at the open when it opens 8%+ below the last close | +12.6%/yr | −21% | +14.3%/yr | −11% | −16% | −11% | −6% |
+
+**In the plan from Nov 2, 2026: sell the losing picks at the next open after the S&P 500 falls 7%+ in 5 sessions.** It raised the 2011–2021 return and cut the worst
+drop by 4 points (−21% → −17%); in 2021–2026 it was about even (+14.1%/yr vs +14.3%, worst drop −11% both). The
+single-stock rules (sell after a gap down or an 8% day) barely changed anything: the −15% stop, and the email's
+"past its stop before the open: SELL at the open" line, already catch those.
+
 ## Bubble gauges (the email shows these daily)
 
 As of 2026-10-29:
