@@ -113,6 +113,11 @@ or the account size:
   below its 200-day, chosen on 1993–2010 with the dot-com bust and 2008), how stretched the
   Nasdaq 100 is against its own history since 1993 including the March 2000 top, and market
   breadth ([results/crashes](results/crashes/RESULTS.md));
+- **PLAN RETURNS** (always shown): the backtest of the plan as it runs now, 2011–2026 — its
+  return in every S&P 500 fall of 10%+ since 2011 (and the index with the shield in the falls
+  before), every year against the S&P, and each year's weeks up / down / in cash with the best
+  and worst week. Every single week is in `results/crashes/plan_weekly.csv` and the page
+  `python -m schwab_trader.returns_page` draws from it;
 - **WHAT TO DO AT THE OPEN**: one list of BUY / SHORT / SELL / HOLD / OPTIONS, with [B]/[M]
   for EPS beats and misses; every stock gets one call, and HOLD/SELL lines only cover trades
   an earlier email recommended;
@@ -182,6 +187,8 @@ python -m schwab_trader.top5_research                      # the top-5 list, its
 python -m schwab_trader.top5_research --combined           # the whole plan backtest
 python -m schwab_trader.short_research                     # short sales and bearish options
 python -m schwab_trader.crash_research                     # crashes since 1993, crash shield, bubble gauges
+python -m schwab_trader.crash_research --current           # the plan as it runs: every crash, year and week
+python -m schwab_trader.returns_page                       #   ...drawn as one page (results/crashes/plan_returns.html)
 python -m schwab_trader.routine plan                       # the scheduled run: calls to make,
 python -m schwab_trader.routine daily                      #   then the email (+ journal)
 python -m schwab_trader.routine open-plan                  # 9:40 check: open-legs, open-quotes, open-build

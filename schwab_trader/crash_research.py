@@ -22,6 +22,7 @@ then fell 83% - and 2008 are in the test. The plan's own stock data starts in 20
 
     python -m schwab_trader.crash_research
     python -m schwab_trader.crash_research --exits
+    python -m schwab_trader.crash_research --current   # the plan as it runs: every crash, year and week
 """
 from __future__ import annotations
 
@@ -332,6 +333,72 @@ def test_exits():
     print("best:", best.exit, "use:", adopt)
 
 
+def current_plan():
+    """The plan exactly as it runs (crash shield + the adopted crash exit), day by day over
+    2011-2026: its return in every crash, every year and every week, next to the S&P 500
+    (SPY) and Nasdaq 100 (QQQ). Writes plan_daily.csv and plan_weekly.csv."""
+    from .daily_research import DESIGN, TEST
+    from . import top5_research as t5
+    from .accuracy_research import research_setup
+    sm = json.loads((OUT / "summary.json").read_text())
+    spx, ndx = load_index("SPX"), load_index("NDX")
+    ndx = ndx.reindex(spx.index).ffill().dropna()
+    spx = spx.loc[ndx.index]
+    on = shield_series(sm["shield"]["rule"], spx, ndx)
+    ex = sm.get("exits") or {}
+    work = Path(tempfile.mkdtemp(prefix="plan_"))
+    try:
+        plan_with(on, work)                                   # builds the shielded top-5 list in work/shield
+        px = research_setup()[0]
+        idx = px["close"].index
+        adj = None
+        if ex.get("use"):
+            spec = tuple(ex["spec"])
+            market = market_trigger(spec[0], spx, on) if spec[0] in ("shield", "fast") else None
+            adj = lambda p, tr: crash_exit(p, tr, spec, market)
+        res, eq = t5.combined(src=work / "shield", shield=on.reindex(idx).ffill().fillna(False).astype(bool), save=False,
+                              adjust=adj)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    r = pd.concat([eq["design"].pct_change(), eq["test"].pct_change()]).fillna(0.0)
+    r = r[~r.index.duplicated()].sort_index()
+    daily = pd.DataFrame({"plan": r})
+    for sym in ("SPY", "QQQ"):
+        daily[sym] = px["close"][sym].reindex(daily.index).pct_change().fillna(0.0)
+    daily.iloc[0] = 0.0
+    growth = (1 + daily).cumprod()
+    growth.to_csv(OUT / "plan_daily.csv", float_format="%.6f")
+    weekly = (1 + daily).groupby(daily.index.to_period("W-FRI")).prod() - 1
+    weekly.index = [p.end_time.date().isoformat() for p in weekly.index]
+    weekly.index.name = "week_ending"
+    weekly.to_csv(OUT / "plan_weekly.csv", float_format="%.5f")
+    yearly = (1 + daily).groupby(daily.index.year).prod() - 1
+    out_crashes = []
+    for cr in crashes(spx.loc["2011-02-01":], 0.10):
+        a, b = cr["peak"], cr["trough"]
+        end = cr["recovered"] or daily.index[-1].date().isoformat()
+        g = growth.loc[a:b]
+        out_crashes.append({**cr, "plan": float(g.plan.iloc[-1] / g.plan.iloc[0] - 1),
+                            "spy": float(g.SPY.iloc[-1] / g.SPY.iloc[0] - 1), "qqq": float(g.QQQ.iloc[-1] / g.QQQ.iloc[0] - 1),
+                            "plan_worst": float((growth.plan.loc[a:end] / growth.plan.loc[a:end].cummax() - 1).min()),
+                            "plan_to_recovery": float(growth.plan.loc[end] / growth.plan.loc[a] - 1) if end in growth.index
+                            else float(growth.plan.loc[:end].iloc[-1] / growth.plan.loc[a] - 1)})
+    m = performance(growth.plan * CASH_START)
+    sm["current_plan"] = {
+        "label": "crash shield" + (" + crash exit" if adj else ""), "start": daily.index[0].date().isoformat(),
+        "end": daily.index[-1].date().isoformat(), "results": res, "cagr": m["cagr"], "max_drawdown": m["max_drawdown"],
+        "growth": {k: float(growth[k].iloc[-1]) for k in growth}, "yearly": {str(y): row.to_dict() for y, row in yearly.iterrows()},
+        "crashes": out_crashes,
+        "weeks": {"n": int(len(weekly)), "up": float((weekly.plan > 0).mean()), "best": float(weekly.plan.max()),
+                  "worst": float(weekly.plan.min()), "best_week": weekly.plan.idxmax(), "worst_week": weekly.plan.idxmin(),
+                  "beat_spy": float((weekly.plan > weekly.SPY).mean())}}
+    (OUT / "summary.json").write_text(json.dumps(sm, indent=2, default=str))
+    print(json.dumps({k: v for k, v in sm["current_plan"].items() if k != "results"}, indent=1, default=str))
+
+
+CASH_START = 1_500_000
+
+
 def main():
     from .daily_research import DESIGN, TEST
     OUT.mkdir(parents=True, exist_ok=True)
@@ -403,4 +470,9 @@ def main():
 
 if __name__ == "__main__":
     import sys
-    test_exits() if "--exits" in sys.argv else main()
+    if "--exits" in sys.argv:
+        test_exits()
+    elif "--current" in sys.argv:
+        current_plan()
+    else:
+        main()

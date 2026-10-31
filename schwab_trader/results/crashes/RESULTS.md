@@ -101,6 +101,45 @@ drop by 4 points (−21% → −17%); in 2021–2026 it was about even (+14.1%/y
 single-stock rules (sell after a gap down or an 8% day) barely changed anything: the −15% stop, and the email's
 "past its stop before the open: SELL at the open" line, already catch those.
 
+## The plan as it runs now: every crash, year and week (`--current`)
+
+The plan exactly as it trades today (crash shield + crash exit), backtested day by day from Feb 01, 2011 to Oct 23, 2026 after costs, next to SPY and QQQ (prices without dividends for all three). The rules were picked on 2011–2021, so only Oct 2021 on is a true test. The daily email shows all of this in its **PLAN RETURNS** section; `python -m schwab_trader.returns_page` draws every week as a heat map plus a table per year (`plan_returns.html`); the numbers are in `plan_weekly.csv` and `plan_daily.csv`.
+
+Whole run: the account grew **7.1x, +13.3%/yr**, worst drop −17%. S&P 500 5.8x (+11.8%/yr), Nasdaq 100 12.3x (+17.3%/yr): the plan beat the S&P but not the Nasdaq 100, which rose far more in 2019–2024; the plan's edge is in the falls.
+
+| S&P 500 top → bottom | S&P 500 | Nasdaq 100 | Plan | Plan's worst drop | Plan when the S&P was back at its high |
+|---|---|---|---|---|---|
+| Apr 29, 2011 → Oct 03, 2011 | −19% | −13% | **−13%** | −17% | −6% (Feb 24, 2012) |
+| May 21, 2015 → Feb 11, 2016 | −14% | −13% | **−4%** | −6% | +1% (Jul 11, 2016) |
+| Jan 26, 2018 → Feb 08, 2018 | −10% | −10% | **−5%** | −5% | +2% (Aug 24, 2018) |
+| Sep 20, 2018 → Dec 24, 2018 | −20% | −22% | **−2%** | −4% | +0% (Apr 23, 2019) |
+| Feb 19, 2020 → Mar 23, 2020 | −34% | −28% | **−8%** | −9% | −1% (Aug 18, 2020) |
+| Jan 03, 2022 → Oct 12, 2022 | −25% | −35% | **−6%** | −11% | +14% (Jan 19, 2024) |
+| Feb 19, 2025 → Apr 08, 2025 | −19% | −23% | **−9%** | −10% | −5% (Jun 27, 2025) |
+
+Falls before 2011 (no stock data for the plan) are in the first table above, with the shield on the index alone.
+
+| Year | Plan | S&P 500 | Nasdaq 100 | Weeks up / down / all in cash | Best week | Worst week |
+|---|---|---|---|---|---|---|
+| 2011 | **−6.4%** | −4.0% | −2.1% | 19 / 16 / 13 | +2.5% | −8.5% |
+| 2012 | **+17.2%** | +13.5% | +16.7% | 32 / 19 / 1 | +3.5% | −2.4% |
+| 2013 | **+28.7%** | +29.7% | +35.1% | 38 / 14 / 0 | +2.8% | −1.9% |
+| 2014 | **+18.6%** | +11.3% | +17.4% | 36 / 16 / 0 | +2.6% | −1.9% |
+| 2015 | **+3.8%** | −0.8% | +8.3% | 31 / 18 / 3 | +2.7% | −2.9% |
+| 2016 | **+14.3%** | +9.6% | +5.9% | 33 / 16 / 4 | +2.4% | −1.8% |
+| 2017 | **+15.6%** | +19.4% | +31.5% | 38 / 14 / 0 | +1.4% | −1.7% |
+| 2018 | **+3.4%** | −6.3% | −1.0% | 29 / 23 / 0 | +1.9% | −3.1% |
+| 2019 | **+11.7%** | +28.8% | +37.8% | 32 / 14 / 6 | +2.0% | −2.2% |
+| 2020 | **+15.2%** | +16.2% | +47.6% | 27 / 16 / 9 | +4.0% | −3.2% |
+| 2021 | **+26.3%** | +27.0% | +26.8% | 36 / 17 / 0 | +4.5% | −2.5% |
+| 2022 | **−5.8%** | −19.5% | −33.1% | 6 / 7 / 39 | +2.5% | −4.3% |
+| 2023 | **+21.3%** | +24.3% | +53.8% | 30 / 18 / 4 | +3.5% | −3.3% |
+| 2024 | **+20.5%** | +23.3% | +24.8% | 33 / 19 / 0 | +4.4% | −3.0% |
+| 2025 | **+18.8%** | +16.4% | +20.2% | 33 / 17 / 2 | +2.6% | −3.7% |
+| 2026 (to Oct 23) | **+12.2%** | +11.4% | +14.7% | 29 / 14 / 0 | +2.3% | −2.4% |
+
+All 821 weeks: up in 59%, all in cash in 10% (39 of them in 2022, when the shield was on), ahead of the S&P in 52%. Best week +4.5% (ending Nov 05, 2021), worst −8.5% (ending Aug 05, 2011, in the August 2011 sell-off).
+
 ## Bubble gauges (the email shows these daily)
 
 As of 2026-10-29:

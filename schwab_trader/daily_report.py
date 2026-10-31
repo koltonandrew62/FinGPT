@@ -48,7 +48,7 @@ ET = "America/New_York"
 
 
 def pct(x, d=1):
-    return "n/a" if x is None or not np.isfinite(x) else f"{x * 100:+.{d}f}%"
+    return "n/a" if x is None or not np.isfinite(x) else f"{round(x * 100, d) + 0.0:+.{d}f}%"   # + 0.0: no "-0%"
 
 
 # ------------------------------------------------------------- data inputs
@@ -338,6 +338,62 @@ def risk_section(px, shield: dict) -> list[str]:
     c = px["close"][[x for x in STOCKS if x in px["close"]]]
     above = (c.iloc[-1] > c.iloc[-200:].mean()).mean()
     lines.append(f"  Breadth: {above:.0%} of the S&P 500 / Nasdaq-100 stocks are above their 200-day average.")
+    return lines
+
+
+def _day(s) -> str:
+    return f"{pd.Timestamp(s):%b %d, %Y}"
+
+
+def returns_section(sm: dict | None = None, weekly: pd.DataFrame | None = None) -> list[str]:
+    """Always shown: the backtest of the plan as it runs now (crash_research.py --current),
+    day by day since 2011 - its return in every crash, every year and the spread of its
+    weekly returns, next to the S&P 500. Falls before 2011 (no stock data for the plan)
+    show the index with the crash shield alone."""
+    if sm is None:
+        p = CRASH_DIR / "summary.json"
+        sm = json.loads(p.read_text()) if p.exists() else {}
+    cp = sm.get("current_plan")
+    if not cp:
+        return []
+    if weekly is None:
+        p = CRASH_DIR / "plan_weekly.csv"
+        weekly = pd.read_csv(p, index_col=0, parse_dates=True) if p.exists() else None
+    yrs = (pd.Timestamp(cp["end"]) - pd.Timestamp(cp["start"])).days / 365.25
+    rate = {k: g ** (1 / yrs) - 1 for k, g in cp["growth"].items()}
+    lines = ["", f"PLAN RETURNS - backtest of the plan as it runs now ({cp['label']}), {_day(cp['start'])} to {_day(cp['end'])}, "
+                 "after costs; past results, not a forecast",
+             f"  Whole run: the account grew {cp['growth']['plan']:.1f}x, {pct(rate['plan'])}/yr (S&P 500 {pct(rate['SPY'])}/yr, "
+             f"Nasdaq 100 {pct(rate['QQQ'])}/yr), worst drop {pct(cp['max_drawdown'], 0)}. The rules were picked on "
+             "2011-2021, so only Oct 2021 on is a true test.",
+             "  Every S&P 500 fall of 10% or more since 2011, top to bottom:"]
+    for c in cp["crashes"]:
+        back = (f"by the S&P's recovery ({_day(c['recovered'])}) the plan was {pct(c['plan_to_recovery'], 0)}" if c["recovered"]
+                else f"the S&P is not back to its high yet; the plan since its top: {pct(c['plan_to_recovery'], 0)}")
+        lines.append(f"    {_day(c['peak'])} - {_day(c['trough'])}: plan {pct(c['plan'], 0)}, S&P {pct(c['spy'], 0)}, "
+                     f"Nasdaq 100 {pct(c['qqq'], 0)}; {back}")
+    old = [("S&P 500", c) for c in sm.get("crashes", {}).get("SPX", []) if c["peak"] < cp["start"]] \
+        + [("Nasdaq 100", c) for c in sm.get("crashes", {}).get("NDX", []) if c["peak"] < cp["start"]]
+    if old:
+        lines.append("  Falls of 15% or more before 2011 (no stock data for the plan; the index with the crash shield alone):")
+        for name, c in sorted(old, key=lambda x: x[1]["peak"]):
+            lines.append(f"    {name} {_day(c['peak'])} - {_day(c['trough'])}: index {pct(c['drop'], 0)}, "
+                         f"with the shield {pct(c['with_shield'], 0)}")
+    lines.append("  Every year (plan vs S&P 500; its weeks up, down and all in cash; best and worst week):")
+    for y, r in cp["yearly"].items():
+        tail = ""
+        if weekly is not None:
+            w = weekly.loc[weekly.index.year == int(y), "plan"]
+            if len(w):
+                cash = int((w.abs() < 1e-6).sum())
+                tail = (f"; {int((w >= 1e-6).sum())} weeks up, {int((w <= -1e-6).sum())} down{f', {cash} in cash' if cash else ''}; "
+                        f"best {pct(w.max())}, worst {pct(w.min())}")
+        part = f"{y} to {pd.Timestamp(cp['end']):%b %d}" if y == cp["end"][:4] else y
+        lines.append(f"    {part}: plan {pct(r['plan'])} vs S&P {pct(r['SPY'])}{tail}")
+    wk = cp["weeks"]
+    cash = f", all in cash in {(weekly.plan.abs() < 1e-6).mean():.0%}" if weekly is not None else ""
+    lines.append(f"  All {wk['n']} weeks: the plan was up in {wk['up']:.0%}{cash}, ahead of the S&P in {wk['beat_spy']:.0%}; best week "
+                 f"{pct(wk['best'])} (ending {_day(wk['best_week'])}), worst {pct(wk['worst'])} (ending {_day(wk['worst_week'])}).")
     return lines
 
 
@@ -1256,7 +1312,7 @@ def build(ext_paths, past_json, next_json, now: pd.Timestamp | None = None, hold
     if ctx["holdings"] is not None:
         head.append(f"Your holdings: from the holdings email ({len(ctx['holdings'])} positions).")
     ctx["shield"] = shield_now
-    risk = risk_section(px, ctx["shield"])
+    risk = risk_section(px, ctx["shield"]) + returns_section()
     mkt = market_section(px, vix, asia_live, nxt, summary, acc)
     eps_lines, eps_plays, eps_sells, eps_holds = eps_section(px, past, moves, nxt, acc, ACCOUNT * EPS_SHARE, upcoming, ctx)
     dip_lines, _, dip_sells, dip_holds = dip_section(px, moves, nxt, acc, ACCOUNT * DIP_SHARE, upcoming, ctx, new_buys=False)

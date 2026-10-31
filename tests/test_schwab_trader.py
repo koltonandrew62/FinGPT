@@ -915,6 +915,32 @@ def test_email_says_the_plan_follows_the_shield_when_it_acts():
     assert "ON since Nov 02, 2026" in text and "The plan follows it" in text and "+12.6%/yr instead of +15.4%" in text
 
 
+def test_email_shows_plan_returns_for_every_crash_year_and_week():
+    from schwab_trader.daily_report import returns_section
+    weeks = pd.DatetimeIndex(["2024-01-05", "2024-01-12", "2024-01-19", "2025-03-07", "2025-03-14"])
+    weekly = pd.DataFrame({"plan": [0.02, -0.01, 0.03, -0.05, 0.0], "SPY": [0.01, 0.0, 0.01, -0.04, 0.02]}, index=weeks)
+    sm = {"crashes": {"SPX": [{"peak": "2007-10-09", "trough": "2009-03-09", "drop": -0.57, "with_shield": -0.05},
+                              {"peak": "2025-02-19", "trough": "2025-04-08", "drop": -0.19, "with_shield": -0.19}],
+                      "NDX": [{"peak": "2000-03-27", "trough": "2002-10-07", "drop": -0.83, "with_shield": -0.30}]},
+          "current_plan": {"label": "crash shield + crash exit", "start": "2024-01-02", "end": "2025-10-23",
+                           "growth": {"plan": 1.3, "SPY": 1.2, "QQQ": 1.25}, "max_drawdown": -0.11,
+                           "yearly": {"2024": {"plan": 0.12, "SPY": 0.23, "QQQ": 0.25}, "2025": {"plan": 0.16, "SPY": 0.15, "QQQ": 0.2}},
+                           "crashes": [{"peak": "2025-02-19", "trough": "2025-04-08", "recovered": None, "drop": -0.19,
+                                        "plan": -0.08, "spy": -0.19, "qqq": -0.23, "plan_worst": -0.1, "plan_to_recovery": 0.04}],
+                           "weeks": {"n": 5, "up": 0.6, "beat_spy": 0.4, "best": 0.03, "worst": -0.05,
+                                     "best_week": "2024-01-19", "worst_week": "2025-03-07"}}}
+    text = "\n".join(returns_section(sm, weekly))
+    assert "Feb 19, 2025 - Apr 08, 2025: plan -8%, S&P -19%, Nasdaq 100 -23%" in text and "not back to its high" in text
+    assert "S&P 500 Oct 09, 2007 - Mar 09, 2009: index -57%, with the shield -5%" in text
+    assert "Nasdaq 100 Mar 27, 2000" in text and text.index("Nasdaq 100 Mar 27, 2000") < text.index("S&P 500 Oct 09, 2007")
+    assert "2024: plan +12.0% vs S&P +23.0%; 2 weeks up, 1 down; best +3.0%, worst -1.0%" in text  # a lagging year shows too
+    assert "2025 to Oct 23: plan +16.0% vs S&P +15.0%; 0 weeks up, 1 down, 1 in cash" in text       # cash weeks aren't "down"
+    assert "All 5 weeks: the plan was up in 60%, all in cash in 20%" in text
+    tiny = {"current_plan": {**sm["current_plan"], "crashes": [{**sm["current_plan"]["crashes"][0], "plan": -0.001}]}}
+    assert "plan +0%, S&P -19%" in "\n".join(returns_section(tiny, weekly))                    # never "-0%"
+    assert returns_section({}) == []                                                             # nothing computed: no section
+
+
 def test_crash_exits_sell_open_picks_at_the_right_open():
     from schwab_trader.crash_research import crash_exit
     idx = pd.bdate_range("2026-03-02", periods=8)
