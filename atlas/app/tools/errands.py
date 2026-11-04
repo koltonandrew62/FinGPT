@@ -971,20 +971,6 @@ def _fmt_amount(value: float, code: str) -> str:
     return f"{value:,.0f}" if value == int(value) and abs(value) >= 1 else f"{value:,.2f}"
 
 
-@tool(
-    "convert_currency",
-    "Convert money between currencies at the current market rate (Yahoo Finance FX, mid-market, may be a few "
-    "minutes delayed), e.g. 250 EUR to USD, 10000 JPY to GBP, 0.5 BTC to EUR. Use ISO codes (USD, EUR, GBP, JPY, "
-    "INR, CAD, MXN...); common names ('euros') and symbols ('£') also work. Banks and cards charge a spread on top; "
-    "for historical rates use web_search.",
-    {
-        "amount": {"type": "number", "description": "Amount to convert (default 1)."},
-        "from_currency": {"type": "string", "description": "e.g. 'EUR'"},
-        "to_currency": {"type": "string", "description": "e.g. 'USD'"},
-    },
-    ["from_currency", "to_currency"],
-    label="Converting currency",
-)
 def parse_amount(amount) -> float:
     """A number, or text like '15,000', '12,50' (decimal comma), '$250' or '1 000'."""
     if amount is None or amount == "":
@@ -1003,6 +989,20 @@ def parse_amount(amount) -> float:
     return value
 
 
+@tool(
+    "convert_currency",
+    "Convert money between currencies at the current market rate (Yahoo Finance FX, mid-market, may be a few "
+    "minutes delayed), e.g. 250 EUR to USD, 10000 JPY to GBP, 0.5 BTC to EUR. Use ISO codes (USD, EUR, GBP, JPY, "
+    "INR, CAD, MXN...); common names ('euros') and symbols ('£') also work. Banks and cards charge a spread on top; "
+    "for historical rates use web_search.",
+    {
+        "amount": {"type": "number", "description": "Amount to convert (default 1)."},
+        "from_currency": {"type": "string", "description": "e.g. 'EUR'"},
+        "to_currency": {"type": "string", "description": "e.g. 'USD'"},
+    },
+    ["from_currency", "to_currency"],
+    label="Converting currency",
+)
 async def convert_currency(ctx, from_currency: str, to_currency: str, amount: float = 1):
     value = parse_amount(amount)
     src, dst = currency_code(from_currency), currency_code(to_currency)
