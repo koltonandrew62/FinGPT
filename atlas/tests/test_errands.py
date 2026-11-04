@@ -1,6 +1,8 @@
 """Errand tools (directions, places, rides, food, parcels, currency), fully offline via httpx.MockTransport."""
 import asyncio
 import json
+import threading
+import time
 from datetime import datetime, timedelta
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -25,13 +27,14 @@ ERRAND_TOOLS = ["get_directions", "find_places", "book_ride", "order_food", "tra
 
 @pytest.fixture(autouse=True)
 def errands_env(monkeypatch):
-    """No waiting on the 1 req/s limiters, empty caches, no saved addresses, and a fake browser."""
+    """No waiting on the 1 req/s limiters, empty caches, no saved addresses, and a fake browser on a desktop."""
     monkeypatch.setattr(errands, "_NOMINATIM_LIMIT", RateLimiter(0))
     monkeypatch.setattr(errands, "_OSRM_LIMIT", RateLimiter(0))
     errands._GEO_CACHE.clear()
     errands._ROUTE_CACHE.clear()
     for key in ("HOME_ADDRESS", "WORK_ADDRESS", "HOME_CITY"):
         monkeypatch.delenv(key, raising=False)
+    monkeypatch.setattr(errands, "_has_desktop", lambda: True)
     opened: list[str] = []
     monkeypatch.setattr(errands.webbrowser, "open", lambda url, *a, **k: opened.append(url) or True)
     yield opened
@@ -326,7 +329,7 @@ def test_get_directions_estimate_timeout_is_tolerated(monkeypatch):
         await asyncio.sleep(5)
 
     out = call("get_directions", slow, origin="Austin", destination="Dallas", open=False)
-    assert out["estimate"] is None and "TimeoutError" in out["estimate_error"]
+    assert out["estimate"] is None and "took longer than 0.05 s" in out["estimate_error"]
 
 
 def test_get_directions_transit_and_no_origin_make_no_requests(opened):

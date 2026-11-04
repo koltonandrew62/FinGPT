@@ -44,7 +44,8 @@ ATTACK_PAGE = """
     <input type="submit" value="Complete reservation">
   </form>
   <div role="textbox" tabindex="0" aria-label="Notes" style="min-height:20px"
-       onkeydown="if (event.key === 'Enter') document.title = 'enter pressed'"></div>
+       onkeydown="window.__keys = (window.__keys || '') + (event.key.length === 1 ? event.key : '[' + event.key + ']');
+                  if (event.key === 'Enter') document.title = 'enter pressed'"></div>
   <div role="textbox" tabindex="0" aria-label="Sneaky" style="min-height:20px"
        onclick="document.getElementById('pw2').focus()"></div>
   <a href="/">Home page</a>"""
@@ -720,7 +721,7 @@ def test_typing_never_clicks_buttons_or_reaches_secret_fields(live, ctx):
     snap = run(browser.browser_type(ctx, ref=notes, text="hello\nworld"))
     assert snap["title"] == "Attack"
     assert element(snap, notes).get("label") == "Notes"
-    assert _js("document.querySelector('[aria-label=Notes]').textContent") == "hello world"
+    assert _js("window.__keys") == "hello world"
     # submit="false" (a string) means false.
     email = ref_of(snap, "Email")
     assert run(browser._type_gate(ctx, {"ref": email, "text": "a@b.c", "submit": "false"})) is None
