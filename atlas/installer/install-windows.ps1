@@ -66,7 +66,8 @@
     Ok "Python: $py"
 
     # 2. Get the files -----------------------------------------------------------------------------
-    $tmp = Join-Path $env:TEMP ('atlas-install-' + [guid]::NewGuid().ToString('N'))
+    # short temp path: the repo has deep folders and Windows PowerShell 5.1 can't unzip paths over 260 chars
+    $tmp = Join-Path $env:TEMP ('atl' + [guid]::NewGuid().ToString('N').Substring(0, 6))
     New-Item -ItemType Directory -Path $tmp | Out-Null
     try {
         $source = $null
@@ -89,7 +90,7 @@
             Say 'Unpacking...'
             Expand-Archive -Path $zip -DestinationPath $tmp -Force
             $found = Get-ChildItem -Path $tmp -Directory -Recurse -Depth 2 |
-                Where-Object { Test-Path (Join-Path $_.FullName 'run.py') } | Select-Object -First 1
+                Where-Object { $_.Name -eq 'atlas' -and (Test-Path (Join-Path $_.FullName 'launch.pyw')) } | Select-Object -First 1
             if (-not $found) { throw 'The download does not contain the atlas folder.' }
             $source = $found.FullName
         }
