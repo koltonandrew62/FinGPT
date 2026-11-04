@@ -11,7 +11,7 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2303070d'/%3E%3Ccircle cx='16' cy='16' r='12' fill='none' stroke='%235fe1ff' stroke-width='1.5' stroke-dasharray='14 4'/%3E%3Ccircle cx='16' cy='16' r='7' fill='none' stroke='%235fe1ff' stroke-width='1.2' opacity='.6'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%235fe1ff'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@300;400;500;600&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@300;400;500;600&display=swap">
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body data-state="standby" data-view="core" class="is-locked">
@@ -46,17 +46,14 @@
       <span class="status-text" id="status-text">STANDBY</span>
     </div>
 
-    <dl class="topbar-readouts" aria-label="Session telemetry">
-      <div><dt>MODEL</dt><dd id="tb-model">—</dd></div>
-      <div><dt>TOKENS</dt><dd id="tb-tokens">0</dd></div>
-      <div><dt>COST</dt><dd id="tb-cost">$0.0000</dd></div>
-    </dl>
-
     <div class="clock" aria-label="Local time">
       <time class="clock-time" id="clock-time">--:--:--</time>
       <span class="clock-date" id="clock-date">--- -- ---</span>
     </div>
 
+    <button class="icon-btn mute-btn" id="mute-btn" type="button" aria-pressed="false" aria-label="Mute spoken replies" title="Spoken replies are on — mute">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.4L12 5.6v12.8l-4.6-3.9H4z"/><path class="i-wave" d="M15.4 9.2a4 4 0 0 1 0 5.6M17.9 6.7a7.6 7.6 0 0 1 0 10.6"/><path class="i-x" d="M15.8 9.6l4.8 4.8M20.6 9.6l-4.8 4.8"/></svg>
+    </button>
     <button class="icon-btn settings-btn" id="settings-btn" type="button" aria-label="Open settings" aria-haspopup="dialog" aria-controls="settings">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/><circle cx="12" cy="12" r="6.6" class="dim"/></svg>
     </button>
@@ -90,25 +87,14 @@
         </div>
       </section>
 
-      <section class="panel panel-grow" id="panel-agenda" aria-labelledby="h-agenda" data-status="loading">
+      <section class="panel panel-grow" id="panel-session" aria-labelledby="h-session" data-status="live">
         <header class="panel-head">
           <span class="idx">03</span><span class="sep" aria-hidden="true">//</span>
-          <h2 class="panel-title" id="h-agenda">Agenda</h2>
-          <span class="panel-meta"><i class="live-dot" aria-hidden="true"></i><span class="panel-sync" data-sync>SYNC</span><span class="count-badge" id="agenda-count" title="Events, open to-dos and reminders shown">0</span></span>
-        </header>
-        <div class="panel-rule" aria-hidden="true"></div>
-        <div class="panel-body scroll" id="agenda-body">
-          <div class="skeleton" aria-label="Loading agenda"><i></i><i></i><i></i></div>
-        </div>
-      </section>
-      <section class="panel" id="panel-session" aria-labelledby="h-session" data-status="live">
-        <header class="panel-head">
-          <span class="idx">04</span><span class="sep" aria-hidden="true">//</span>
           <h2 class="panel-title" id="h-session">Session</h2>
-          <span class="panel-meta"><span class="panel-sync" id="session-uptime">00:00:00</span></span>
+          <span class="panel-meta"><span class="panel-sync" id="session-uptime" title="Time since this page opened">00:00:00</span></span>
         </header>
         <div class="panel-rule" aria-hidden="true"></div>
-        <div class="panel-body">
+        <div class="panel-body sess-body">
           <p class="sess-model"><span>Model</span><b id="s-model">—</b></p>
           <dl class="session-grid">
             <div><dt>In</dt><dd id="s-prompt">0</dd></div>
@@ -116,6 +102,23 @@
             <div><dt>Cost</dt><dd id="s-cost">$0.0000</dd></div>
             <div><dt>Turns</dt><dd id="s-turns">0</dd></div>
           </dl>
+          <dl class="sess-lat">
+            <div><dt>First token</dt><dd id="s-ttft">—</dd></div>
+            <div><dt>Average</dt><dd id="s-ttft-avg">—</dd></div>
+            <div><dt>Last turn</dt><dd id="s-last">—</dd></div>
+          </dl>
+          <dl class="sess-io">
+            <div><dt>Mic</dt><dd id="s-mic">—</dd></div>
+            <div><dt>Voice out</dt><dd id="s-voice">—</dd></div>
+            <div><dt>Link</dt><dd id="s-link">Local · secure</dd></div>
+          </dl>
+          <figure class="sess-chart">
+            <figcaption><span>Tokens per turn</span><b id="s-tpt">—</b></figcaption>
+            <div class="sc-plot" id="s-chart" role="img" aria-label="Tokens per turn: no turns yet">
+              <svg viewBox="0 0 160 48" preserveAspectRatio="none" aria-hidden="true"><path class="sc-grid" d="M0 12h160M0 24h160M0 36h160"/><g class="sc-bars"></g><path class="sc-base" d="M0 47.5h160"/></svg>
+              <span class="sc-empty" id="s-chart-empty">No turns yet</span>
+            </div>
+          </figure>
         </div>
       </section>
     </aside>
@@ -130,10 +133,11 @@
             <span class="core-state" id="core-state">STANDBY</span>
           </span>
         </button>
-        <div class="core-readout tl" aria-hidden="true"><b>VOICE IN</b><span id="ro-in">—</span></div>
-        <div class="core-readout tr" aria-hidden="true"><b>VOICE OUT</b><span id="ro-out">—</span></div>
-        <div class="core-readout bl" aria-hidden="true"><b>UPLINK</b><span id="ro-link">LOCAL · SECURE</span></div>
-        <div class="core-readout br" aria-hidden="true"><b>LATENCY</b><span id="ro-lat">— ms</span></div>
+        <!-- Hairline call-outs; each leader runs to the outer ring (its length is set from the core's geometry). -->
+        <div class="core-co tl" aria-hidden="true"><span class="co-txt"><b class="co-k">Model</b><span class="co-v" id="co-model">Automatic</span><span class="co-s" id="co-model-s">First token —</span></span><i class="co-lead"></i></div>
+        <div class="core-co bl" aria-hidden="true"><span class="co-txt"><b class="co-k">Link</b><span class="co-v" id="co-link">Local · secure</span><span class="co-s" id="co-link-s">Mic —</span></span><i class="co-lead"></i></div>
+        <div class="core-co tr" aria-hidden="true"><span class="co-txt"><b class="co-k">Session</b><span class="co-v" id="co-tokens">0 tokens</span><span class="co-s" id="co-tokens-s">0 turns</span></span><i class="co-lead"></i></div>
+        <div class="core-co br" aria-hidden="true"><span class="co-txt"><b class="co-k">Spend</b><span class="co-v" id="co-spend">$0.0000</span><span class="co-s" id="co-spend-s">Voice —</span></span><i class="co-lead"></i></div>
         <!-- Shown while ATLAS operates its own browser window (browser_* tools, reservation_search). -->
         <div class="web-agent" id="web-agent" data-state="run" aria-hidden="true" hidden>
           <svg class="wa-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.3 3.6 5.1 3.6 8.5s-1.2 6.2-3.6 8.5c-2.4-2.3-3.6-5.1-3.6-8.5s1.2-6.2 3.6-8.5z"/></svg>
@@ -147,10 +151,16 @@
       <div class="transcript-wrap">
         <div class="transcript" id="transcript" role="log" aria-live="off" aria-label="Conversation" tabindex="0">
         </div>
-        <div class="transcript-empty" id="transcript-empty">
-          <p class="te-title">Awaiting instruction</p>
-          <p class="te-sub">Say “<span data-name>ATLAS</span>, brief me” or type below.</p>
-          <p class="te-keys"><kbd>Ctrl</kbd><kbd>Space</kbd> voice <span aria-hidden="true">·</span> <kbd>Esc</kbd> stop <span aria-hidden="true">·</span> <kbd>/</kbd> focus</p>
+        <div class="hero" id="transcript-empty">
+          <p class="hero-eyebrow"><span id="hero-date">Today</span><span class="hero-wx" id="hero-wx"></span></p>
+          <h2 class="hero-title"><span id="hero-greet">Good evening</span><span id="hero-name"></span>.</h2>
+          <p class="hero-sub">All systems online. <span class="hs-voice">Say “<span data-name>ATLAS</span>” and ask, or type below</span><span class="hs-type">Type a request below</span> — or try one of these:</p>
+          <ul class="hero-try" aria-label="Example requests">
+            <li><button type="button" class="try" data-try="What's the weather looking like this weekend?">Weather this weekend?</button></li>
+            <li><button type="button" class="try" data-prefill="Remind me in 20 minutes to ">Remind me in 20 min to…</button></li>
+            <li><button type="button" class="try" data-prefill="Add to my to-do list: ">Add a to-do…</button></li>
+          </ul>
+          <p class="hero-keys"><span class="hk-voice"><kbd>Ctrl</kbd><kbd>Space</kbd> talk</span><span><kbd>/</kbd> type</span><span><kbd>Esc</kbd> stop</span><span><kbd>Y</kbd><kbd>N</kbd> approve · deny</span></p>
         </div>
         <button class="jump-latest" id="jump-latest" type="button" hidden>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg> Latest
@@ -185,10 +195,21 @@
     </section>
 
     <!-- RIGHT: feeds -->
-    <aside class="col col-right" id="col-right" aria-label="Feeds">
+    <aside class="col col-right" id="col-right" aria-label="Agenda and feeds">
+      <section class="panel panel-fit" id="panel-agenda" aria-labelledby="h-agenda" data-status="loading">
+        <header class="panel-head">
+          <span class="idx">04</span><span class="sep" aria-hidden="true">//</span>
+          <h2 class="panel-title" id="h-agenda">Agenda</h2>
+          <span class="panel-meta"><i class="live-dot" aria-hidden="true"></i><span class="panel-sync" data-sync>SYNC</span><span class="count-badge" id="agenda-count" title="Events, open to-dos and reminders shown">0</span></span>
+        </header>
+        <div class="panel-rule" aria-hidden="true"></div>
+        <div class="panel-body scroll" id="agenda-body">
+          <div class="skeleton" aria-label="Loading agenda"><i></i><i></i><i></i></div>
+        </div>
+      </section>
       <section class="panel panel-grow" id="panel-news" aria-labelledby="h-news" data-status="loading">
         <header class="panel-head">
-          <span class="idx">06</span><span class="sep" aria-hidden="true">//</span>
+          <span class="idx">05</span><span class="sep" aria-hidden="true">//</span>
           <h2 class="panel-title" id="h-news">Live Feed</h2>
           <span class="panel-meta"><i class="live-dot" aria-hidden="true"></i><span class="panel-sync" data-sync>SYNC</span></span>
         </header>
@@ -202,7 +223,7 @@
 
   <!-- ============================================================ TICKER -->
   <footer class="ticker" id="ticker" aria-label="Markets">
-    <div class="ticker-label"><span class="idx">05</span><span class="sep" aria-hidden="true">//</span><span>Markets</span></div>
+    <div class="ticker-label"><span class="idx">06</span><span class="sep" aria-hidden="true">//</span><span>Markets</span></div>
     <div class="ticker-viewport" id="ticker-viewport">
       <div class="ticker-track" id="ticker-track"><span class="ticker-msg">ACQUIRING MARKET FEED…</span></div>
     </div>
@@ -374,7 +395,7 @@
             <label class="field-lbl" for="f-HOME_ASSISTANT_TOKEN"><span>Long-lived access token</span><em class="field-note"><b class="cfg" data-cfg="HOME_ASSISTANT_TOKEN"></b></em></label>
             <div class="secret"><input id="f-HOME_ASSISTANT_TOKEN" name="HOME_ASSISTANT_TOKEN" type="password" data-secret autocomplete="off" spellcheck="false" aria-describedby="help-ha" placeholder="blank = keep current"><button class="reveal" type="button" aria-controls="f-HOME_ASSISTANT_TOKEN" aria-pressed="false" aria-label="Show the token you typed"></button></div>
           </div>
-          <p class="field-help" id="help-ha">In Home Assistant, open your profile (your name, bottom left) → <b>Security</b> → <b>Long-lived access tokens</b> → Create token.</p>
+          <p class="field-help" id="help-ha">In Home Assistant, open your profile (your name, bottom left) → <b>Security</b> → <b>Long-lived access tokens</b> → Create token. A password written into the URL shows as •••• and is kept when you save.</p>
           <label class="field"><span>Always ask before <em class="field-note">optional</em></span><input name="HOME_ASSISTANT_CONFIRM_DOMAINS" type="text" maxlength="400" spellcheck="false" aria-describedby="help-ha-confirm" placeholder="e.g. light, climate.set_temperature, switch.heater"></label>
           <p class="field-help" id="help-ha-confirm">Extra domains, services or devices that need your approval (* = everything). Locks, alarms, garage doors, valves and cameras always ask first.</p>
         </div>

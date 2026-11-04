@@ -63,6 +63,10 @@
     this.raf = 0;
     this.last = 0;
     this.w = 0; this.h = 0; this.dpr = 1;
+    this.callouts = [];
+    this.coPresence = 0;
+    // Vertical room kept clear for the HTML call-outs in the core's corners (set by the page).
+    this.coReserve = 0;
     this.onGeometry = opts.onGeometry || null;
     this._frame = this._frame.bind(this);
     this._onVis = this._visibility.bind(this);
@@ -105,6 +109,146 @@
     var s = strength == null ? 1 : strength;
     this.pulseV = Math.min(1.4, this.pulseV + 0.55 * s);
     if (!this.reduced && this.ripples.length < 6) this.ripples.push({ t: 0, s: s });
+  };
+
+  /* ---- tool call-outs ----------------------------------------------------------------------
+   * Each live tool call gets a diamond marker on the outer ring, a hairline leader and a short
+   * label beside the core. Labels stack in rows on the left and right of the horizontal axis
+   * (alternating sides), so they never overlap; only the newest few per side are drawn. */
+  var CO_KEEP = 16;
+  function coFind(list, id) { for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i]; return null; }
+
+  Core.prototype.calloutStart = function (id, label) {
+    id = String(id == null ? '' : id);
+    var text = String(label || 'Working').replace(/\s+/g, ' ').trim().toUpperCase().slice(0, 60);
+    var c = coFind(this.callouts, id);
+    if (c) { c.label = text; c.state = 'run'; c.leaveAt = 0; return; }
+    var right = 0, left = 0;
+    for (var i = 0; i < this.callouts.length; i++) {
+      if (this.callouts[i].leaveAt) continue;
+      if (this.callouts[i].side > 0) right++; else left++;
+    }
+    this.callouts.push({ id: id, label: text, state: 'run', side: right <= left ? 1 : -1, a: this.reduced ? 1 : 0, y: null, born: this.t, leaveAt: 0 });
+    while (this.callouts.length > CO_KEEP) {
+      var drop = -1;
+      for (var j = 0; j < this.callouts.length; j++) if (this.callouts[j].state !== 'run') { drop = j; break; }
+      this.callouts.splice(drop < 0 ? 0 : drop, 1);
+    }
+  };
+
+  Core.prototype.calloutEnd = function (id, ok) {
+    var c = coFind(this.callouts, String(id == null ? '' : id));
+    if (c) c.state = ok ? 'ok' : 'err';
+  };
+
+  /** Fade every call-out out after `delay` ms (end of a turn). */
+  Core.prototype.calloutsClear = function (delay) {
+    var at = this.t + Math.max(0, delay || 0) / 1000;
+    for (var i = 0; i < this.callouts.length; i++) if (!this.callouts[i].leaveAt) this.callouts[i].leaveAt = at;
+  };
+
+  Core.prototype._updateCallouts = function (dt) {
+    var list = this.callouts;
+    var k = this.reduced ? 1 : 1 - Math.exp(-dt * 9);
+    var present = 0;
+    for (var i = list.length - 1; i >= 0; i--) {
+      var c = list[i];
+      var target = c.leaveAt && this.t >= c.leaveAt ? 0 : 1;
+      c.a += (target - c.a) * k;
+      if (this.reduced) c.a = target;
+      if (!target && c.a < 0.02) { list.splice(i, 1); continue; }
+      present = Math.max(present, c.a);
+    }
+    this.coPresence += (present - this.coPresence) * (this.reduced ? 1 : Math.min(1, dt * 6));
+  };
+
+  Core.prototype._drawCallouts = function (ctx, cx, cy, R) {
+    var list = this.callouts;
+    if (!list.length) return;
+    var fs = R >= 190 ? 13 : 11;   // big cores (2560-class screens) get larger labels
+    var rowH = fs + 10;
+    var Rm = R * 0.995;
+    // Rows live in the band between the corner call-outs; the band is never wider than the ring.
+    var half = Math.max(0, Math.min(Rm * 0.86, this.h / 2 - this.coReserve - 6) - rowH / 2);
+    var perSide = Math.max(1, Math.min(4, Math.floor(half * 2 / rowH) + 1));
+    var x0 = Rm + 14;                         // where the leader ends, from the centre
+    var avail = Math.floor(this.w / 2 - x0 - 26 - 8);
+    var showText = avail >= 84;
+    var reducedK = this.reduced;
+    var t = this.t;
+    ctx.save();
+    ctx.font = '500 ' + fs + 'px "JetBrains Mono", ui-monospace, monospace';
+    try { if ('letterSpacing' in ctx) ctx.letterSpacing = '0.5px'; } catch (e) { /* ignore */ }
+    ctx.textBaseline = 'middle';
+    for (var side = -1; side <= 1; side += 2) {
+      var rows = [];
+      for (var i = 0; i < list.length; i++) if (list[i].side === side) rows.push(list[i]);
+      var hidden = Math.max(0, rows.length - perSide);
+      rows = rows.slice(-perSide);
+      var n = rows.length;
+      for (var r = 0; r < n; r++) {
+        var c = rows[r];
+        var ty = cy + (r - (n - 1) / 2) * rowH;
+        if (c.y == null || reducedK) c.y = ty; else c.y += (ty - c.y) * 0.18;
+        var y = Math.round(c.y) + 0.5;
+        var dy = clamp(y - cy, -Rm * 0.95, Rm * 0.95);
+        var mxo = Math.sqrt(Rm * Rm - dy * dy);
+        var mx = cx + side * mxo, my = cy + dy;
+        var rgb = c.state === 'ok' ? '120,230,255' : c.state === 'err' ? '255,105,120' : '255,190,92';
+        var ink = c.state === 'ok' ? '205,246,255' : c.state === 'err' ? '255,196,202' : '255,226,178';
+        var a = clamp(c.a, 0, 1);
+        // leader: marker → just past the ring → label
+        var lx = cx + side * x0;
+        ctx.globalAlpha = a;
+        ctx.strokeStyle = 'rgba(' + rgb + ',0.55)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(mx + side * 5, y);
+        ctx.lineTo(lx, y);
+        ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(lx, y - 4); ctx.lineTo(lx, y + 4); ctx.stroke();
+        // marker diamond on the ring
+        var ms = c.state === 'run' && !reducedK ? 3.6 + 0.9 * Math.sin(t * 7 + r) : 3.8;
+        ctx.fillStyle = 'rgba(' + rgb + ',0.95)';
+        ctx.beginPath();
+        ctx.moveTo(mx, my - ms); ctx.lineTo(mx + ms, my); ctx.lineTo(mx, my + ms); ctx.lineTo(mx - ms, my);
+        ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = 'rgba(' + rgb + ',0.35)';
+        ctx.beginPath(); ctx.arc(mx, my, ms + 3.5, 0, TAU); ctx.stroke();
+        if (!showText) continue;
+        // status glyph + label
+        var gx = lx + side * 12;
+        ctx.strokeStyle = 'rgba(' + rgb + ',0.95)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        if (c.state === 'ok') { ctx.moveTo(gx - 4, y); ctx.lineTo(gx - 1.2, y + 3); ctx.lineTo(gx + 4, y - 3.2); }
+        else if (c.state === 'err') { ctx.moveTo(gx - 3.2, y - 3.2); ctx.lineTo(gx + 3.2, y + 3.2); ctx.moveTo(gx + 3.2, y - 3.2); ctx.lineTo(gx - 3.2, y + 3.2); }
+        else { var sa = reducedK ? 0 : t * 6; ctx.arc(gx, y, 3.8, sa, sa + Math.PI * 1.4); }
+        ctx.stroke();
+        var label = c.label;
+        if (r === 0 && hidden) label = '+' + hidden + ' · ' + label;
+        // fitted text is cached per label / width / size, so frames don't re-measure it
+        var key = label + '|' + avail + '|' + fs;
+        if (c._key !== key) {
+          var fit = label;
+          if (ctx.measureText(fit).width > avail) {
+            while (fit.length > 2 && ctx.measureText(fit + '…').width > avail) fit = fit.slice(0, -1);
+            fit = fit.replace(/[\s·]+$/, '') + '…';
+          }
+          c._key = key; c._fit = fit; c._fitW = ctx.measureText(fit).width;
+        }
+        label = c._fit;
+        var w = c._fitW;
+        var tx = gx + side * 10;
+        ctx.fillStyle = 'rgba(3,10,17,0.78)';
+        ctx.fillRect(side > 0 ? tx - 3 : tx - w - 3, y - 8, w + 6, 16);
+        ctx.fillStyle = 'rgba(' + ink + ',' + (0.96 * a).toFixed(3) + ')';
+        ctx.globalAlpha = 1;
+        ctx.textAlign = side > 0 ? 'left' : 'right';
+        ctx.fillText(label, tx, y + 0.5);
+      }
+    }
+    ctx.restore();
   };
 
   /** Play the power-up sequence. */
@@ -212,6 +356,7 @@
       if (this.ripples[r].t >= 1) this.ripples.splice(r, 1);
     }
     if (this.booting && this.boot < 1) this.boot = this.reduced ? 1 : Math.min(1, this.boot + dt / 1.9);
+    this._updateCallouts(dt);
 
     // Spectrum targets
     var t = this.t, st = this.state;
@@ -285,7 +430,8 @@
       var avail = Math.min(cx - gapIn - 8, R * 1.15);
       if (avail > 30) {
         ctx.save();
-        ctx.globalAlpha = pw * flicker;
+        // Tool call-outs hang off the same horizontal axis; the wings step back while they show.
+        ctx.globalAlpha = pw * flicker * (1 - 0.75 * this.coPresence);
         ctx.lineWidth = hair;
         for (var side = -1; side <= 1; side += 2) {
           var x1 = cx + side * gapIn, x2 = cx + side * (gapIn + avail * pw);
@@ -311,23 +457,6 @@
           ctx.moveTo(bx + side * 6, cy - 9); ctx.lineTo(bx, cy - 9); ctx.lineTo(bx, cy + 9); ctx.lineTo(bx + side * 6, cy + 9);
           ctx.stroke();
           ctx.lineWidth = hair;
-        }
-        // live bearing readouts
-        if (!small) {
-          ctx.font = '500 9px "JetBrains Mono", ui-monospace, monospace';
-          ctx.fillStyle = col(0.55);
-          ctx.textBaseline = 'bottom';
-          ctx.textAlign = 'left';
-          var brg = ((A[1] * 180 / Math.PI) % 360 + 360) % 360;
-          ctx.fillText('BRG ' + brg.toFixed(1).padStart(5, '0') + '°', cx + gapIn + 14, cy - 8);
-          ctx.textAlign = 'right';
-          var lv = 0; for (var q = 0; q < BARS; q++) lv += this.levels[q];
-          ctx.fillText('AMP ' + (lv / BARS * 100).toFixed(1).padStart(4, '0'), cx - gapIn - 14, cy - 8);
-          ctx.textBaseline = 'top';
-          ctx.fillStyle = col(0.32);
-          ctx.fillText('SPD ×' + this.speed.toFixed(2), cx - gapIn - 14, cy + 6);
-          ctx.textAlign = 'left';
-          ctx.fillText('NRG ' + Math.round(this.energy * 100) + '%', cx + gapIn + 14, cy + 6);
         }
         ctx.restore();
       }
@@ -394,20 +523,21 @@
       ctx.strokeStyle = col(0.72);
       ctx.stroke(major);
 
-      if (this.labels && !small) {
-        var fs = clamp(R * 0.036, 8, 11);
+      // Bearing numerals ride the tick ring but always stay upright. Each sits just inside the major
+      // ticks, pulled in by its own half-extent along the radius so it never touches the arcs.
+      if (this.labels && R >= 150) {
+        var fs = clamp(R * 0.05, 10, 12);
         ctx.font = '500 ' + fs.toFixed(1) + 'px "JetBrains Mono", ui-monospace, monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillStyle = col(0.55);
-        var rl = rt - R * 0.09;
+        ctx.fillStyle = col(0.62);
+        var tw = fs * 0.6 * 3 / 2 + 1, th = fs * 0.36 + 1;
+        var rIn = rt - R * 0.055 - 1;
         for (var L = 0; L < 12; L++) {
           var al = A[1] + L / 12 * TAU;
-          ctx.save();
-          ctx.translate(cx + Math.cos(al) * rl, cy + Math.sin(al) * rl);
-          ctx.rotate(al + Math.PI / 2);
-          ctx.fillText(String(L * 30).padStart(3, '0'), 0, 0);
-          ctx.restore();
+          var ca = Math.cos(al), sa = Math.sin(al);
+          var rl = rIn - (Math.abs(ca) * tw + Math.abs(sa) * th);
+          ctx.fillText(String(L * 30).padStart(3, '0'), Math.round(cx + ca * rl), Math.round(cy + sa * rl) + 0.5);
         }
       }
       ctx.globalAlpha = 1;
@@ -416,7 +546,7 @@
     // ---- segmented arc ring (counter-rotating), with glow pass
     var p2 = layer(0.18);
     if (p2 > 0) {
-      var rs = R * (0.70 + 0.10 * p2);
+      var rs = R * (0.69 + 0.075 * p2);
       var lw = Math.max(2.2, R * 0.016);
       ctx.globalAlpha = p2 * flicker;
       var passes = [[lw * 4, 0.06 * this.glow], [lw, 0.82]];
@@ -610,6 +740,9 @@
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
+
+    // ---- live tool call-outs (on top)
+    if (this.callouts.length && boot > 0.5) this._drawCallouts(ctx, cx, cy, R);
   };
 
   global.AtlasHUD = { Core: Core, STATES: STATES, BARS: BARS };

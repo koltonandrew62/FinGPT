@@ -19,6 +19,8 @@
   function pad2(n) { return String(n).padStart(2, '0'); }
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
   function safeUrl(u) { return MD.safeUrl(u); } // http(s) only, parsed, no credentials
+  /** Write text only when it changed (cheap to call every second / every event). */
+  function setText(sel, v) { var n = typeof sel === 'string' ? $(sel) : sel; v = String(v); if (n && n.textContent !== v) n.textContent = v; }
 
   var TOKEN = (($('meta[name="atlas-token"]') || {}).content || '').trim();
   var reduceMotion = false;
@@ -217,7 +219,9 @@
     cpuHist: [],
     stick: true,
     voice: cleanVoice(store.get(KEYS.voice, null)),
-    sessionStart: Date.now()
+    sessionStart: Date.now(),
+    turnStats: [],   // this page session: [{tokens, ttft, ms}] per finished turn
+    lastTtft: null
   };
   // ATLAS's own browser window, as seen from the current turn's tool events (see "web agent" below).
   var web = { running: 0, steps: 0, host: '', ids: {}, last: null, hideT: 0 };
@@ -332,7 +336,9 @@
   function sessionExpired() {
     if (S.expired) return;
     S.expired = true;
-    $('#ro-link').textContent = 'SESSION EXPIRED';
+    setText('#co-link', 'Session expired');
+    var cl = $('#co-link');
+    if (cl && cl.parentNode) cl.parentNode.parentNode.classList.add('is-fault');
     toast('Session expired — reload the page', {
       sticky: true, tone: 'error',
       action: { label: 'Reload', run: function () { location.reload(); } }
@@ -390,10 +396,27 @@
   try {
     core = new HUD.Core($('#core-canvas'), {
       state: 'standby',
-      onGeometry: function (g) { coreWrap.style.setProperty('--core-r', g.R.toFixed(1) + 'px'); }
+      onGeometry: function (g) { coreWrap.style.setProperty('--core-r', g.R.toFixed(1) + 'px'); layoutCallouts(g); }
     });
     core.start();
   } catch (e) { core = null; }
+
+  /* The corner call-outs (model, link, session, spend) run a hairline leader from their label row to
+   * the outer ring; the canvas keeps the band between them free for its tool call-outs. */
+  function layoutCallouts(g) {
+    var co = $$('.core-co', coreWrap);
+    var shown = co.length === 4 && co[0].offsetParent !== null;
+    var reserve = shown ? Math.max(co[0].offsetHeight, co[1].offsetHeight) + 8 : 0;
+    if (core) core.coReserve = reserve;
+    if (!shown) return;
+    function lead(y) {
+      var dy = Math.abs(y - g.cy), r = g.R + 7;
+      var x = dy < r ? Math.sqrt(r * r - dy * dy) : 0;
+      return Math.max(0, Math.round(g.cx - x - 4));
+    }
+    coreWrap.style.setProperty('--co-wt', lead(co[0].offsetTop + 6) + 'px');
+    coreWrap.style.setProperty('--co-wb', lead(co[1].offsetTop + 6) + 'px');
+  }
 
   var speaker = new V.Speaker();
   var listener = new V.Listener();
@@ -439,7 +462,11 @@
   };
   listener.onheard = function (text) {
     if (S.pendingConfirm) {
-      if (!approvalFromPhrase(text)) toast('Say “yes” to approve or “no” to deny.', { tone: 'info', key: 'say-yn', cooldown: 5000 });
+      // Every phrase is consumed while a card waits; it never becomes a new request.
+      var ans = approvalFromPhrase(text);
+      if (ans === true) return true;
+      if (isStrict(S.pendingConfirm.name)) strictNudge('voice');
+      else toast('Say “yes” to approve or “no” to deny.', { tone: 'info', key: 'say-yn', cooldown: 5000 });
       return true;
     }
     if (S.streaming && /^(stop|cancel|abort|enough|be quiet|silence|never ?mind)\b/i.test(text)) { stopAll(); return true; }
@@ -495,6 +522,7 @@
     if (st === 'thinking') label = S.pendingConfirm ? 'AWAITING AUTH' : web.running > 0 ? 'BROWSING' : S.toolsRunning > 0 ? 'EXECUTING' : 'PROCESSING';
     if (st === 'standby' && S.listening === 'wake') label = 'STANDBY · WAKE';
     $('#status-text').textContent = label;
+    $('#status-pill').title = 'Status: ' + label.toLowerCase();
     $('#core-state').textContent = CORE_TEXT[label] || label;
     var micBtn = $('#mic-btn');
     var on = S.listening === 'command';
@@ -503,6 +531,7 @@
     micBtn.classList.toggle('on', on);
     micBtn.classList.toggle('passive', S.listening === 'wake');
     document.body.classList.toggle('is-streaming', S.streaming);
+    document.body.classList.toggle('has-pending', !!S.pendingConfirm);
     var send = $('#send-btn');
     send.setAttribute('aria-label', S.streaming ? 'Stop response' : 'Send');
     send.classList.toggle('stop', S.streaming);
@@ -550,25 +579,71 @@
   // ------------------------------------------------------------------ telemetry
   function shortModel(m) { if (!m) return 'AUTO'; var s = String(m); var i = s.indexOf('/'); return i >= 0 ? s.slice(i + 1) : s; }
   function fmtTokens(n) { n = n || 0; return n >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : n >= 1e4 ? (n / 1e3).toFixed(1) + 'K' : n.toLocaleString(); }
+  function fmtMs(ms) { var n = num(ms); return n == null ? '—' : n >= 10000 ? (n / 1000).toFixed(1) + ' s' : n >= 1000 ? (n / 1000).toFixed(2) + ' s' : Math.round(n) + ' ms'; }
   function setModel(m) {
     S.model = m || '';
-    $('#tb-model').textContent = shortModel(S.model);
-    $('#tb-model').title = S.model || 'Automatic';
-    $('#s-model').textContent = S.model || 'Automatic';
+    var cm = $('#co-model');
+    setText(cm, S.model ? shortModel(S.model) : 'Automatic');
+    if (cm) cm.title = S.model || 'Automatic';
+    setText('#s-model', S.model || 'Automatic');
   }
   function renderUsage() {
     var total = S.usage.prompt + S.usage.completion;
-    $('#tb-tokens').textContent = fmtTokens(total);
-    $('#tb-cost').textContent = '$' + S.usage.cost.toFixed(4);
-    $('#s-prompt').textContent = fmtTokens(S.usage.prompt);
-    $('#s-completion').textContent = fmtTokens(S.usage.completion);
-    $('#s-cost').textContent = '$' + S.usage.cost.toFixed(4);
-    $('#s-turns').textContent = String(S.turns);
+    setText('#co-tokens', fmtTokens(total) + ' tokens');
+    setText('#co-tokens-s', S.turns + (S.turns === 1 ? ' turn' : ' turns'));
+    setText('#co-spend', '$' + S.usage.cost.toFixed(4));
+    setText('#s-prompt', fmtTokens(S.usage.prompt));
+    setText('#s-completion', fmtTokens(S.usage.completion));
+    setText('#s-cost', '$' + S.usage.cost.toFixed(4));
+    setText('#s-turns', String(S.turns));
+    renderSession();
+  }
+  /** Session panel: first-token latency and a tokens-per-turn bar chart (this page session). */
+  var SC_MAX = 16;
+  function renderSession() {
+    var list = S.turnStats;
+    var last = list[list.length - 1] || null;
+    var lat = list.filter(function (x) { return num(x.ttft) != null; });
+    var ttft = S.lastTtft != null ? S.lastTtft : last ? last.ttft : null;
+    setText('#s-ttft', fmtMs(ttft));
+    setText('#s-ttft-avg', lat.length ? fmtMs(lat.reduce(function (a, x) { return a + x.ttft; }, 0) / lat.length) : '—');
+    setText('#s-last', last ? fmtMs(last.ms) : '—');
+    setText('#co-model-s', 'First token ' + fmtMs(ttft));
+    var withTok = list.filter(function (x) { return x.tokens > 0; }).slice(-SC_MAX);
+    setText('#s-tpt', withTok.length ? fmtTokens(withTok[withTok.length - 1].tokens) + ' last' : '—');
+    var g = $('#s-chart .sc-bars');
+    if (!g) return;
+    var max = withTok.reduce(function (a, x) { return Math.max(a, x.tokens); }, 0) || 1;
+    var bw = 160 / SC_MAX;
+    var html = '';
+    withTok.forEach(function (x, i) {
+      var h = Math.max(1.5, x.tokens / max * 44);
+      var xx = (SC_MAX - withTok.length + i) * bw;
+      html += '<rect class="' + (i === withTok.length - 1 ? 'sc-now' : 'sc-bar') + '" x="' + (xx + bw * 0.18).toFixed(2) + '" y="' + (48 - h).toFixed(2) + '" width="' + (bw * 0.64).toFixed(2) + '" height="' + h.toFixed(2) + '"/>';
+    });
+    if (g.innerHTML !== html) g.innerHTML = html;
+    var empty = $('#s-chart-empty');
+    if (empty) empty.hidden = withTok.length > 0;
+    var plot = $('#s-chart');
+    if (plot) plot.setAttribute('aria-label', withTok.length ? 'Tokens per turn, last ' + withTok.length + ' turns: ' + withTok.map(function (x) { return fmtTokens(x.tokens); }).join(', ') : 'Tokens per turn: no turns yet');
   }
   function updateVoiceReadouts() {
-    $('#ro-in').textContent = listener.supported ? (S.voice.wake ? 'WAKE WORD' : 'PUSH-TO-TALK') : 'TEXT ONLY';
+    var micTxt = listener.supported ? (S.voice.wake ? 'wake word' : 'push-to-talk') : 'text only';
+    document.body.classList.toggle('no-sr', !listener.supported);
+    setText('#co-link-s', 'Mic · ' + micTxt);
     var v = speaker.supported ? speaker.currentVoice() : null;
-    $('#ro-out').textContent = !speaker.supported ? 'UNAVAILABLE' : !S.voice.speak ? 'MUTED' : v ? clip(v.name.replace(/^(Microsoft|Google)\s+/i, ''), 22).toUpperCase() : 'SYSTEM';
+    var outTxt = !speaker.supported ? 'unavailable' : !S.voice.speak ? 'muted' : v ? clip(v.name.replace(/^(Microsoft|Google)\s+/i, ''), 24) : 'system';
+    setText('#co-spend-s', 'Voice · ' + outTxt);
+    setText('#s-mic', micTxt);
+    setText('#s-voice', outTxt);
+    var mb = $('#mute-btn');
+    if (mb) {
+      var muted = !S.voice.speak || !speaker.supported;
+      mb.setAttribute('aria-pressed', muted ? 'true' : 'false');
+      mb.classList.toggle('is-muted', muted);
+      mb.title = !speaker.supported ? 'Speech output isn’t available in this browser' : muted ? 'Spoken replies are muted — unmute' : 'Spoken replies are on — mute';
+      if (!speaker.supported) mb.setAttribute('aria-disabled', 'true');
+    }
     var micBtn = $('#mic-btn');
     if (!listener.supported) {
       micBtn.setAttribute('aria-disabled', 'true');
@@ -585,6 +660,7 @@
   var renderQueue = new Set();
   var frameReq = 0;
   var wantScroll = 0;      // 0 = none, 1 = follow if pinned, 2 = force to bottom
+  var wantCard = null;     // an approval card taller than the view: show its top (title, fields) first
   var scrollDirty = false; // the user scrolled: re-measure at the start of the next frame
 
   function fmtClock(ts) {
@@ -608,6 +684,19 @@
     if (renderQueue.size) {
       renderQueue.forEach(paintText);
       renderQueue.clear();
+    }
+    if (wantCard) {
+      var card = wantCard;
+      wantCard = null;
+      if (card.isConnected) {
+        var cr = card.getBoundingClientRect(), tr = tx.getBoundingClientRect();
+        if (cr.height > tr.height - 40) {
+          wantScroll = 0;
+          tx.scrollTop += cr.top - tr.top - 26;
+          S.stick = false;
+          return;
+        }
+      }
     }
     if (wantScroll) {
       var force = wantScroll === 2;
@@ -659,7 +748,15 @@
   function setConvoMode() {
     var has = S.transcript.some(function (e) { return e.k === 'u' || e.k === 'a'; });
     document.body.classList.toggle('has-convo', has);
-    $('#transcript-empty').hidden = has;
+    // The greeting hero stands in for an empty transcript; any line (a reminder, say) replaces it.
+    $('#transcript-empty').hidden = has || S.transcript.length > 0;
+  }
+  function partOfDay(h) { return h < 5 ? 'evening' : h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening'; }
+  function paintHero(now) {
+    setText('#hero-greet', 'Good ' + partOfDay(now.getHours()));
+    var who = userAddress();
+    setText('#hero-name', who ? ', ' + who : '');
+    setText('#hero-date', now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }));
   }
 
   function renderUser(entry) {
@@ -768,8 +865,12 @@
     else if (name === 'browser_look') v = a.question;
     return v != null && typeof v !== 'object' ? clip(String(v).replace(/\s+/g, ' '), 38) : '';
   }
+  /* Tool results and panel refreshes can arrive while a card still waits; a pending website card
+   * keeps the readout on "awaiting approval" until it resolves. */
+  function webCardPending() { return !!(S.pendingConfirm && S.pendingConfirm.result == null && !S.pendingConfirm.expired && confirmKind(S.pendingConfirm.name) === 'web'); }
   function webPaint(state) {
     if (!waEl) return;
+    if (state !== 'err' && webCardPending()) state = 'auth';
     clearTimeout(web.hideT);
     var last = web.last || { action: 'Working', detail: '' };
     waEl.dataset.state = state;
@@ -862,6 +963,18 @@
     if (name === 'smart_home_control') return 'home';
     return '';
   }
+  /* High-risk cards need a deliberate click or key press. Spoken and typed yes/no are off for them:
+   * audio ATLAS plays itself (a video opened with play_media, a page read aloud) or text its own
+   * keyboard tools type must never be able to answer "yes". The list covers code, files, messages,
+   * calls, keystrokes, website clicks and the home, plus the gated launchers in pc.py (unknown apps,
+   * programs/scripts/network paths opened by path, network-folder searches). */
+  var STRICT_TOOLS = {
+    run_command: 1, power_action: 1, write_file: 1, read_file: 1, send_email: 1, send_text_message: 1, make_phone_call: 1,
+    type_text: 1, press_keys: 1, close_application: 1, smart_home_control: 1, open_application: 1, open_path: 1, find_files: 1
+  };
+  function isStrict(name) { name = String(name || ''); return STRICT_TOOLS[name] === 1 || /^browser_/.test(name); }
+  var STRICT_ARM_MS = 600; // Approve / Deny wake up a moment after the card appears (no stray click or key lands on them)
+  function strictHelp() { return isTouch() ? 'tap Approve or Deny' : 'click Approve or press Y (Deny: N)'; }
   function cardField(fields, label) {
     for (var i = 0; i < fields.length; i++) if (String(fields[i][0]).toLowerCase() === label) return String(fields[i][1] || '');
     return '';
@@ -905,16 +1018,22 @@
     var head = K
       ? '<span class="confirm-idx">' + K.icon + '<span>' + esc(K.head) + '</span>' + (site ? '<i class="confirm-site">' + esc(site) + '</i>' : '') + '</span>'
       : '<span class="confirm-idx">AUTH // ' + esc(String(p.name || 'action').toUpperCase()) + '</span>';
-    var hint = listener.supported ? 'or say “yes” / “no”' : 'or type yes / no';
-    card.innerHTML =
+    var strict = isStrict(p.name);
+    if (strict) card.dataset.strict = 'true';
+    var hintId = 'ch-' + Math.random().toString(36).slice(2, 10);
+    var hint = strict
+      ? '<span class="confirm-hint strict" id="' + hintId + '"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5.5" y="10.5" width="13" height="9.5" rx="1"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg>' +
+        '<span><b>' + (isTouch() ? 'Tap Approve' : 'Click Approve or press Y') + '</b><small>Voice &amp; typed answers are off for this action</small></span></span>'
+      : '<span class="confirm-hint" id="' + hintId + '">' + esc(listener.supported ? 'or say “yes” / “no”' : 'or type yes / no') + '</span>';
+    card.innerHTML = '<i class="confirm-haz" aria-hidden="true"></i>' +
       '<div class="confirm-head">' + head +
       '<span class="confirm-flag" tabindex="-1" aria-live="polite"></span></div>' +
       '<h4 class="confirm-title">' + esc(p.title || 'Approve this action?') + '</h4>' + grid + body +
       '<div class="confirm-timer" aria-hidden="true"><span class="ct-track"><i class="ct-bar"></i></span><b class="ct-left">' + fmtLeft(CONFIRM_MS) + '</b></div>' +
       '<div class="confirm-actions">' +
-      '<button type="button" class="btn btn-primary btn-sm" data-act="approve" aria-keyshortcuts="y">' + ICON_OK + '<span>Approve</span><kbd aria-hidden="true">Y</kbd></button>' +
+      '<button type="button" class="btn btn-primary btn-sm" data-act="approve" aria-keyshortcuts="y" aria-describedby="' + hintId + '">' + ICON_OK + '<span>Approve</span><kbd aria-hidden="true">Y</kbd></button>' +
       '<button type="button" class="btn btn-danger btn-sm" data-act="deny" aria-keyshortcuts="n">' + ICON_NO + '<span>Deny</span><kbd aria-hidden="true">N</kbd></button>' +
-      '<span class="confirm-hint">' + esc(hint) + '</span></div>' +
+      hint + '</div>' +
       '<div class="confirm-stamp" aria-hidden="true"></div>';
     var flag = card.querySelector('.confirm-flag');
     var stamp = card.querySelector('.confirm-stamp');
@@ -923,7 +1042,11 @@
       var st = card.dataset.state;
       flag.textContent = st === 'pending' ? (p.sending ? 'TRANSMITTING…' : 'AWAITING APPROVAL') : st === 'approved' ? 'APPROVED' : st === 'denied' ? 'DENIED' : 'EXPIRED';
       stamp.textContent = st === 'pending' ? '' : flag.textContent;
-      $$('button', card).forEach(function (b) { b.disabled = st !== 'pending' || !!p.sending; });
+      $$('button', card).forEach(function (b) { b.disabled = st !== 'pending' || !!p.sending || !!p.arming; });
+    }
+    if (strict && card.dataset.state === 'pending' && p.result == null) {
+      p.arming = true;
+      setTimeout(function () { p.arming = false; paint(); }, STRICT_ARM_MS);
     }
     paint();
     card._paint = paint;
@@ -955,6 +1078,7 @@
       card.classList.remove('urgent');
       if (card._paint) card._paint();
       refocusAfterCard(card);
+      if (state !== 'expired') scrollToEnd(true);
     }
     if (S.pendingConfirm === p) S.pendingConfirm = null;
     tickConfirm();
@@ -962,7 +1086,7 @@
   }
 
   function resolveConfirm(p, approved) {
-    if (!p || p.result != null || p.expired || p.sending) return;
+    if (!p || p.result != null || p.expired || p.sending || p.arming) return;
     p.sending = true;
     var card = partEls.get(p);
     if (card) {
@@ -1010,14 +1134,29 @@
     s = s.replace(/(?:\s+(?:please|thanks|thank you|now|then|sir|ma'am|mate|boss))+$/, '');
     return s.trim();
   }
+  /** true: the phrase answered the pending card. 'strict': it was a yes/no, but this card only takes a
+   *  click or key press. false: not an answer. */
   function approvalFromPhrase(text) {
     var p = S.pendingConfirm;
     if (!p) return false;
     var t = normPhrase(text);
     if (!t) return false;
-    if (NO_RE.test(t)) { resolveConfirm(p, false); return true; }
-    if (YES_RE.test(t)) { resolveConfirm(p, true); return true; }
-    return false;
+    var no = NO_RE.test(t), yes = !no && YES_RE.test(t);
+    if (!no && !yes) return false;
+    if (isStrict(p.name)) return 'strict';
+    resolveConfirm(p, yes);
+    return true;
+  }
+  /** Point at the card's buttons when a spoken / typed answer can't be used. */
+  function strictNudge(how) {
+    var p = S.pendingConfirm;
+    toast((how === 'voice' ? 'Voice' : 'Typed') + ' answers are off for this approval — ' + strictHelp() + '.', { tone: 'warn', key: 'strict-' + how, cooldown: 5000 });
+    var card = p && partEls.get(p);
+    if (card) {
+      card.classList.remove('nudge');
+      void card.offsetWidth; // restart the highlight animation
+      card.classList.add('nudge');
+    }
   }
 
   var MAX_DOM_ENTRIES = 220;
@@ -1137,8 +1276,9 @@
     if (!text) return false;
     if (S.expired) { toast('Session expired — reload the page', { key: 'expired', cooldown: 5000 }); return false; }
     if (S.pendingConfirm) {
-      if (approvalFromPhrase(text)) return true;
-      toast('Answer the pending approval first — type “yes” or “no”, or press Y / N.', { tone: 'warn', key: 'pending', cooldown: 4000 });
+      if (approvalFromPhrase(text) === true) return true;
+      if (isStrict(S.pendingConfirm.name)) strictNudge(via === 'voice' || via === 'wake' ? 'voice' : 'text');
+      else toast('Answer the pending approval first — type “yes” or “no”, or press Y / N.', { tone: 'warn', key: 'pending', cooldown: 4000 });
       return false;
     }
     if (S.streaming) { toast('Still working on the last request — press Esc to interrupt.', { tone: 'info', key: 'busy', cooldown: 4000 }); return false; }
@@ -1166,7 +1306,7 @@
     var gotDone = false;
     var t0 = performance.now();
     var first = true;
-    var turn = { entry: entry, muted: false, historyDone: false };
+    var turn = { entry: entry, muted: false, historyDone: false, tokens: 0, ttft: null };
 
     function speakOn() { return S.voice.speak && !turn.muted; }
     function partialText() {
@@ -1194,7 +1334,8 @@
       if (!first) return;
       first = false;
       shell.classList.remove('pending');
-      $('#ro-lat').textContent = Math.round(performance.now() - t0) + ' ms';
+      turn.ttft = S.lastTtft = Math.round(performance.now() - t0);
+      renderSession();
     }
     function closeText() {
       if (cur) { var n = partEls.get(cur); if (n) n.classList.remove('streaming'); }
@@ -1245,6 +1386,7 @@
             toolIndex[it.id] = { item: it, group: tools };
             var gnode = partEls.get(tools);
             if (gnode) gnode.appendChild(renderTool(it));
+            if (core) core.calloutStart(it.id || ('tool-' + tools.items.length), it.label);
             S.toolsRunning++;
             if (isWebTool(it.name)) webStart(it, ev.args);
           } else {
@@ -1254,6 +1396,7 @@
               ref.item.summary = str(ev.summary, 2000) || (ev.state === 'done' ? 'done' : 'failed');
               var chip = chipFor(ref.group, ref.item.id);
               if (chip) chip.replaceWith(renderTool(ref.item));
+              if (core) core.calloutEnd(ref.item.id, ev.state === 'done');
               webFinish(ref.item.id, ev.state === 'done');
             }
             S.toolsRunning = Math.max(0, S.toolsRunning - 1);
@@ -1271,15 +1414,19 @@
             title: str(ev.title, 400) || '', fields: Array.isArray(ev.fields) ? ev.fields : [], body: str(ev.body, 20000) || '',
             code: !!ev.code, result: null, deadline: Date.now() + CONFIRM_MS
           };
-          addPart(entry, cp);
+          var cardNode = addPart(entry, cp);
           S.pendingConfirm = cp;
           if (confirmKind(cp.name) === 'web') webAwait(cp);
           startConfirmTimer();
-          S.awaitVoiceAnswer = S.lastVia !== 'text' || S.voice.wake;
+          var strictCard = isStrict(cp.name);
+          // A voice request gets a one-shot listener for the answer, except on cards that ignore spoken answers.
+          S.awaitVoiceAnswer = !strictCard && (S.lastVia !== 'text' || S.voice.wake);
+          if (strictCard && S.listening === 'command') listener.stop();
           V.chime('wake');
-          if (speakOn() && speaker.supported) speaker.say('Awaiting your approval.');
+          if (speakOn() && speaker.supported) speaker.say(strictCard ? 'Awaiting your approval on screen.' : 'Awaiting your approval.');
           else if (S.awaitVoiceAnswer && listener.supported) { S.awaitVoiceAnswer = false; setTimeout(function () { if (S.pendingConfirm === cp && !S.listening) startListening(); }, 300); }
           scrollToEnd(true);
+          wantCard = cardNode;
           saveTranscript();
           refreshState();
           break;
@@ -1301,6 +1448,7 @@
           S.usage.prompt += num(ev.prompt_tokens) || 0;
           S.usage.completion += num(ev.completion_tokens) || 0;
           S.usage.cost += num(ev.cost) || 0;
+          turn.tokens += (num(ev.prompt_tokens) || 0) + (num(ev.completion_tokens) || 0);
           renderUsage();
           break;
         case 'refresh':
@@ -1378,10 +1526,15 @@
             it.state = 'err'; it.summary = 'interrupted';
             var c = chipFor(p, it.id);
             if (c) c.replaceWith(renderTool(it));
+            if (core) core.calloutEnd(it.id, false);
           }
         });
       });
       if (!entry.parts.length) { addPart(entry, { t: 'note', text: 'No response.' }); }
+      if (core) core.calloutsClear(2600);
+      S.turnStats.push({ tokens: turn.tokens, ttft: turn.ttft, ms: Math.round(performance.now() - t0) });
+      if (S.turnStats.length > 60) S.turnStats.shift();
+      renderSession();
       if (S.turn === turn) S.turn = null;
       S.streaming = false;
       S.abort = null;
@@ -1417,8 +1570,12 @@
     e.preventDefault();
     var v = input.value;
     if (S.pendingConfirm) {
-      // A typed "yes" / "no" answers the card; anything else is kept in the box.
-      if (!v.trim()) { toast('Type “yes” or “no”, or press Y / N, to answer the pending approval.', { tone: 'info', key: 'pending', cooldown: 4000 }); return; }
+      // A typed "yes" / "no" answers a low-risk card; anything else (and any answer to a high-risk card) stays in the box.
+      if (!v.trim()) {
+        if (isStrict(S.pendingConfirm.name)) strictNudge('text');
+        else toast('Type “yes” or “no”, or press Y / N, to answer the pending approval.', { tone: 'info', key: 'pending', cooldown: 4000 });
+        return;
+      }
       if (sendMessage(v, 'text')) { input.value = ''; input.classList.remove('interim'); }
       return;
     }
@@ -1460,6 +1617,12 @@
       input.scrollLeft = input.scrollWidth;
     } catch (e) { /* ignore */ }
   }
+  $$('#transcript-empty .try').forEach(function (b) {
+    b.addEventListener('click', function () {
+      if (b.dataset.prefill) prefill(b.dataset.prefill);
+      else if (b.dataset.try) sendMessage(b.dataset.try, 'text');
+    });
+  });
   $$('#chips .chip').forEach(function (c) {
     c.addEventListener('click', function () {
       var a = c.dataset.action;
@@ -1492,9 +1655,10 @@
     }
     if (e.ctrlKey || e.metaKey || e.altKey || typing || overlay || !S.engaged || isDrawerOpen()) return;
     // Y / N answer a pending approval card (never while typing in a field, never auto-repeat).
+    // A key press is deliberate input, so this also answers high-risk cards (once their buttons are armed).
     if (S.pendingConfirm && (e.key === 'y' || e.key === 'Y' || e.key === 'n' || e.key === 'N')) {
       e.preventDefault();
-      if (!e.repeat) resolveConfirm(S.pendingConfirm, e.key === 'y' || e.key === 'Y');
+      if (!e.repeat && e.isTrusted !== false) resolveConfirm(S.pendingConfirm, e.key === 'y' || e.key === 'Y');
       return;
     }
     if (e.key === '/') { e.preventDefault(); input.focus(); }
@@ -1509,12 +1673,16 @@
     if (sync) sync.textContent = text || (status === 'live' ? fmtHM(new Date()) : status === 'offline' ? 'OFFLINE' : 'SYNC');
   }
   function fmtHM(d) { return pad2(d.getHours()) + ':' + pad2(d.getMinutes()); }
-  function offlineBlock(title, detail, retry) {
-    var d = el('div', 'offline');
-    d.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l2-5 3 10 2-5h7"/><path d="M3 3l18 18" class="slash"/></svg>' +
-      '<b>' + esc(title) + '</b><span>' + esc(clip(detail || 'No data received.', 140)) + '</span>';
+  var ICON_FAULT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l9.2 9.2-9.2 9.2L2.8 12z"/><path d="M12 7.6v5.6M12 16.2v.2"/></svg>';
+  var ICON_EMPTY = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>';
+  var ICON_RETRY = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.8 4.2v4.4h-4.4"/></svg>';
+  /** A fault block (striped, with icon and retry) or, with tone 'empty', a calm "nothing here" note. */
+  function offlineBlock(title, detail, retry, tone) {
+    var d = el('div', 'offline' + (tone === 'empty' ? ' is-empty' : ''));
+    d.innerHTML = '<span class="of-ico">' + (tone === 'empty' ? ICON_EMPTY : ICON_FAULT) + '</span>' +
+      '<span class="of-txt"><b>' + esc(title) + '</b><span>' + esc(clip(detail || 'No data received.', 160)) + '</span></span>';
     if (retry) {
-      var b = el('button', 'btn btn-ghost btn-xs', 'Retry');
+      var b = el('button', 'btn btn-ghost btn-xs of-retry', ICON_RETRY + '<span>Retry</span>');
       b.type = 'button';
       b.addEventListener('click', retry);
       d.appendChild(b);
@@ -1581,23 +1749,27 @@
       '<div><dt>Humid</dt><dd>' + round(cur.humidity) + '%</dd></div>' +
       '<div><dt>Wind</dt><dd>' + round(cur.wind) + ' <small>' + esc(units.wind || '') + '</small></dd></div></dl>';
     if (days.length) {
-      html += '<ol class="wx-days">' + days.map(function (f, i) {
+      // Forecast tiles: day, icon, high / low, and a precipitation bar.
+      html += '<ol class="wx-days" style="--n:' + days.length + '">' + days.map(function (f, i) {
         var dt = f.date ? new Date(String(f.date) + 'T12:00:00') : null;
-        var dn = i === 0 ? 'TODAY' : dt && !isNaN(dt) ? dt.toLocaleDateString(undefined, { weekday: 'short' }).toUpperCase() : '—';
-        var pc = Math.max(0, Math.min(100, num(f.precip_chance) || 0));
-        return '<li><span class="wd-name">' + esc(dn) + '</span>' + wxSvg(wxKind(null, f.condition, true), 'wx-ico wx-ico-sm') +
-          '<span class="wd-temp"><b>' + round(f.high) + '°</b><i>' + round(f.low) + '°</i></span>' +
-          '<span class="wd-pp" title="' + pc + '% chance of precipitation"><i style="width:' + pc + '%"></i></span>' +
-          '<span class="wd-ppv">' + pc + '%</span></li>';
+        var dn = i === 0 ? 'Today' : dt && !isNaN(dt) ? dt.toLocaleDateString(undefined, { weekday: 'short' }) : '—';
+        var pc = Math.round(Math.max(0, Math.min(100, num(f.precip_chance) || 0)));
+        return '<li class="wd' + (i === 0 ? ' is-today' : '') + (pc >= 50 ? ' is-wet' : '') + '" title="' + esc(String(f.condition || '')) + '">' +
+          '<span class="wd-name">' + esc(dn) + '</span>' + wxSvg(wxKind(null, f.condition, true), 'wx-ico wx-ico-sm') +
+          '<span class="wd-temp"><span class="sr-only">high </span><b>' + round(f.high) + '°</b><span class="sr-only">, low </span><i>' + round(f.low) + '°</i></span>' +
+          '<span class="wd-pp"><span class="wd-bar" aria-hidden="true"><i style="width:' + pc + '%"></i></span>' +
+          '<span class="wd-ppv"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.5C4.4 4 3 5.6 3 7.4a3 3 0 0 0 6 0C9 5.6 7.6 4 6 1.5z"/></svg>' + pc + '%<span class="sr-only"> chance of rain</span></span></span></li>';
       }).join('') + '</ol>';
     }
     html += '</div>';
     body.innerHTML = html;
+    setText('#hero-wx', round(cur.temperature) + tu + ' · ' + String(cur.condition || '').trim() + ' · ' + city);
   }
 
   function loadWeather() {
     return api('/api/weather').then(function (d) {
       if (!d || d.error || !d.current) {
+        setText('#hero-wx', '');
         panelStatus('panel-weather', 'offline');
         $('#weather-body').replaceChildren(offlineBlock('WEATHER UPLINK OFFLINE', d && d.error, loadWeather));
         return;
@@ -1623,7 +1795,7 @@
       }).join('') +
       '<div class="sys-spark"><svg viewBox="0 0 120 26" preserveAspectRatio="none" aria-hidden="true"><path class="sp-area"/><path class="sp-line"/></svg><span>CPU · 2 MIN</span></div>' +
       '<dl class="sys-meta"><div><dt>Host</dt><dd data-m="host">—</dd></div><div><dt>Uptime</dt><dd data-m="up">—</dd></div>' +
-      '<div><dt>Cores</dt><dd data-m="cores">—</dd></div><div><dt>OS</dt><dd data-m="os">—</dd></div></dl></div>';
+      '<div><dt>OS</dt><dd data-m="os">—</dd></div></dl></div>';
     sysBuilt = true;
   }
   function setMeter(k, pct, valText, extra) {
@@ -1648,7 +1820,7 @@
   function renderSystemPanel(d) {
     if (!sysBuilt) buildSystem();
     var cpu = num(d.cpu_percent);
-    setMeter('cpu', cpu, cpu == null ? '—' : cpu.toFixed(1) + '%', '');
+    setMeter('cpu', cpu, cpu == null ? '—' : cpu.toFixed(1) + '%', num(d.cpu_cores) != null ? d.cpu_cores + ' cores' : '');
     var m = d.memory || {};
     setMeter('mem', num(m.percent), num(m.percent) == null ? '—' : Math.round(m.percent) + '%', num(m.used_gb) != null ? m.used_gb.toFixed(1) + '/' + Math.round(m.total_gb) + 'G' : '');
     var dk = d.disk;
@@ -1660,7 +1832,6 @@
     var meta = $('#system-body .sys-meta');
     meta.querySelector('[data-m="host"]').textContent = d.host || '—';
     meta.querySelector('[data-m="up"]').textContent = fmtUptime(d.uptime_hours);
-    meta.querySelector('[data-m="cores"]').textContent = d.cpu_cores != null ? String(d.cpu_cores) : '—';
     meta.querySelector('[data-m="os"]').textContent = d.os || '—';
     if (cpu != null) {
       S.cpuHist.push(cpu);
@@ -2027,7 +2198,7 @@
     var body = $('#news-body');
     var arts = (d && Array.isArray(d.articles) ? d.articles : []).filter(function (a) { return a && a.title; });
     if (!arts.length) {
-      body.replaceChildren(offlineBlock(d && d.error ? 'FEED OFFLINE' : 'NO STORIES', (d && d.error) || 'Nothing in this section right now.', loadNews));
+      body.replaceChildren(d && d.error ? offlineBlock('FEED OFFLINE', d.error, loadNews) : offlineBlock('NO STORIES', 'Nothing in this section right now.', loadNews, 'empty'));
       return;
     }
     var ol = el('ol', 'news-list');
@@ -2046,7 +2217,13 @@
       });
       ol.appendChild(li);
     });
-    body.replaceChildren(ol);
+    var shown = Math.min(arts.length, 14);
+    var srcs = {};
+    arts.slice(0, 14).forEach(function (a) { if (a.source) srcs[a.source] = 1; });
+    var nSrc = Object.keys(srcs).length;
+    var foot = el('p', 'news-end', '<span>End of feed</span><span>' + shown + (shown === 1 ? ' story' : ' stories') +
+      (nSrc ? ' · ' + nSrc + (nSrc === 1 ? ' source' : ' sources') : '') + ' · ' + esc(fmtHM(new Date())) + '</span>');
+    body.replaceChildren(ol, foot);
     body.scrollTop = 0;
   }
   var newsSeq = 0;
@@ -2189,6 +2366,7 @@
     var date = now.toLocaleDateString(undefined, { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
     $('#clock-date').textContent = date;
     $('#eg-date').textContent = date;
+    paintHero(now);
     var up = Math.floor((Date.now() - S.sessionStart) / 1000);
     $('#session-uptime').textContent = pad2(Math.floor(up / 3600)) + ':' + pad2(Math.floor(up / 60) % 60) + ':' + pad2(up % 60);
   }
@@ -2457,8 +2635,20 @@
   $('#voice-select').addEventListener('change', function (e) { S.voice.voiceURI = e.target.value; speaker.voiceURI = e.target.value; saveVoice(); updateVoiceReadouts(); });
   $('#rate-input').addEventListener('input', function (e) { S.voice.rate = Number(e.target.value) || 1; speaker.rate = S.voice.rate; $('#rate-out').textContent = S.voice.rate.toFixed(2); saveVoice(); });
   $('#pitch-input').addEventListener('input', function (e) { S.voice.pitch = Number(e.target.value) || 1; speaker.pitch = S.voice.pitch; $('#pitch-out').textContent = S.voice.pitch.toFixed(2); saveVoice(); });
-  $('#speak-toggle').addEventListener('change', function (e) {
-    S.voice.speak = e.target.checked; speaker.enabled = S.voice.speak; if (!S.voice.speak) speaker.stop(); saveVoice(); updateVoiceReadouts();
+  function setSpeak(on) {
+    S.voice.speak = !!on;
+    speaker.enabled = S.voice.speak;
+    if (!S.voice.speak) speaker.stop();
+    saveVoice();
+    var t = $('#speak-toggle');
+    if (t) t.checked = S.voice.speak;
+    updateVoiceReadouts();
+  }
+  $('#speak-toggle').addEventListener('change', function (e) { setSpeak(e.target.checked); });
+  $('#mute-btn').addEventListener('click', function () {
+    if (!speaker.supported) { toast('Speech output isn’t available in this browser.', { tone: 'info', key: 'tts-na', cooldown: 5000 }); return; }
+    setSpeak(!S.voice.speak);
+    toast(S.voice.speak ? 'Spoken replies on.' : 'Spoken replies muted.', { tone: 'info', key: 'mute', cooldown: 800, ms: 1800 });
   });
   $('#wake-toggle').addEventListener('change', function (e) {
     S.voice.wake = e.target.checked && listener.supported; saveVoice();
@@ -2580,10 +2770,8 @@
   if (core) core.stop(); // main core sleeps behind the engage screen
 
   function greetingText() {
-    var h = new Date().getHours();
-    var part = h < 5 ? 'evening' : h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
     var who = userAddress();
-    return 'Good ' + part + (who ? ', ' + who : '') + '. All systems online.';
+    return 'Good ' + partOfDay(new Date().getHours()) + (who ? ', ' + who : '') + '. All systems online.';
   }
 
   function bootLines(memCount) {
@@ -2650,7 +2838,8 @@
       return true;
     }).then(function () {
       var g = greetingText();
-      systemLine(g, 'info', assistantName().toUpperCase(), true);
+      if (S.transcript.length) systemLine(g, 'info', assistantName().toUpperCase(), true);
+      else paintHero(new Date());
       if (S.voice.speak) speaker.say(g);
       if (S.voice.wake && listener.supported) setTimeout(function () { listener.setWake(true); refreshState(); }, 400);
       input.focus({ preventScroll: true });
@@ -2724,5 +2913,5 @@
   setTimeout(function () { var b = $('#engage-btn'); if (b && !S.engaged) b.focus({ preventScroll: true }); }, 50);
 
   // Expose a tiny debug hook (no secrets).
-  window.ATLAS_UI = { state: S, send: sendMessage, setView: setView, parseSSE: drainSSE, refresh: { markets: loadMarkets, news: loadNews, weather: loadWeather, system: loadSystem, reminders: loadReminders, agenda: loadAgenda }, openSettings: openDrawer };
+  window.ATLAS_UI = { state: S, core: core, send: sendMessage, setView: setView, parseSSE: drainSSE, refresh: { markets: loadMarkets, news: loadNews, weather: loadWeather, system: loadSystem, reminders: loadReminders, agenda: loadAgenda }, openSettings: openDrawer };
 })();
