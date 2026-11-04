@@ -22,6 +22,7 @@ from app.tools.errands import (
 )
 from conftest import Router, json_response, make_ctx, mock_http, no_network, run
 
+REAL_HAS_DESKTOP = errands._has_desktop  # captured before the autouse fixture fakes it
 ERRAND_TOOLS = ["get_directions", "find_places", "book_ride", "order_food", "track_package", "convert_currency"]
 
 
@@ -540,3 +541,194 @@ def test_convert_currency_crypto_same_currency_and_errors():
     assert "Couldn't get a XXX to USD rate" in call("convert_currency", yahoo({}), from_currency="XXX", to_currency="USD")["error"]
     assert "Couldn't get a AAA to BBB rate" in call("convert_currency", yahoo({}), from_currency="AAA", to_currency="BBB")["error"]
     assert "amount must be a number" in call("convert_currency", no_network, amount="lots", from_currency="EUR", to_currency="USD")["error"]
+
+
+# ------------------------------------------------------------------ robustness (review fixes)
+def test_non_string_arguments_are_accepted(opened):
+    """Models send ZIP codes and all-digit tracking numbers as JSON numbers."""
+    router = Router({"nominatim.openstreetmap.org": json_response([])})
+    out = call("find_places", router, query="pharmacy", near=78701)
+    assert "error" not in out and router.requests[0].url.params["q"] == "pharmacy near 78701"
+    out = call("get_directions", no_network, destination=78701, origin=None, mode=None, open=False)
+    assert qs(out["url"])["destination"] == "78701" and out["mode"] == "driving"
+    out = call("track_package", tracking_number=123456789012, label=42, open=False)
+    assert out["carrier"] == "fedex" and out["label"] == "42"
+    assert unquote(call("book_ride", destination=10001)["url"]).endswith("dropoff[formatted_address]=10001")
+    assert call("order_food", query=42, open=False)["url"] == "https://www.doordash.com/search/store/42/"
+
+
+@pytest.mark.parametrize(
+    "response, message",
+    [
+        (httpx.Response(500, text="<html>oops</html>"), "unavailable (HTTP 500)"),
+        (httpx.Response(200, text="<html>maintenance</html>"), "unexpected reply"),
+        (httpx.ConnectError("offline"), "Couldn't reach OpenStreetMap"),
+        (httpx.ReadTimeout("slow"), "didn't answer in time"),
+        (httpx.Response(403), "limiting requests"),
+    ],
+)
+def test_find_places_service_failures_are_friendly(response, message):
+    out = call("find_places", Router({"nominatim.openstreetmap.org": response}), query="pharmacy", near="Austin")
+    assert message in out["error"] and "Traceback" not in out["error"]
+    assert not errands._GEO_CACHE  # failures aren't cached
+
+
+def test_nominatim_drops_results_with_bad_coordinates():
+    bad = [{"lat": "abc", "lon": "1"}, {"lat": "95", "lon": "1"}, {"lat": "nan", "lon": "1"}, AUSTIN]
+    out = call("find_places", Router({"nominatim.openstreetmap.org": json_response(bad)}), query="x", near="Austin")
+    assert [r["name"] for r in out["results"]] == ["Austin"]
+
+
+def test_has_desktop_detection(monkeypatch):
+    for key in ("DISPLAY", "WAYLAND_DISPLAY", "BROWSER"):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setattr(errands, "IS_WIN", False)
+    monkeypatch.setattr(errands, "IS_MAC", False)
+    assert REAL_HAS_DESKTOP() is False  # headless Linux: only console browsers would run
+    monkeypatch.setenv("BROWSER", "w3m:lynx")
+    assert REAL_HAS_DESKTOP() is False
+    monkeypatch.setenv("BROWSER", "/usr/bin/wslview %s")  # WSL without WSLg hands links to Windows
+    assert REAL_HAS_DESKTOP() is True
+    monkeypatch.delenv("BROWSER")
+    monkeypatch.setenv("WAYLAND_DISPLAY", "wayland-0")
+    assert REAL_HAS_DESKTOP() is True
+    monkeypatch.delenv("WAYLAND_DISPLAY")
+    monkeypatch.setattr(errands, "IS_WIN", True)
+    assert REAL_HAS_DESKTOP() is True
+
+
+def test_headless_machine_returns_links_without_launching_a_browser(monkeypatch, opened):
+    monkeypatch.setattr(errands, "_has_desktop", lambda: False)
+    out = call("book_ride", no_network, destination="JFK")
+    assert out["opened"] is False and out["status"].startswith("Couldn't open the browser") and out["url"]
+    out = call("get_directions", no_network, destination="MoMA")
+    assert out["opened"] is False and "link ready" in out["status"]
+    assert opened == []
+
+
+def test_open_url_only_https_and_never_hangs(monkeypatch):
+    release = threading.Event()
+    calls = []
+
+    def stuck(url, *a, **k):  # e.g. a console browser waiting for its user
+        calls.append(url)
+        release.wait(5)
+        return True
+
+    monkeypatch.setattr(errands.webbrowser, "open", stuck)
+    monkeypatch.setattr(errands, "OPEN_TIMEOUT", 0.1)
+    assert run(errands._open_url("file:///etc/passwd")) is False
+    assert run(errands._open_url("javascript:alert(1)")) is False
+    assert calls == []
+    started = time.monotonic()
+    assert run(errands._open_url("https://www.lyft.com/")) is False
+    assert time.monotonic() - started < 2 and calls == ["https://www.lyft.com/"]
+    release.set()
+
+
+def test_saved_packages_tolerate_hand_edited_entries(isolated):
+    now = datetime.now().astimezone().isoformat(timespec="minutes")
+    data_dir = isolated["data_dir"]
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (data_dir / "packages.json").write_text(json.dumps([
+        {"number": "1Z999AA10123456784", "last_checked": now},  # no carrier
+        {"number": 123456789012, "carrier": "fedex", "last_checked": now},  # number not a string
+        {"number": "9400100000000000000000", "carrier": "usps", "last_checked": "0001-01-01T00:00"},
+        {"number": "1234567890", "carrier": "dhl", "label": None, "last_checked": now},
+    ]), encoding="utf-8")
+    listed = call("track_package")
+    assert listed["status"] == "2 saved packages"
+    by_number = {p["number"]: p for p in listed["packages"]}
+    assert by_number["1Z999AA10123456784"]["url"] == "https://www.google.com/search?q=1Z999AA10123456784+tracking"
+    assert by_number["1234567890"]["label"] == ""
+    (data_dir / "packages.json").write_text("{not json", encoding="utf-8")
+    assert call("track_package")["packages"] == []
+
+
+def test_track_package_other_named_carrier_wins_over_a_format_guess(opened):
+    out = call("track_package", tracking_number="1234567890", carrier="Purolator", open=False)
+    assert out["carrier"] == "Purolator" and out["confidence"] == "given"
+    assert out["url"] == "https://www.google.com/search?q=Purolator+1234567890+tracking"
+    assert out["alternatives"][0] == {"carrier": "DHL Express", "url": tracking_url("dhl", "1234567890")}
+    assert "No direct tracking link for Purolator" in out["note"] and "DHL Express" in out["note"]
+    listed = call("track_package")["packages"]
+    assert listed[0]["carrier"] == "Purolator" and listed[0]["url"] == out["url"]
+    assert call("track_package", tracking_number="1234567890", carrier="auto", open=False)["carrier"] == "dhl"
+    assert "enum" not in TOOLS["track_package"].parameters["properties"]["carrier"]
+
+
+def test_track_package_label_is_clipped():
+    out = call("track_package", tracking_number="1Z999AA10123456784", label="x" * 500, open=False)
+    assert len(out["label"]) <= 80
+
+
+@pytest.mark.parametrize(
+    "raw, value",
+    [(250, 250.0), ("15,000", 15000.0), ("1,234,567.5", 1234567.5), ("12,50", 12.5), ("$250", 250.0),
+     ("€ 1 000", 1000.0), (None, 1.0), ("", 1.0), (-3, -3.0)],
+)
+def test_parse_amount(raw, value):
+    assert errands.parse_amount(raw) == value
+
+
+@pytest.mark.parametrize("raw", [True, "lots", "1e999", "nan", [1], {"v": 1}])
+def test_parse_amount_rejects(raw):
+    with pytest.raises(ToolError, match="amount must be a"):
+        errands.parse_amount(raw)
+
+
+def test_convert_currency_outage_is_reported_as_an_outage():
+    router = Router({"query1.finance.yahoo.com": httpx.ConnectError("down"), "query2.finance.yahoo.com": httpx.ConnectError("down")})
+    out = call("convert_currency", router, amount=10, from_currency="EUR", to_currency="GBP")
+    assert "Couldn't reach Yahoo Finance" in out["error"] and "Check the currency codes" not in out["error"]
+    symbols = {r.url.path.rsplit("/", 1)[-1] for r in router.requests}
+    assert symbols == {"EURGBP=X", "GBPEUR=X"}  # no pointless second round through USD
+
+
+def test_has_location_ignores_walk_in_and_drive_in():
+    assert not errands._has_location("walk-in clinic") and not errands._has_location("drive in theater")
+    assert errands._has_location("walk in clinic in Austin") and errands._has_location("sushi in Brooklyn")
+    assert errands._has_location("pizza, Austin")
+
+
+def test_short_distances_are_readable():
+    assert errands._fmt_distance(40, True) == "130 ft" and errands._fmt_distance(40, False) == "40 m"
+    assert errands._fmt_distance(850, False) == "850 m" and errands._fmt_distance(1609.344, True) == "1.0 mi"
+
+
+def test_food_search_url_without_searchable_text_is_the_home_page():
+    assert food_search_url("doordash", "..") == "https://www.doordash.com/"
+    assert food_search_url("ubereats", " / ") == "https://www.ubereats.com/"
+
+
+def test_rate_limiter_is_shared_across_threads_and_event_loops():
+    lim = RateLimiter(1.0, max_wait=1000, clock=lambda: 7.0, sleep=lambda d: asyncio.sleep(0))
+    delays = []
+    lock = threading.Lock()
+
+    def worker():
+        async def go():
+            for _ in range(20):
+                d = lim.reserve()
+                await lim.sleep(d)
+                with lock:
+                    delays.append(d)
+
+        asyncio.run(go())  # each thread runs its own event loop
+
+    threads = [threading.Thread(target=worker) for _ in range(6)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert sorted(delays) == [float(i) for i in range(120)]  # every caller got its own 1 s slot
+
+
+def test_track_package_still_returns_the_link_when_the_list_cannot_be_saved(monkeypatch):
+    def locked(items):
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(errands, "_save_packages", locked)
+    out = call("track_package", tracking_number="1Z999AA10123456784", open=False)
+    assert out["url"].startswith("https://www.ups.com/") and "Permission denied" in out["save_error"]
+    assert "Permission denied" in call("track_package", tracking_number="1Z999AA10123456784", remove=True)["error"]

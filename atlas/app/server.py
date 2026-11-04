@@ -17,9 +17,10 @@ from pydantic import BaseModel
 
 from . import tools as tool_registry
 from .agent import ConfirmationBroker, run_turn
-from .config import EDITABLE_KEYS, WEB_DIR, Settings, update_env_file
+from .config import EDITABLE_KEYS, SECRET_KEYS, WEB_DIR, Settings, load_env_file, update_env_file
 from .llm import LLMError, OpenRouter
 from .tools import ToolContext
+from .tools.calendar_tools import agenda_for_panel
 from .tools.markets import watchlist_snapshot
 from .tools.memory import delete_memory, memories, pending_reminders, pop_due_reminders
 from .tools.news import CATEGORIES, headlines_for_panel
@@ -66,6 +67,12 @@ async def lifespan(app: FastAPI):
     except Exception:
         pass
     yield
+    try:
+        from .tools import browser
+
+        await browser.shutdown()
+    except Exception:
+        pass
     await S.http.aclose()
 
 
@@ -129,7 +136,30 @@ async def state():
         "capabilities": capabilities(),
         "news_categories": CATEGORIES,
         "tools": sorted(tool_registry.TOOLS),
+        "user_phone": s.user_phone,
+        "home_address": s.home_address,
+        "work_address": s.work_address,
+        # Every other editable setting: plain values for normal keys, only a "configured" flag for secrets.
+        "extra": _extra_settings(),
+        "secrets_configured": {k: bool(_raw_setting(k)) for k in sorted(SECRET_KEYS)},
     }
+
+
+def _raw_setting(key: str) -> str:
+    import os
+
+    return os.environ.get(key) or load_env_file().get(key, "")
+
+
+_STATE_KEYS = {
+    "BROWSER_HEADLESS", "BROWSER_CHANNEL", "BROWSER_EXECUTABLE", "BROWSER_VISION_MODEL",
+    "CALENDAR_PROVIDER", "CALENDAR_DAY_HOURS", "TWILIO_ACCOUNT_SID", "TWILIO_FROM_NUMBER",
+    "DEFAULT_COUNTRY_CODE", "HOME_ASSISTANT_URL", "HOME_ASSISTANT_CONFIRM_DOMAINS", "MARKET_WATCHLIST",
+}
+
+
+def _extra_settings() -> dict:
+    return {k: _raw_setting(k) for k in sorted(_STATE_KEYS - SECRET_KEYS)}
 
 
 class SetupBody(BaseModel):
@@ -144,7 +174,7 @@ async def setup(body: SetupBody):
             raise HTTPException(400, f"Setting '{key}' can't be changed here.")
         value = (value or "").strip()
         # Blank secret fields mean "keep the current value".
-        if key in {"OPENROUTER_API_KEY", "EMAIL_PASSWORD"} and not value:
+        if key in SECRET_KEYS and not value:
             continue
         updates[key] = value
     if updates:
@@ -239,6 +269,11 @@ async def reminders():
 @app.get("/api/reminders/due")
 async def reminders_due():
     return {"due": pop_due_reminders()}
+
+
+@app.get("/api/agenda")
+async def agenda(days: int = 2):
+    return await agenda_for_panel(S.ctx(), days=max(1, min(days, 14)))
 
 
 @app.get("/api/memory")

@@ -18,6 +18,7 @@ STATE_KEYS = {
     "assistant_name", "user_name", "address_as", "has_key", "key_hint", "model", "search_model", "home_city",
     "units", "news_region", "news_language", "watchlist", "email_address", "email_configured", "smtp_host",
     "smtp_port", "imap_host", "imap_port", "os", "capabilities", "news_categories", "tools",
+    "user_phone", "home_address", "work_address", "extra", "secrets_configured",
 }
 
 
@@ -93,6 +94,35 @@ def test_state_shape(srv):
     assert s["news_categories"][:2] == ["top", "world"]
     assert s["tools"] == sorted(TOOLS) and len(s["tools"]) >= 41
     assert s["watchlist"] == config.DEFAULT_WATCHLIST
+
+
+def test_state_never_exposes_secret_values(srv):
+    server, client = srv
+    config.ENV_PATH.write_text(
+        "TWILIO_AUTH_TOKEN=tok-secret-123\nHOME_ASSISTANT_TOKEN=ha-secret-456\n"
+        "CALENDAR_ICS_URLS=https://calendar.google.com/calendar/ical/x/private-abc/basic.ics\n"
+        "TWILIO_FROM_NUMBER=+15550001111\nBROWSER_HEADLESS=true\n"
+    )
+    r = client.get("/api/state")
+    body = r.text
+    for secret in ("tok-secret-123", "ha-secret-456", "private-abc"):
+        assert secret not in body
+    s = r.json()
+    assert s["secrets_configured"]["TWILIO_AUTH_TOKEN"] is True
+    assert s["secrets_configured"]["HOME_ASSISTANT_TOKEN"] is True
+    assert s["secrets_configured"]["CALENDAR_ICS_URLS"] is True
+    assert s["secrets_configured"]["OPENROUTER_API_KEY"] is False
+    assert s["extra"]["TWILIO_FROM_NUMBER"] == "+15550001111" and s["extra"]["BROWSER_HEADLESS"] == "true"
+    assert not set(s["extra"]) & config.SECRET_KEYS
+
+
+def test_setup_blank_secret_keeps_new_secret_keys(srv):
+    server, client = srv
+    config.ENV_PATH.write_text("HOME_ASSISTANT_TOKEN=keep-me\n")
+    r = client.post("/api/setup", json={"values": {"HOME_ASSISTANT_TOKEN": "", "HOME_ASSISTANT_URL": "http://ha.local:8123"}})
+    assert r.status_code == 200
+    values = load_env_file(config.ENV_PATH)
+    assert values["HOME_ASSISTANT_TOKEN"] == "keep-me" and values["HOME_ASSISTANT_URL"] == "http://ha.local:8123"
 
 
 def test_state_key_hint(srv, monkeypatch):

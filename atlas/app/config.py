@@ -37,6 +37,8 @@ SENSITIVE_TOOLS = {
     "read_file",
     "type_text",
     "press_keys",
+    "send_text_message",
+    "make_phone_call",
 }
 
 DEFAULT_WATCHLIST = ["^GSPC", "^IXIC", "^DJI", "^VIX", "BTC-USD", "ETH-USD", "GC=F", "CL=F", "^TNX"]
@@ -60,6 +62,38 @@ EDITABLE_KEYS = {
     "SMTP_PORT",
     "IMAP_HOST",
     "IMAP_PORT",
+    # personal details used for bookings, forms and directions
+    "USER_PHONE",
+    "HOME_ADDRESS",
+    "WORK_ADDRESS",
+    # browser agent
+    "BROWSER_HEADLESS",
+    "BROWSER_CHANNEL",
+    "BROWSER_EXECUTABLE",
+    "BROWSER_VISION_MODEL",
+    # calendar
+    "CALENDAR_ICS_URLS",
+    "CALENDAR_PROVIDER",
+    "CALENDAR_DAY_HOURS",
+    # texting / calls
+    "TWILIO_ACCOUNT_SID",
+    "TWILIO_AUTH_TOKEN",
+    "TWILIO_FROM_NUMBER",
+    "DEFAULT_COUNTRY_CODE",
+    # smart home
+    "HOME_ASSISTANT_URL",
+    "HOME_ASSISTANT_TOKEN",
+    "HOME_ASSISTANT_CONFIRM_DOMAINS",
+}
+
+# Editable keys whose values are credentials: never sent back to the browser, and a blank value in
+# the settings form means "keep the current one".
+SECRET_KEYS = {
+    "OPENROUTER_API_KEY",
+    "EMAIL_PASSWORD",
+    "TWILIO_AUTH_TOKEN",
+    "HOME_ASSISTANT_TOKEN",
+    "CALENDAR_ICS_URLS",
 }
 
 
@@ -173,6 +207,9 @@ class Settings:
     assistant_name: str = "ATLAS"
     user_name: str = ""
     address_as: str = ""
+    user_phone: str = ""
+    home_address: str = ""
+    work_address: str = ""
     home_city: str = ""
     units: str = "imperial"
     news_region: str = "US"
@@ -230,6 +267,9 @@ class Settings:
             assistant_name=get("ASSISTANT_NAME", "ATLAS") or "ATLAS",
             user_name=get("USER_NAME"),
             address_as=get("USER_ADDRESS_AS"),
+            user_phone=get("USER_PHONE"),
+            home_address=get("HOME_ADDRESS"),
+            work_address=get("WORK_ADDRESS"),
             home_city=get("HOME_CITY"),
             units=(get("UNITS", "imperial") or "imperial").lower(),
             news_region=(get("NEWS_REGION", "US") or "US").upper(),

@@ -114,26 +114,36 @@ def find_contact(name: str) -> dict | None:
 
 @tool(
     "save_contact",
-    "Save or update a contact so the user can refer to them by name (e.g. 'Mom', 'Coach Rivera').",
+    "Save or update a contact so the user can refer to them by name (e.g. 'Mom', 'Coach Rivera'). "
+    "Give an email, a phone number, or both. Updating keeps fields you don't pass.",
     {
         "name": {"type": "string"},
         "email": {"type": "string"},
         "aliases": {"type": "array", "items": {"type": "string"}, "description": "Other names, e.g. ['mom', 'mother']"},
         "phone": {"type": "string"},
     },
-    ["name", "email"],
+    ["name"],
     label="Updating contacts",
 )
-async def save_contact(ctx, name: str, email: str, aliases=None, phone: str | None = None):
-    if "@" not in email:
+async def save_contact(ctx, name: str, email: str | None = None, aliases=None, phone: str | None = None):
+    email = (email or "").strip()
+    phone = (str(phone).strip() if phone is not None else "")
+    if email and "@" not in email:
         raise ToolError("That doesn't look like an email address.")
+    existing = next((c for c in contacts() if c["name"].lower() == name.lower()), None)
+    if existing:  # merge with what we already know
+        email = email or existing.get("email", "")
+        phone = phone or existing.get("phone", "")
+        aliases = aliases or existing.get("aliases", [])
+    if not email and not phone:
+        raise ToolError("Give an email address or a phone number for the contact.")
     if isinstance(aliases, str):  # models sometimes send "mom, mother" instead of a list
         aliases = [a.strip() for a in aliases.split(",") if a.strip()]
     with _LOCK:
         items = [c for c in contacts() if c["name"].lower() != name.lower()]
         items.append({"name": name, "email": email, "aliases": aliases or [], "phone": phone or ""})
         save("contacts", sorted(items, key=lambda c: c["name"].lower()))
-    return {"status": "saved", "name": name, "email": email}
+    return {"status": "saved", "name": name, "email": email, "phone": phone}
 
 
 @tool(

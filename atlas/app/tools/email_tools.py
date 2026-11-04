@@ -70,8 +70,10 @@ def resolve_recipients(values) -> list[str]:
             out.append(v)
             continue
         contact = find_contact(v)
-        if contact:
+        if contact and contact.get("email"):
             out.append(contact["email"])
+        elif contact:
+            raise ToolError(f"{contact['name']} is saved without an email address. Ask the user for it and update the contact with save_contact.")
         else:
             raise ToolError(f"I don't have an email address for '{v}'. Ask the user for it (and offer to save it with save_contact).")
     return out

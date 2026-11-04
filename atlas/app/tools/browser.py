@@ -103,8 +103,11 @@ ANY_ELEMENT = "*"  # granted when the gate couldn't inspect the element and aske
 
 
 def _grant(slot: tuple, fingerprint: str) -> None:
+    now = time.monotonic()
     with _APPROVALS_LOCK:
-        _APPROVALS[slot] = (fingerprint, time.monotonic() + APPROVAL_TTL)
+        for old in [k for k, (_fp, until) in _APPROVALS.items() if until < now]:  # denied cards' leftovers
+            del _APPROVALS[old]
+        _APPROVALS[slot] = (fingerprint, now + APPROVAL_TTL)
 
 
 def _revoke(slot: tuple) -> None:
@@ -580,18 +583,29 @@ function inspect(el, opts, depth) {
     }
   } else if (tag === 'textarea' || tag === 'input' || el.isContentEditable || ['textbox', 'searchbox', 'combobox'].includes(info.role)) {
     // Chat composers and form-less (script-driven) fields often act on Enter: look at the buttons right next to it.
+    // Only the closest group of buttons counts (never the whole <body>), so a search box isn't judged by a
+    // "Sign up" button elsewhere on the page.
     const near = [];
     let a = el.parentElement;
-    const levels = (tag === 'input' || tag === 'select') ? 2 : 3;
-    for (let i = 0; i < levels && a && near.length < 8; i++, a = a.parentElement) {
-      a.querySelectorAll('button,[role=button],input[type=submit]').forEach(b => {
-        const l = b === el ? '' : labelOf(b);
+    for (let i = 0; i < 4 && a && a !== document.body && a !== document.documentElement; i++, a = a.parentElement) {
+      const btns = Array.from(a.querySelectorAll('button,[role=button],input[type=submit]')).filter(b => b !== el);
+      if (!btns.length) continue;
+      for (const b of btns) {
+        const l = labelOf(b);
         if (l && near.length < 8 && !near.includes(l)) near.push(l);
-      });
+      }
+      break;
     }
     info.nearby_buttons = near;
   }
-  if (opts.pageText && !depth) info.page_text = cleanLines(document.body ? document.body.innerText : '').slice(0, 1600);
+  if (opts.pageText && !depth) {
+    // What the user should read before approving: the booking dialog the button sits in (Resy-style modals),
+    // else the page's main region (skipping header / nav), else the whole page.
+    const dlg = el.closest ? el.closest('dialog,[role=dialog],[role=alertdialog],[aria-modal=true]') : null;
+    const main = document.querySelector('main,[role=main]');
+    const scope = dlg || (main && clean(main.innerText).length > 200 ? main : null) || document.body;
+    info.page_text = cleanLines(scope ? scope.innerText : '').slice(0, 1600);
+  }
   return info;
 }
 """
@@ -1899,7 +1913,10 @@ async def browser_look(ctx, question: str = "Describe this page and what can be 
     shot = await _call(_screenshot_sync, _as_bool(annotate, True))
     if ctx.llm is None:
         raise ToolError("browser_look needs the AI model connection, which isn't available here.")
-    model = _setting("BROWSER_VISION_MODEL") or await ctx.llm.resolve_model()
+    try:
+        model = _setting("BROWSER_VISION_MODEL") or await ctx.llm.resolve_model()
+    except LLMError as exc:
+        raise ToolError(f"browser_look needs the AI model, which isn't reachable: {clip(str(exc), 200)}")
     tags = (
         "Small red tags such as 'e12' mark interactive elements; they are the refs ATLAS clicks with. When an element "
         "is relevant, name its tag. " if shot["tagged"] else ""
@@ -1923,8 +1940,9 @@ async def browser_look(ctx, question: str = "Describe this page and what can be 
             f"The vision model couldn't look at the page ({clip(str(exc), 200)}). If {model} can't read images, set "
             "BROWSER_VISION_MODEL in Settings to one that can (e.g. a Gemini, GPT-4o or Claude model)."
         )
-    choices = (data or {}).get("choices") if isinstance(data, dict) else None
-    answer = ((choices or [{}])[0].get("message") or {}).get("content") or ""
+    choices = data.get("choices") if isinstance(data, dict) else None
+    first = choices[0] if isinstance(choices, list) and choices and isinstance(choices[0], dict) else {}
+    answer = (first.get("message") or {}).get("content") or ""
     if isinstance(answer, list):  # some providers return content parts
         answer = " ".join(p.get("text", "") for p in answer if isinstance(p, dict))
     return {"observation": answer.strip() or "(the vision model gave no answer)", "url": shot["url"], "title": shot["title"]}

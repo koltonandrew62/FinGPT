@@ -791,7 +791,8 @@ def _remember_package(number: str, carrier: str | None, label: str) -> dict:
 @tool(
     "track_package",
     "Track a parcel: detects the carrier from the tracking number (UPS, USPS, FedEx, DHL Express, Amazon) and "
-    "opens the carrier's official tracking page, and saves the number (with an optional label like 'new "
+    "opens the carrier's official tracking page (for another carrier the user names, e.g. OnTrac or Canada Post, "
+    "pass its name as carrier to get a web search), and saves the number (with an optional label like 'new "
     "headphones') so the user can ask about their packages later. Omit tracking_number to list saved packages; "
     "remove=true deletes one. The result is the link, not the delivery status: to read the status, browser_open "
     "the url (carrier pages need JavaScript; fetch_url may work for some) and summarise it.",
@@ -825,7 +826,10 @@ async def track_package(ctx, tracking_number: str = "", carrier: str = "auto", l
         with _PKG_LOCK:
             items = _load_packages()
             keep = [p for p in items if p["number"] not in forms]
-            _save_packages(keep)
+            try:
+                _save_packages(keep)
+            except OSError as exc:
+                raise ToolError(f"Couldn't update the saved packages file ({exc.strerror or exc}).") from None
         return {"status": "removed" if len(keep) != len(items) else "not saved", "removed": len(items) - len(keep)}
 
     det = detect_carrier(number)
@@ -853,7 +857,11 @@ async def track_package(ctx, tracking_number: str = "", carrier: str = "auto", l
         for c in det["alternatives"]
         if c != det["carrier"] and not (c == "search" and det["carrier"] is None)  # the main url is the search then
     ]
-    entry = _remember_package(det["number"], det["carrier"], clip(_text(label), 80))
+    save_error = ""
+    try:
+        entry = _remember_package(det["number"], det["carrier"], clip(_text(label), 80))
+    except OSError as exc:  # e.g. the file is locked or read-only: the link is still what was asked for
+        entry, save_error = {"label": clip(_text(label), 80)}, f"Couldn't save it to the package list ({exc.strerror or exc})."
     name = CARRIER_NAMES.get(det["carrier"]) or (f"{other} (web search)" if other else "a web search")
     result = {
         "status": f"{name} tracking for {det['number']}",
@@ -868,6 +876,8 @@ async def track_package(ctx, tracking_number: str = "", carrier: str = "auto", l
     }
     if note:
         result["note"] = note
+    if save_error:
+        result["save_error"] = save_error
     if det["carrier"] == "amazon":
         result["tip"] = "The link is Amazon's order history: the user (or browser_open) finds the order and clicks 'Track package'."
     if _flag(open):

@@ -41,6 +41,7 @@ ATTACK_PAGE = """
     <input id="em2" name="email" aria-label="Email">
     <label for="pw2" tabindex="0">Your password</label><input id="pw2" name="pw" type="password">
     <input id="showpw" name="password" type="text" autocomplete="current-password" aria-label="Password (shown)" value="hunter2">
+    <input id="pw3" name="newPassword" type="text" aria-label="Choose one" value="s3cret!">
     <input type="submit" value="Complete reservation">
   </form>
   <div role="textbox" tabindex="0" aria-label="Notes" style="min-height:20px"
@@ -57,7 +58,9 @@ FORMLESS_PAGE = """
   <p><button id="later" onclick="document.title = 'clicked later'">View menu</button></p>
   <div role="checkbox" aria-checked="false" tabindex="0" aria-label="Subscribe to offers"
        onclick="this.setAttribute('aria-checked', this.getAttribute('aria-checked') !== 'true')">Offers</div>
-  <p><input aria-label="Reference" id="refno"></p>"""
+  <p><input aria-label="Reference" id="refno"></p>
+  <p><label for="hiddenbuy" tabindex="0">Continue</label>
+     <button id="hiddenbuy" style="position:absolute;left:-9999px" onclick="document.title = 'bought'">Buy now</button></p>"""
 
 
 class FakeSite(BaseHTTPRequestHandler):
@@ -162,6 +165,12 @@ class FakeSite(BaseHTTPRequestHandler):
             return self._send(_page("Attack", ATTACK_PAGE))
         if path == "/formless":
             return self._send(_page("Formless", FORMLESS_PAGE))
+        if path == "/modal":
+            nav = "".join(f'<a href="/n/{i}">Neighbourhood guide number {i}</a> ' for i in range(80))
+            body = f"""<header>{nav}</header><main><h1>Carbone</h1><p>{'Italian-American classics. ' * 20}</p></main>
+              <div role="dialog" aria-modal="true"><h2>Complete your booking</h2>
+                <p>Carbone · Fri, Nov 6 · 8:30 PM · 4 guests</p><button>Reserve Now</button></div>"""
+            return self._send(_page("Carbone", body))
         if path == "/go-home":
             self.send_response(302)
             self.send_header("Location", f"http://127.0.0.1:{self.port}/")
@@ -703,16 +712,17 @@ def test_typing_never_clicks_buttons_or_reaches_secret_fields(live, ctx):
     # A label (or a widget that hands focus over) must not become a way into the password box.
     with pytest.raises(ToolError) as err:
         run(browser.browser_type(ctx, ref=ref_of(snap, "Your password", tag="label"), text="hunter2"))
-    assert "password" in str(err.value)
+    assert "never enters password" in str(err.value)
     with pytest.raises(ToolError) as err:
         run(browser.browser_type(ctx, ref=ref_of(snap, "Sneaky"), text="hunter2"))
-    assert "password" in str(err.value)
+    assert "never enters password" in str(err.value)
     assert _js("document.getElementById('pw2').value") == ""
 
     # A password field switched to plain text is still a secret: never shown, never typed into.
     shown = element(snap, ref_of(snap, "Password (shown)"))
     assert shown["sensitive"] == "password" and "value" not in shown
-    assert "hunter2" not in json.dumps(snap)
+    assert element(snap, ref_of(snap, "Choose one"))["sensitive"] == "password"  # judged by its name alone
+    assert "hunter2" not in json.dumps(snap) and "s3cret" not in json.dumps(snap)
     with pytest.raises(ToolError):
         run(browser.browser_type(ctx, ref=shown["ref"], text="hunter3"))
 
@@ -765,6 +775,7 @@ def test_approval_covers_only_the_element_that_was_shown(live, ctx):
         run(browser.browser_click(ctx, ref=later))
     assert run(browser._click_gate(ctx, {"ref": later}))
     assert run(browser.browser_click(ctx, ref=later))["title"] == "clicked later"
+    _js("document.title = 'Formless'")
     # Approved as "Place order", relabelled before it ran: refused.
     assert run(browser._click_gate(ctx, {"ref": order}))
     _js("document.querySelector('.promo button').textContent = 'Delete account'")
@@ -803,6 +814,14 @@ def test_formless_fields_widgets_and_card_numbers(live, ctx):
     # A custom checkbox whose label is a final action isn't ticked through browser_fill.
     snap = run(browser.browser_fill(ctx, fields=[{"ref": ref_of(snap, "Subscribe to offers"), "value": "true"}]))
     assert "browser_click" in snap["errors"][0]
+    # Clicking a label activates its control: a label in front of a hidden "Buy now" button is gated too.
+    cont = ref_of(snap, "Continue", tag="label")
+    with pytest.raises(ToolError):
+        run(browser.browser_click(ctx, ref=cont))  # no card was shown
+    assert _js("document.title") == "Formless"
+    card = run(browser._click_gate(ctx, {"ref": cont}))
+    assert card and "buy" in dict(card["fields"])["Why asking"]
+    assert run(browser.browser_click(ctx, ref=cont))["title"] == "bought"  # approved
     # A card number the user typed into an unlabelled field is never shown to the model.
     run(browser._call(lambda: browser._S.page.fill("#refno", "4111 1111 1111 1111")))
     snap = run(browser.browser_snapshot(ctx))
@@ -866,6 +885,10 @@ def test_queued_job_is_skipped_after_its_caller_gave_up():
     msg = run(scenario())
     assert "didn't respond in time" in msg
     assert ran == []  # it never ran late
+    # A job that only reaches the worker after its deadline refuses to act.
+    with pytest.raises(ToolError) as err:
+        browser._job(time.monotonic() - 1, ran.append, 1)
+    assert "Skipped" in str(err.value) and ran == []
 
 
 def test_browser_look_reports_vision_model_errors(live, ctx):
@@ -879,3 +902,10 @@ def test_browser_look_reports_vision_model_errors(live, ctx):
     assert "BROWSER_VISION_MODEL" in out["error"] and "image input" in out["error"]
     # The overlay is removed even though the vision call failed.
     assert _js("!!document.getElementById('__atlas_overlay__')") is False
+
+
+def test_approval_card_shows_the_booking_dialog_not_the_header(live, ctx):
+    snap = run(browser.browser_open(ctx, url=live + "/modal"))
+    card = run(browser._click_gate(ctx, {"ref": ref_of(snap, "Reserve Now")}))
+    assert card and "8:30 PM · 4 guests" in card["body"]
+    assert "Neighbourhood guide" not in card["body"]

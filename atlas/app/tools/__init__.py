@@ -105,3 +105,4 @@ async def call_tool(name: str, args: dict, ctx: ToolContext) -> str:
 def load_all() -> None:
     # Importing registers the tools.
     from . import general, news, web, markets, weather, email_tools, pc, memory  # noqa: F401
+    from . import browser, calendar_tools, comms, smart_home, errands  # noqa: F401

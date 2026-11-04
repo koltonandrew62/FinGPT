@@ -574,3 +574,132 @@ def test_broker():
         assert fut2.cancelled() and b.pending == {}
 
     run(go())
+
+
+# ---------------------------------------------------------------- dynamic gates & ordering
+def _add_tool(monkeypatch, name, func, gate=None, properties=None):
+    monkeypatch.setitem(
+        TOOLS,
+        name,
+        Tool(name=name, description="t", parameters={"type": "object", "properties": properties or {"target": {"type": "string"}}, "required": []},
+             func=func, label=f"Label {name}", gate=gate),
+    )
+
+
+def _gated_click(monkeypatch, gate):
+    ran = []
+
+    async def click(ctx, target=""):
+        ran.append(target)
+        return {"status": f"clicked {target}"}
+
+    _add_tool(monkeypatch, "browser_click_t", click, gate=gate)
+    return ran
+
+
+def _final_click_gate():
+    async def gate(ctx, args):
+        if args.get("target") == "Complete reservation":
+            return {"title": "Confirm on website", "fields": [["Button", args["target"]]], "body": "Party of 2, 7:00 PM"}
+        return None
+
+    return gate
+
+
+def test_dynamic_gate_card_requires_approval(monkeypatch):
+    ran = _gated_click(monkeypatch, _final_click_gate())
+    llm = FakeLLM([tool_calls(("c1", "browser_click_t", '{"target": "Complete reservation"}'))], [text("Booked.")])
+    events = collect(llm, on_event=answer(True))
+    (card,) = of(events, "confirm")
+    assert card["title"] == "Confirm on website" and card["body"] == "Party of 2, 7:00 PM"
+    assert card["fields"] == [["Button", "Complete reservation"]]
+    assert ran == ["Complete reservation"]
+
+
+def test_dynamic_gate_denied_does_not_run(monkeypatch):
+    ran = _gated_click(monkeypatch, _final_click_gate())
+    llm = FakeLLM([tool_calls(("c1", "browser_click_t", '{"target": "Complete reservation"}'))], [text("Okay.")])
+    events = collect(llm, on_event=answer(False))
+    assert of(events, "confirm_result")[0]["approved"] is False and ran == []
+
+
+def test_dynamic_gate_none_runs_without_card(monkeypatch):
+    ran = _gated_click(monkeypatch, _final_click_gate())
+    llm = FakeLLM([tool_calls(("c1", "browser_click_t", '{"target": "7:00 PM"}'))], [text("Picked.")])
+    events = collect(llm)
+    assert of(events, "confirm") == [] and ran == ["7:00 PM"]
+
+
+def test_dynamic_gate_failure_fails_closed(monkeypatch):
+    async def broken_gate(ctx, args):
+        raise RuntimeError("page crashed")
+
+    ran = _gated_click(monkeypatch, broken_gate)
+    llm = FakeLLM([tool_calls(("c1", "browser_click_t", '{"target": "anything"}'))], [text("ok")])
+    events = collect(llm, on_event=answer(False))
+    (card,) = of(events, "confirm")
+    assert "couldn't inspect" in card["body"] and ran == []
+
+
+def test_dynamic_gate_skipped_when_auto_approved(monkeypatch):
+    called = []
+
+    async def gate(ctx, args):
+        called.append(args)
+        return {"title": "x", "fields": [], "body": ""}
+
+    ran = _gated_click(monkeypatch, gate)
+    llm = FakeLLM([tool_calls(("c1", "browser_click_t", '{"target": "Pay"}'))], [text("ok")])
+    events = collect(llm, settings=config.Settings(auto_approve={"browser_click_t"}))
+    assert of(events, "confirm") == [] and called == [] and ran == ["Pay"]
+
+
+def test_browser_tools_run_one_at_a_time_in_order(monkeypatch):
+    log = []
+
+    def make(name, delay):
+        async def fn(ctx, target=""):
+            log.append(("start", name))
+            await asyncio.sleep(delay)
+            log.append(("end", name))
+            return {"status": name}
+
+        return fn
+
+    _add_tool(monkeypatch, "browser_one", make("browser_one", 0.03))
+    _add_tool(monkeypatch, "browser_two", make("browser_two", 0.0))
+    llm = FakeLLM([tool_calls(("a", "browser_one"), ("b", "browser_two"))], [text("done")])
+    collect(llm)
+    assert log == [("start", "browser_one"), ("end", "browser_one"), ("start", "browser_two"), ("end", "browser_two")]
+
+
+def test_gate_sees_state_left_by_previous_browser_action(monkeypatch):
+    page = {"step": "slots"}
+
+    async def pick_slot(ctx, target=""):
+        page["step"] = "details"
+        return {"status": "slot picked"}
+
+    async def gate(ctx, args):  # only the details page has the irreversible button
+        return {"title": "Confirm", "fields": [], "body": page["step"]} if page["step"] == "details" else None
+
+    ran = _gated_click(monkeypatch, gate)
+    _add_tool(monkeypatch, "browser_slot_t", pick_slot)
+    llm = FakeLLM([tool_calls(("a", "browser_slot_t"), ("b", "browser_click_t", '{"target": "Complete"}'))], [text("ok")])
+    events = collect(llm, on_event=answer(True))
+    (card,) = of(events, "confirm")
+    assert card["body"] == "details" and ran == ["Complete"]
+
+
+def test_new_capability_tools_registered_with_expected_gating():
+    from app.tools import load_all
+
+    load_all()
+    for name in ("browser_click", "browser_type", "browser_press", "smart_home_control"):
+        assert TOOLS[name].gate is not None, name
+    for name in ("send_text_message", "make_phone_call", "send_email", "run_command"):
+        assert name in config.SENSITIVE_TOOLS, name
+    for name in ("reservation_search", "get_calendar_events", "add_task", "get_directions", "track_package"):
+        assert name in TOOLS, name
+    # browser tools must not be statically gated: their gates record the per-element grant
+    assert not any(n.startswith("browser_") for n in config.SENSITIVE_TOOLS)

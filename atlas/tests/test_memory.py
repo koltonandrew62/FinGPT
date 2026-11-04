@@ -98,11 +98,21 @@ def test_find_contact_ambiguous_or_unknown():
 def test_save_contact_updates_and_validates():
     tool("save_contact", name="Mom", email="old@example.com")
     out = tool("save_contact", name="mom", email="new@example.com", phone="555")
-    assert out == {"status": "saved", "name": "mom", "email": "new@example.com"}
+    assert out == {"status": "saved", "name": "mom", "email": "new@example.com", "phone": "555"}
     assert len(memory.contacts()) == 1 and memory.contacts()[0]["phone"] == "555"
     assert "error" in tool("save_contact", name="X", email="not-an-email")
     tool("save_contact", name="Coach", email="c@example.com", aliases="coach r, rivera")
     assert memory.find_contact("Coach")["aliases"] == ["coach r", "rivera"]
+
+
+def test_save_contact_phone_only_and_merge():
+    out = tool("save_contact", name="Joe", phone="+1 555 234 5678")
+    assert out["status"] == "saved" and out["email"] == "" and out["phone"] == "+1 555 234 5678"
+    # A later update with only an email keeps the phone (and vice versa).
+    out = tool("save_contact", name="joe", email="joe@example.com")
+    assert out["phone"] == "+1 555 234 5678" and out["email"] == "joe@example.com"
+    assert len(memory.contacts()) == 1
+    assert "error" in tool("save_contact", name="Nobody")  # neither email nor phone
 
 
 def test_list_contacts_filter():
