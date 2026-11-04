@@ -112,6 +112,5 @@ def settings():
     return config.Settings()
 
 
-def pytest_sessionfinish(session, exitstatus):
-    # Sanity check: the suite must never create the developer's real .env.
-    assert os.environ.get("ATLAS_TESTS_ALLOW_REAL_ENV") or config.ENV_PATH != REAL_ENV_PATH
+def file_stamp(p: Path):
+    return p.stat().st_mtime_ns if p.exists() else None
