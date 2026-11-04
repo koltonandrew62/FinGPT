@@ -34,6 +34,7 @@ tool_registry.load_all()
 
 from app import util  # noqa: E402
 from app.tools import ToolContext, memory, news, markets, weather  # noqa: E402
+from app.tools import data_sources, finance_data, sports  # noqa: E402
 
 FAKE_PUBLIC_IP = "93.184.215.14"  # what every host name "resolves" to in tests unless a test says otherwise
 
@@ -57,15 +58,27 @@ def isolated(tmp_path, monkeypatch):
             monkeypatch.setattr(mod, "DATA_DIR", data_dir)
     for key in SETTINGS_ENV_KEYS:
         monkeypatch.delenv(key, raising=False)
-    news._CACHE.clear()
-    markets._CACHE.clear()
-    weather._GEO_CACHE.clear()
-    weather._WX_CACHE.clear()
+    # The Yahoo Finance session keeps its own HTTP client (not ctx.http): give every test an offline one.
+    yahoo = finance_data.YahooSession(transport=httpx.MockTransport(no_network))
+    monkeypatch.setattr(finance_data, "_SESSION", yahoo)
+    _clear_caches()
     yield {"env_path": env_path, "data_dir": data_dir}
+    _clear_caches()
+    try:
+        asyncio.run(yahoo.close())
+    except Exception:
+        pass
+
+
+def _clear_caches() -> None:
     news._CACHE.clear()
     markets._CACHE.clear()
     weather._GEO_CACHE.clear()
     weather._WX_CACHE.clear()
+    finance_data._CACHE.clear()
+    finance_data._LIMITER.clear()
+    data_sources._CACHE.clear()
+    sports._CACHE.clear()
 
 
 @pytest.fixture(autouse=True)

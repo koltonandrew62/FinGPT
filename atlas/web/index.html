@@ -157,6 +157,7 @@
           <p class="hero-sub">All systems online. <span class="hs-voice">Say “<span data-name>ATLAS</span>” and ask, or type below</span><span class="hs-type">Type a request below</span> — or try one of these:</p>
           <ul class="hero-try" aria-label="Example requests">
             <li><button type="button" class="try" data-try="What's the weather looking like this weekend?">Weather this weekend?</button></li>
+            <li><button type="button" class="try" data-try="How are markets doing today?">How are markets doing?</button></li>
             <li><button type="button" class="try" data-prefill="Remind me in 20 minutes to ">Remind me in 20 min to…</button></li>
             <li><button type="button" class="try" data-prefill="Add to my to-do list: ">Add a to-do…</button></li>
           </ul>
@@ -214,7 +215,7 @@
           <span class="panel-meta"><i class="live-dot" aria-hidden="true"></i><span class="panel-sync" data-sync>SYNC</span></span>
         </header>
         <div class="panel-rule" aria-hidden="true"></div>
-        <div class="news-tabs" role="tablist" aria-label="News categories" id="news-tabs"></div>
+        <div class="news-tabs" role="tablist" aria-label="Markets and news categories" id="news-tabs"></div>
         <div class="panel-body scroll" id="news-body" role="tabpanel" aria-labelledby="h-news"></div>
       </section>
 
@@ -291,8 +292,6 @@
             <label class="field"><span>News region</span><input name="NEWS_REGION" type="text" maxlength="4" placeholder="US"></label>
             <label class="field"><span>News language</span><input name="NEWS_LANGUAGE" type="text" maxlength="5" placeholder="en"></label>
           </div>
-          <label class="field"><span>Market watchlist <em class="field-note">blank = default</em></span><input name="MARKET_WATCHLIST" type="text" maxlength="400" spellcheck="false" aria-describedby="help-watch" placeholder="^GSPC,^IXIC,AAPL,BTC-USD"></label>
-          <p class="field-help" id="help-watch">Ticker symbols as Yahoo Finance writes them, separated by commas.</p>
           <p class="field-help">Your details fill in reservations and forms. Leave any blank and <span data-name>ATLAS</span> asks when it needs it.</p>
         </div>
       </details>
@@ -423,15 +422,48 @@
         </div>
       </details>
 
+      <details class="set-sec" id="sec-data">
+        <summary><span class="idx">09</span><span class="ss-title">Data sources</span><span class="ss-dirty">Edited</span><span class="ss-badge" data-badge="data"></span><i class="ss-chev" aria-hidden="true"></i></summary>
+        <div class="set-body">
+          <p class="field-help note">Stocks, crypto, economic data and sports scores all work with every field here blank. These only tune the sources or raise their rate limits.</p>
+          <label class="field"><span>Market watchlist <em class="field-note">bottom ticker · blank = default</em></span><input name="MARKET_WATCHLIST" type="text" maxlength="400" spellcheck="false" aria-describedby="help-watch" placeholder="^GSPC,^IXIC,AAPL,BTC-USD"></label>
+          <p class="field-help" id="help-watch">Ticker symbols as Yahoo Finance writes them, separated by commas.</p>
+          <label class="field"><span>SEC contact email <em class="field-note">recommended</em></span><input name="SEC_CONTACT_EMAIL" type="email" maxlength="200" autocomplete="email" spellcheck="false" aria-describedby="help-sec" placeholder="you@example.com"></label>
+          <p class="field-help" id="help-sec">SEC EDGAR asks for a contact email in the User-Agent of every request. Without one, filing and financials lookups may be refused. It is sent only to SEC.</p>
+          <div class="field">
+            <label class="field-lbl" for="f-FRED_API_KEY"><span>FRED API key</span><em class="field-note"><b class="cfg" data-cfg="FRED_API_KEY"></b></em></label>
+            <div class="secret"><input id="f-FRED_API_KEY" name="FRED_API_KEY" type="password" data-secret autocomplete="off" spellcheck="false" aria-describedby="help-fred" placeholder="optional (blank = keep current)"><button class="reveal" type="button" aria-controls="f-FRED_API_KEY" aria-pressed="false" aria-label="Show the key you typed"></button></div>
+          </div>
+          <p class="field-help" id="help-fred">Optional. Without a key, economic data comes from FRED’s public CSV downloads, with the same figures. Free keys: <a href="https://fred.stlouisfed.org/docs/api/api_key.html" target="_blank" rel="noopener noreferrer">fred.stlouisfed.org</a>.</p>
+          <div class="field">
+            <label class="field-lbl" for="f-COINGECKO_API_KEY"><span>CoinGecko API key</span><em class="field-note"><b class="cfg" data-cfg="COINGECKO_API_KEY"></b></em></label>
+            <div class="secret"><input id="f-COINGECKO_API_KEY" name="COINGECKO_API_KEY" type="password" data-secret autocomplete="off" spellcheck="false" aria-describedby="help-cg" placeholder="optional (blank = keep current)"><button class="reveal" type="button" aria-controls="f-COINGECKO_API_KEY" aria-pressed="false" aria-label="Show the key you typed"></button></div>
+          </div>
+          <p class="field-help" id="help-cg">Optional free “demo” key from <a href="https://www.coingecko.com/en/api" target="_blank" rel="noopener noreferrer">coingecko.com/en/api</a> for higher crypto limits (about 30 calls a minute). Works without one.</p>
+          <div class="field-row">
+            <label class="field"><span>Finance region</span><input name="FINANCE_REGION" type="text" maxlength="2" spellcheck="false" autocapitalize="characters" aria-describedby="help-region" placeholder="US"></label>
+            <label class="field"><span>Sports time zone</span><input name="SPORTS_TIMEZONE" type="text" maxlength="64" spellcheck="false" aria-describedby="help-region" placeholder="this computer’s"></label>
+          </div>
+          <p class="field-help" id="help-region">Region: two letters (US, GB, CA, IN…) for trending tickers and stock news. Top movers are always US. Time zone: an IANA name such as America/Chicago, for game times.</p>
+          <label class="field"><span>Sports leagues <em class="field-note">up to 8</em></span><input name="SPORTS_PANEL_LEAGUES" type="text" maxlength="200" spellcheck="false" aria-describedby="help-leagues" placeholder="nfl,nba,nhl,mlb,epl"></label>
+          <p class="field-help" id="help-leagues">The leagues the scores panel follows, separated by commas, e.g. nfl,nba,epl,f1,ucl.</p>
+          <details class="advanced">
+            <summary>Advanced</summary>
+            <label class="field"><span>Finance User-Agent <em class="field-note">blank = built-in</em></span><input name="FINANCE_USER_AGENT" type="text" maxlength="300" spellcheck="false" aria-describedby="help-ua" placeholder="Built-in browser User-Agent"></label>
+            <p class="field-help" id="help-ua">Sent to Yahoo Finance and the US Treasury. Only change it if Yahoo starts refusing requests.</p>
+          </details>
+        </div>
+      </details>
+
       <details class="set-sec" id="sec-memory">
-        <summary><span class="idx">09</span><span class="ss-title">Memory</span><span class="ss-badge" data-badge="memory"></span><i class="ss-chev" aria-hidden="true"></i></summary>
+        <summary><span class="idx">10</span><span class="ss-title">Memory</span><span class="ss-badge" data-badge="memory"></span><i class="ss-chev" aria-hidden="true"></i></summary>
         <div class="set-body">
           <ul class="memory-list" id="memory-list"><li class="muted">Loading…</li></ul>
         </div>
       </details>
 
       <details class="set-sec set-danger" id="sec-danger">
-        <summary><span class="idx">10</span><span class="ss-title">Danger zone</span><i class="ss-chev" aria-hidden="true"></i></summary>
+        <summary><span class="idx">11</span><span class="ss-title">Danger zone</span><i class="ss-chev" aria-hidden="true"></i></summary>
         <div class="set-body">
           <p class="field-help">Clears the transcript and chat history stored in this browser. Settings and long-term memory are kept.</p>
           <button class="btn btn-danger btn-sm" type="button" id="clear-convo">Clear conversation</button>

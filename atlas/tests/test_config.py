@@ -182,3 +182,44 @@ def test_needs_confirmation_and_auto_approve(isolated, monkeypatch):
 def test_email_configured_requires_both():
     assert not Settings(email_address="a@b.com").email_configured
     assert Settings(email_address="a@b.com", email_password="x").email_configured
+
+
+LIVE_DATA_KEYS = {"FINANCE_REGION", "FINANCE_USER_AGENT", "COINGECKO_API_KEY", "SEC_CONTACT_EMAIL", "FRED_API_KEY",
+                  "SPORTS_TIMEZONE", "SPORTS_PANEL_LEAGUES"}
+
+
+def test_live_data_keys_are_editable_and_api_keys_secret():
+    assert LIVE_DATA_KEYS <= config.EDITABLE_KEYS
+    assert config.SECRET_KEYS <= config.EDITABLE_KEYS
+    assert {"COINGECKO_API_KEY", "FRED_API_KEY"} <= config.SECRET_KEYS
+    assert not {"FINANCE_REGION", "FINANCE_USER_AGENT", "SEC_CONTACT_EMAIL", "SPORTS_TIMEZONE", "SPORTS_PANEL_LEAGUES"} & config.SECRET_KEYS
+
+
+def test_live_data_modules_read_settings_from_env_file(isolated, monkeypatch):
+    from app.tools import data_sources, finance_data, sports
+
+    update_env_file({"FINANCE_REGION": "GB", "SEC_CONTACT_EMAIL": "me@example.com", "SPORTS_TIMEZONE": "America/Chicago"})
+    assert finance_data._setting("FINANCE_REGION") == "GB"
+    assert data_sources._setting("SEC_CONTACT_EMAIL") == "me@example.com"
+    assert sports._setting("SPORTS_TIMEZONE") == "America/Chicago"
+    monkeypatch.setenv("FINANCE_REGION", "CA")  # an environment variable still wins
+    assert finance_data._setting("FINANCE_REGION") == "CA"
+    monkeypatch.delenv("FINANCE_REGION")
+    # blank values, as .env.example ships them, mean "use the default"
+    update_env_file({"FINANCE_REGION": "", "SPORTS_PANEL_LEAGUES": "", "SPORTS_TIMEZONE": ""})
+    assert finance_data._region() == "US"
+    assert sports._setting("SPORTS_PANEL_LEAGUES", sports.DEFAULT_PANEL_LEAGUES) == "nfl,nba,nhl,mlb,epl"
+    assert sports._zone() is None
+
+
+def test_every_editable_key_is_documented():
+    import re
+
+    example = (config.ROOT / ".env.example").read_text(encoding="utf-8")
+    readme = (config.ROOT / "README.md").read_text(encoding="utf-8")
+    listed = set(re.findall(r"^([A-Z][A-Z0-9_]*)=", example, re.M))
+    assert config.EDITABLE_KEYS <= listed, sorted(config.EDITABLE_KEYS - listed)
+    assert not [k for k in config.EDITABLE_KEYS if f"`{k}`" not in readme]
+    # .env.example ships no real secrets: every secret is blank or the obvious OpenRouter placeholder
+    values = dict(re.findall(r"^([A-Z][A-Z0-9_]*)=(.*)$", example, re.M))
+    assert all(values[k] in ("", "sk-or-v1-your-key-here") for k in config.SECRET_KEYS)

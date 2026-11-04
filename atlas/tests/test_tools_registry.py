@@ -126,3 +126,21 @@ def test_call_tool_serialises_non_json_types(temp_tool):
     raw = run(call_tool("t_dt", {}, make_ctx()))
     assert "Café" in raw  # ensure_ascii=False
     assert json.loads(raw)["when"] == "2026-01-02 03:04:00"
+
+
+def test_live_data_modules_are_registered_by_load_all():
+    import sys
+
+    from app import tools
+
+    tools.load_all()
+    for mod in ("app.tools.finance_data", "app.tools.data_sources", "app.tools.sports"):
+        assert mod in sys.modules
+    for name in ("get_stock_details", "get_market_movers", "get_stock_news", "get_technicals", "get_yield_curve",
+                 "get_crypto", "get_sec_filings", "get_company_financials", "get_earnings_calendar",
+                 "get_market_sentiment", "get_economic_data", "get_sports_scores", "get_sports_standings",
+                 "get_team_schedule", "get_sports_news"):
+        assert name in TOOLS, name
+        assert TOOLS[name].func.__module__.startswith("app.tools."), name
+    # the older market tools are still there alongside the new ones
+    assert {"get_market_data", "lookup_ticker"} <= set(TOOLS)

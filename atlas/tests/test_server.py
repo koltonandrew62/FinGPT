@@ -28,8 +28,9 @@ def srv(isolated, monkeypatch):
 
     real_async_client = httpx.AsyncClient
 
-    def offline_client(*args, **kwargs):  # the app's own client can never reach a real host
-        kwargs.setdefault("transport", httpx.MockTransport(no_network))
+    def offline_client(*args, **kwargs):  # the app's own clients can never reach a real host
+        if kwargs.get("transport") is None:  # also when a caller passes transport=None explicitly
+            kwargs["transport"] = httpx.MockTransport(no_network)
         return real_async_client(*args, **kwargs)
 
     monkeypatch.setattr(httpx, "AsyncClient", offline_client)
@@ -372,6 +373,151 @@ def test_panels_degrade_gracefully_offline(srv):
     assert set(w) == {"error"}
     sysinfo = client.get("/api/system").json()
     assert {"os", "cpu_percent", "memory", "disk", "battery", "uptime_hours"} <= set(sysinfo) or "error" in sysinfo
+
+
+# ------------------------------------------------------------------ live data panels
+MOVERS_KEYS = {"status", "market_state", "gainers", "losers", "most_active", "trending", "errors", "as_of"}
+
+
+def test_market_pulse_offline_reports_each_part_separately(srv):
+    _, client = srv
+    r = client.get("/api/market_pulse")
+    assert r.status_code == 200 and len(r.content) < 50_000
+    body = r.json()
+    assert set(body) == {"movers", "crypto", "sentiment"}
+    movers, crypto, sentiment = body["movers"], body["crypto"], body["sentiment"]
+    assert set(movers) == MOVERS_KEYS and movers["status"] == "unavailable"
+    assert movers["gainers"] == movers["losers"] == movers["most_active"] == movers["trending"] == []
+    assert movers["errors"] and all(isinstance(e, str) for e in movers["errors"])
+    assert movers["market_state"] in {"open", "pre-market", "after-hours", "closed"}
+    assert crypto["coins"] == [] and crypto["global"] is None and crypto["error"]
+    assert sentiment["fear_greed"] is None and sentiment["vix"] is None and sentiment["error"]
+    # friendly messages only: no raw exception text (the offline transport's message holds the URL) or HTML
+    for leak in ("unexpected network request", "https://", "Traceback", "<html"):
+        assert leak not in r.text
+
+
+def test_market_pulse_parts_fail_independently(srv, monkeypatch):
+    import asyncio
+
+    from app.tools import data_sources, finance_data
+
+    server, client = srv
+    movers = {
+        "status": "ok", "market_state": "open", "gainers": [{"symbol": "NVDA", "name": "NVIDIA", "price": 140.1, "change_pct": 4.2}],
+        "losers": [], "most_active": [], "trending": [{"symbol": "TSLA"}], "errors": [], "as_of": "2026-11-04T15:30+00:00",
+    }
+
+    async def fake_movers(ctx):
+        return movers
+
+    async def broken_crypto(ctx):
+        raise RuntimeError("boom https://api.coingecko.com/x?api_key=cg-secret-123")
+
+    async def slow_sentiment(ctx):
+        await asyncio.sleep(5)
+
+    monkeypatch.setattr(server, "PANEL_PART_TIMEOUT", 0.2)
+    monkeypatch.setattr(finance_data, "market_pulse", fake_movers)
+    monkeypatch.setattr(data_sources, "crypto_pulse", broken_crypto)
+    monkeypatch.setattr(data_sources, "sentiment_pulse", slow_sentiment)
+    r = client.get("/api/market_pulse")
+    assert r.status_code == 200 and "cg-secret-123" not in r.text and "coingecko.com" not in r.text
+    body = r.json()
+    assert body["movers"] == movers
+    assert body["crypto"] == {"coins": [], "global": None, "source": "CoinGecko", "error": "Crypto data is unavailable right now (RuntimeError)."}
+    assert body["sentiment"] == {"fear_greed": None, "vix": None, "error": "Sentiment data didn't arrive in time."}
+
+
+def test_market_pulse_keeps_the_movers_shape_when_movers_fail(srv, monkeypatch):
+    from app.tools import data_sources, finance_data
+
+    server, client = srv
+    crypto = {"coins": [{"symbol": "BTC", "name": "Bitcoin", "price": 97000.0, "change_24h_pct": 1.2, "change_7d_pct": -3.0}],
+              "global": None, "source": "CoinGecko", "as_of": "2026-11-04T15:30+00:00"}
+
+    async def broken_movers(ctx):
+        raise ValueError("bad")
+
+    async def odd_sentiment(ctx):
+        return ["not", "a", "dict"]
+
+    async def fake_crypto(ctx):
+        return crypto
+
+    monkeypatch.setattr(finance_data, "market_pulse", broken_movers)
+    monkeypatch.setattr(data_sources, "crypto_pulse", fake_crypto)
+    monkeypatch.setattr(data_sources, "sentiment_pulse", odd_sentiment)
+    body = client.get("/api/market_pulse").json()
+    assert set(body["movers"]) == MOVERS_KEYS and body["movers"]["status"] == "unavailable"
+    assert body["movers"]["errors"] == ["Market movers data is unavailable right now (ValueError)."]
+    assert body["crypto"] == crypto
+    assert body["sentiment"] == {"fear_greed": None, "vix": None, "error": "Sentiment data is unavailable right now."}
+
+
+def test_sports_panel(srv, monkeypatch):
+    server, client = srv
+    assert client.get("/api/sports").json() == {"leagues": []}  # offline: every league fails, so none are shown
+    leagues = [{"league": "NBA", "key": "nba", "status": "NBA today: 1 game", "games": [{"matchup": "BOS @ NY", "status": "live", "text": "Celtics 78, Knicks 74"}]}]
+
+    async def fake(ctx):
+        return leagues
+
+    monkeypatch.setattr(server, "scores_for_panel", fake)
+    assert client.get("/api/sports").json() == {"leagues": leagues}
+
+    async def broken(ctx):
+        raise RuntimeError("https://site.api.espn.com/secret")
+
+    monkeypatch.setattr(server, "scores_for_panel", broken)
+    out = client.get("/api/sports").json()
+    assert out == {"leagues": [], "error": "Scores are unavailable right now (RuntimeError)."}
+
+
+def test_live_data_settings_in_state_and_setup(srv):
+    server, client = srv
+    config.ENV_PATH.write_text(
+        "FINANCE_REGION=GB\nSEC_CONTACT_EMAIL=me@example.com\nSPORTS_TIMEZONE=America/Chicago\n"
+        "SPORTS_PANEL_LEAGUES=nba,epl\nCOINGECKO_API_KEY=cg-secret-123\nFRED_API_KEY=fred-secret-456\n"
+    )
+    r = client.get("/api/state")
+    assert "cg-secret-123" not in r.text and "fred-secret-456" not in r.text
+    s = r.json()
+    assert s["extra"]["FINANCE_REGION"] == "GB" and s["extra"]["SEC_CONTACT_EMAIL"] == "me@example.com"
+    assert s["extra"]["SPORTS_TIMEZONE"] == "America/Chicago" and s["extra"]["SPORTS_PANEL_LEAGUES"] == "nba,epl"
+    assert s["extra"]["FINANCE_USER_AGENT"] == ""
+    assert s["secrets_configured"]["COINGECKO_API_KEY"] is True and s["secrets_configured"]["FRED_API_KEY"] is True
+    assert {"get_stock_details", "get_crypto", "get_economic_data", "get_sports_scores"} <= set(s["tools"])
+    # the settings screen can write every new key; blank secrets keep the stored value
+    r = client.post("/api/setup", json={"values": {
+        "FINANCE_REGION": "CA", "FINANCE_USER_AGENT": "", "SEC_CONTACT_EMAIL": "you@example.com",
+        "SPORTS_TIMEZONE": "Europe/London", "SPORTS_PANEL_LEAGUES": "nfl,f1", "COINGECKO_API_KEY": "", "FRED_API_KEY": "fred-new",
+    }})
+    assert r.status_code == 200
+    values = load_env_file(config.ENV_PATH)
+    assert values["FINANCE_REGION"] == "CA" and values["SEC_CONTACT_EMAIL"] == "you@example.com"
+    assert values["SPORTS_PANEL_LEAGUES"] == "nfl,f1" and values["SPORTS_TIMEZONE"] == "Europe/London"
+    assert values["COINGECKO_API_KEY"] == "cg-secret-123" and values["FRED_API_KEY"] == "fred-new"
+
+
+def test_lifespan_closes_the_yahoo_session(isolated, monkeypatch):
+    from app import server
+    from app.tools import browser, finance_data
+
+    calls = []
+
+    async def browser_down():
+        raise RuntimeError("browser shutdown failed")  # must not stop the rest of the teardown
+
+    async def yahoo_down():
+        calls.append("yahoo")
+
+    monkeypatch.setattr(browser, "shutdown", browser_down)
+    monkeypatch.setattr(finance_data, "shutdown", yahoo_down)
+    monkeypatch.setattr(server.S, "settings", config.Settings.load())
+    with TestClient(server.app, base_url="http://127.0.0.1:8765"):
+        assert calls == []
+    assert calls == ["yahoo"] and server.S.http.is_closed
 
 
 # ------------------------------------------------------------------ startup banner

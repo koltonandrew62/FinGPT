@@ -3,7 +3,8 @@
 **A voice-driven personal AI assistant that runs on your own computer.**
 
 ATLAS lives in a browser tab as a heads-up display. You talk to it (or type), and it can brief you on the
-news, look things up on the live web, check markets and weather, read and send your email, book restaurant
+news, look things up on the live web, dig into live market, company, crypto, economic and sports data, check
+the weather, read and send your email, book restaurant
 tables and fill in websites in its own browser window, read your calendar and keep a to-do list, send texts and
 start calls, control your smart home, plan errands and trips, keep notes and reminders, remember things about
 you, and operate your PC: opening apps, controlling media, finding files, running commands. Anything risky
@@ -13,7 +14,7 @@ The thinking is done by the AI model you choose through [OpenRouter](https://ope
 your settings and your personal data all stay on your machine.
 
 **Contents:** [Features](#what-atlas-can-do) · [Quick start](#quick-start) · [First run](#first-run) ·
-[Things to say](#things-to-say) · [Email](#email-setup) · [Your details](#your-details-phone--addresses) ·
+[Things to say](#things-to-say) · [Live data](#live-data-sources) · [Email](#email-setup) · [Your details](#your-details-phone--addresses) ·
 [Reservations & web tasks](#reservations--web-tasks) · [Calendar & to-dos](#calendar--to-dos) ·
 [Texts & calls](#texts--calls) · [Smart home](#smart-home-home-assistant) · [Errands](#errands--travel) ·
 [Approvals](#how-approvals-work) · [Configuration](#configuration-reference) ·
@@ -29,7 +30,11 @@ your settings and your personal data all stay on your machine.
 | **Live news** | Headlines by section (top, world, US, business, technology, science, health, sports, entertainment) or on any topic you name | Google News, with BBC, NPR, CNBC and Ars Technica as backups, plus Hacker News |
 | **Web search** | Searches the live web and answers with cited sources. It can also read a full article from a link | OpenRouter's web plugin, falling back to DuckDuckGo |
 | **Encyclopedia** | Quick summaries of people, places, organisations and events | Wikipedia |
-| **Markets** | Stocks, ETFs, indices, crypto, currencies and futures: price, change over 1 day to 5 years, ticker lookup | Yahoo Finance |
+| **Markets** | Stocks, ETFs, indices, crypto, currencies and futures: price, change over 1 day to 5 years, ticker lookup. Top gainers, losers, most active and trending tickers. Technicals (moving averages, RSI, MACD, volatility, support and resistance) | Yahoo Finance |
+| **Company research** | One stock in depth: valuation (P/E, EPS, PEG, P/B), dividend, margins and growth, analyst consensus and price targets, next earnings date, pre-market and after-hours prices, ticker news. Reported quarterly and annual results, SEC filings with document links, and the earnings calendar | Yahoo Finance, SEC EDGAR, Nasdaq |
+| **Crypto** | Prices, 1h/24h/7d change, market cap, rank, total market cap, BTC dominance and trending coins, 24/7 | CoinGecko, with Yahoo Finance as a backup |
+| **Economy & rates** | CPI and PCE inflation, unemployment, payrolls, Fed funds, GDP, mortgage rates, jobless claims and more. The Treasury yield curve and whether it's inverted. CNN's Fear & Greed index and the VIX | FRED (St. Louis Fed), U.S. Treasury, CNN, Yahoo Finance |
+| **Sports** | Live scores and results, schedules, standings and news for the NFL, NBA, WNBA, MLB, NHL, college football and basketball, MLS, NWSL, the Premier League and other top soccer leagues, the Champions League, F1, golf and UFC | ESPN |
 | **Weather** | Current conditions and a forecast of up to 7 days, for home or any city | Open-Meteo (no key needed) |
 | **Email** | List, search and read your inbox. Writes and sends email after you approve the draft | Your own mailbox over IMAP/SMTP |
 | **Reservations & web tasks** | Books restaurant tables and operates websites for you (forms, orders, account pages) in its own browser window. Final Book / Pay / Submit clicks wait for your approval | Chrome or Edge, driven by Playwright |
@@ -49,6 +54,7 @@ a news feed with category tabs, a scrolling market ticker, and a running count o
 One-tap chips cover the everyday requests: **Daily briefing**, **Headlines**, **Markets**, **Inbox** and **System check**.
 
 Email, the calendar, texting and smart home are optional: each one switches on once you add its settings.
+The live market, economic and sports data needs no setup. See [Live data sources](#live-data-sources).
 
 ---
 
@@ -160,6 +166,21 @@ python run.py
 - "What's the ticker for Vanguard Total Stock Market?"
 - "Will I need an umbrella this week?" · "What's the weather in Chicago this weekend?"
 
+**Stocks, crypto & the economy**
+- "How's Nvidia looking?" · "What's Apple's P/E and when do they report next?"
+- "What are today's top gainers?" · "What's trending on the market?" · "Why is Tesla moving today?"
+- "Is the S&P 500 above its 200-day moving average?" · "What's Microsoft's RSI?"
+- "Apple's last 10-Q." · "Show me Amazon's revenue for the last eight quarters."
+- "Who reports earnings this week?"
+- "What's Bitcoin at?" · "Top 5 coins."
+- "What's the fear and greed index?" · "Is the yield curve still inverted?"
+- "Latest CPI?" · "Give me an economic dashboard." · "What's the unemployment rate?"
+
+**Sports**
+- "Who won the Lakers game?" · "What's the score of the Chiefs game?"
+- "When do the Yankees play next?" · "Premier League table."
+- "Who won the last F1 race?" · "Any NBA trade news?"
+
 **Email**
 - "Do I have any unread email?"
 - "Read me the latest email from Sam, then draft a polite reply saying Thursday works."
@@ -209,6 +230,39 @@ python run.py
 - "Remind me tomorrow at 9 to call the dentist."
 - "Make a note: gift ideas, a book for Dad and a scarf for Maya."
 - "Remember that I prefer metric units." · "What do you know about me?"
+
+---
+
+## Live data sources
+
+ATLAS answers market, company, crypto, economy and sports questions from live data rather than from the
+model's memory, and says where each figure came from and how current it is. **No setup or account is needed.**
+Three optional settings raise limits or keep a source happy (see the table and the
+[configuration reference](#configuration-reference)).
+
+| Source | What ATLAS gets from it | Key needed? | Reliability |
+|---|---|---|---|
+| **Yahoo Finance** | Quotes and price history; one ticker in depth (valuation, dividend, financial ratios, analyst targets, earnings dates, pre-market and after-hours); top gainers, losers, most active and trending; ticker news; the daily bars behind technicals; Treasury yield and VIX quotes | No | **Unofficial** endpoints (the ones finance.yahoo.com uses). Best-effort: Yahoo can rate-limit or, in the EU, ask for cookie consent. ATLAS then falls back to its basic chart data and backs off for a while. Equity quotes may be **delayed about 15 minutes** |
+| **U.S. Treasury** | The official daily par yield curve (1 month to 30 years), used to fill gaps and on request | No | Official (home.treasury.gov) |
+| **CoinGecko** | Crypto prices, 1h/24h/7d change, market cap, volume, rank, total market cap, BTC/ETH dominance, trending coins | Optional: `COINGECKO_API_KEY` (free "demo" key) for about 30 calls a minute | Official API. Keyless limits are tight; when CoinGecko is busy, major coins fall back to Yahoo Finance |
+| **SEC EDGAR** | Filings (10-K, 10-Q, 8-K, Form 4, proxies, 13D/13G…) with direct document links; reported revenue, net income, EPS and operating cash flow for the last 8 quarters and 3 fiscal years | No, but set `SEC_CONTACT_EMAIL` | Official. SEC's fair-access policy asks for a contact email in each request, and it may refuse requests without one. ATLAS stays under SEC's 10-requests-a-second limit |
+| **Nasdaq** | The earnings calendar: who reports on a day or week, before or after the bell, EPS forecasts | No | **Unofficial** endpoint, best-effort |
+| **CNN** | The Fear & Greed index: score, rating, a week, month and year ago, and its seven components | No | **Unofficial** endpoint. CNN sometimes refuses automated requests; the VIX is still returned |
+| **FRED** (St. Louis Fed) | US inflation (CPI, core CPI, PCE, core PCE), unemployment, payrolls, Fed funds and target range, GDP growth, 10-year Treasury, 30-year mortgage, consumer sentiment, jobless claims, retail sales, housing starts, or any FRED series id | Optional: `FRED_API_KEY` (free) | Official. Without a key ATLAS uses FRED's public CSV downloads, which give the same figures. Macro data is released with a lag, and ATLAS says which period a figure covers |
+| **ESPN** | Scores, game status and live situation, schedules, standings and news for the leagues listed under [Features](#what-atlas-can-do) | No | **Unofficial** public site API, best-effort. Live scores can lag the broadcast by about a minute |
+| **Google News** | Backup for stock and sports news when Yahoo or ESPN has nothing | No | Public RSS feeds |
+
+**Good to know**
+- ATLAS gives facts and context, not personal buy or sell recommendations.
+- Results are cached briefly (30 seconds for live quotes and scores, up to an hour or more for slow-moving data
+  such as economic releases and filings), and each source is rate-limited, so repeated questions don't hammer anyone. "Unofficial" endpoints can change without
+  notice; if one stops working, ATLAS says which source failed and carries on with the others.
+- Technicals are worked out on your computer from daily prices. Their returns are total returns
+  (dividends included), so they can differ slightly from the price-only change Yahoo shows.
+- Game times are shown in your computer's time zone, or in `SPORTS_TIMEZONE` if you set one.
+- For the HUD, the server also offers two panel feeds: `GET /api/market_pulse` (top movers and trending
+  tickers, crypto and sentiment, each part reporting its own errors) and `GET /api/sports` (today's scores for
+  the leagues in `SPORTS_PANEL_LEAGUES`). Like every API route, they need the page's access token.
 
 ---
 
@@ -515,7 +569,7 @@ Everything else runs without a card, because it only reads information or is eas
 opening apps, sites and files, media and volume, the clipboard, screenshots and "look at my screen", reading
 email, notes, reminders and memory, locking the screen, reading calendars, adding events (you still click
 Save), to-dos, browsing and filling in ordinary form fields, everyday smart-home control, directions, places,
-ride and food links, package tracking and currency.
+ride and food links, package tracking, currency, and market, economic and sports data.
 
 **Skipping approvals.** `AUTO_APPROVE` takes a comma-separated list of tool names that should run without
 asking, for example `AUTO_APPROVE=type_text,press_keys`. It can only be set in `.env` (or an environment
@@ -574,6 +628,18 @@ For true/false keys, `1`, `true`, `yes` and `on` mean true, and anything else me
 | `NEWS_REGION` | `US` | Google News country code, such as `GB`, `CA`, `AU` or `IN`. |
 | `NEWS_LANGUAGE` | `en` | Google News language code. The region and language pair must be one Google News offers. |
 | `MARKET_WATCHLIST` | `^GSPC,^IXIC,^DJI,^VIX,BTC-USD,ETH-USD,GC=F,CL=F,^TNX` | Comma-separated Yahoo Finance tickers for the market ticker. |
+
+**Live data** (all optional; see [Live data sources](#live-data-sources))
+
+| Key | Default | What it does |
+|---|---|---|
+| `FINANCE_REGION` † | `US` | Two-letter region for Yahoo Finance's trending tickers and stock news: `GB`, `CA`, `AU`, `IN`, `DE`… Unknown values fall back to `US`. Top gainers, losers and most active are always US. |
+| `FINANCE_USER_AGENT` † | *(built in)* | Advanced: the browser User-Agent sent to Yahoo Finance and the US Treasury. Only change it if Yahoo starts refusing requests. |
+| `COINGECKO_API_KEY` † (secret) | *(blank)* | Free CoinGecko "demo" key for higher crypto rate limits. Works without one. |
+| `SEC_CONTACT_EMAIL` † | *(blank)* | Your email, sent to SEC EDGAR with filing and financials lookups as its fair-access policy asks. Without it SEC may refuse requests. |
+| `FRED_API_KEY` † (secret) | *(blank)* | Free FRED key for economic data. Without one, ATLAS uses FRED's public CSV downloads. |
+| `SPORTS_TIMEZONE` † | *(this computer's)* | IANA time zone for game times, e.g. `America/Chicago`. Unknown names fall back to the computer's zone. |
+| `SPORTS_PANEL_LEAGUES` † | `nfl,nba,nhl,mlb,epl` | Comma-separated leagues for the sports scores panel (at most 8), e.g. `nfl,nba,epl,f1`. |
 
 **Email**
 
@@ -658,11 +724,11 @@ from the Settings list.
 **"Look at my screen" needs a vision model**, one that accepts images. The Settings list marks these. ATLAS's
 browser also uses one for date pickers and seating maps (`BROWSER_VISION_MODEL`, or the main model).
 
-**What a request costs.** Every call to the model sends ATLAS's ~70 tool definitions plus its instructions,
-your saved memories and recent conversation. That is **roughly 11,000–13,000 prompt tokens per call** before
+**What a request costs.** Every call to the model sends ATLAS's ~85 tool definitions plus its instructions,
+your saved memories and recent conversation. That is **roughly 15,000–18,000 prompt tokens per call** before
 you've said anything. A request that uses tools makes a call per round, re-sending everything along with the
-tool results. So a daily briefing might use 30,000–45,000 prompt tokens in total: at $3 per million input
-tokens that's about 9–14 cents. **Bookings in the browser cost the most:** 10–20 steps, each re-sending the
+tool results. So a daily briefing might use 40,000–60,000 prompt tokens in total: at $3 per million input
+tokens that's about 12–18 cents. **Bookings in the browser cost the most:** 10–20 steps, each re-sending the
 pages read so far, can add up to a few hundred thousand prompt tokens (very roughly $0.50–$1.50 at $3 per
 million). A model priced at $0.30 per million costs a tenth of that. Tool output from earlier requests is
 trimmed automatically to save tokens. The HUD shows this session's tokens and cost.
@@ -682,8 +748,8 @@ search model's tokens. See OpenRouter's pricing for current rates. Track spendin
   so other websites you visit can't make ATLAS do anything.
 - ATLAS checks the **Host header** and only answers to `localhost` / `127.0.0.1`. This blocks DNS-rebinding
   attacks. The page also refuses to be embedded in other sites.
-- Your **secrets** (OpenRouter key, email password, Twilio auth token, Home Assistant token and secret
-  calendar links) live in `atlas/.env`. When ATLAS saves that file, it makes it readable only by your user on
+- Your **secrets** (OpenRouter key, email password, Twilio auth token, Home Assistant token, secret
+  calendar links and the optional CoinGecko and FRED keys) live in `atlas/.env`. When ATLAS saves that file, it makes it readable only by your user on
   macOS/Linux. **Secrets are never sent back to the browser page:** the Settings screen only learns whether
   each one is set (plus the first and last few characters of the OpenRouter key), and leaving a secret field
   blank keeps the current value. Secret calendar links are also blanked out of error messages before anything
@@ -708,6 +774,10 @@ search model's tokens. See OpenRouter's pricing for current rates. Track spendin
   BBC, NPR, CNBC, Ars Technica and Hacker News; tickers and currency pairs to Yahoo Finance; your city to
   Open-Meteo. If no home city is set, your IP address goes to ipapi.co / ipwho.is to estimate your location.
   Email goes to your mail provider.
+- **For live data:** tickers and news searches to Yahoo Finance (with its usual cookies); coin names to
+  CoinGecko; company tickers or names, plus your `SEC_CONTACT_EMAIL` if set, to SEC EDGAR; dates and tickers
+  to Nasdaq; indicator names to FRED (with your `FRED_API_KEY` if set); team and league names to ESPN. CNN and
+  the US Treasury only receive plain page requests. These sources never see your conversation.
 - **For the newer abilities:** websites ATLAS's browser visits see an ordinary Chrome or Edge visit, including
   the details ATLAS fills in. Calendar links are fetched from Google, iCloud or Microsoft, and a new event's
   details are passed to Google Calendar or Outlook in the page link. Texts go to Twilio (number and message) or
@@ -768,6 +838,12 @@ If it still doesn't stick, an environment variable called `OPENROUTER_API_KEY` i
 or VPN, or a source rate-limiting you (Yahoo Finance does this sometimes). Panels retry on their own every
 minute for markets and every 5–10 minutes for news and weather. News falls back to the BBC/NPR/CNBC/Ars feeds
 when Google News is unavailable. If weather can't find you, set your home city in Settings.
+
+**A market, economic or sports answer says a source is unavailable.** Several of these sources are
+unofficial and best-effort (see [Live data sources](#live-data-sources)). Yahoo Finance sometimes rate-limits
+or, in the EU, asks for cookie consent; ATLAS then falls back to basic prices and tries again after a short
+pause. If SEC EDGAR *"refused the request"*, set `SEC_CONTACT_EMAIL`. Crypto limits are higher with a free
+`COINGECKO_API_KEY`. If a team name matches several teams ("New York"), ATLAS asks which one you mean.
 
 **The microphone doesn't work.**
 - Use Chrome or Edge, and allow the microphone when asked.
@@ -865,6 +941,9 @@ atlas/
 │       ├── news.py         Google News, BBC, NPR, CNBC, Ars Technica, Hacker News
 │       ├── web.py          Web search, page reader, Wikipedia
 │       ├── markets.py      Yahoo Finance quotes and ticker lookup
+│       ├── finance_data.py Stock details, movers, stock news, technicals, yield curve (Yahoo, Treasury)
+│       ├── data_sources.py Crypto, SEC filings and financials, earnings calendar, sentiment, FRED data
+│       ├── sports.py       ESPN scores, schedules, standings and sports news
 │       ├── weather.py      Open-Meteo forecast and geocoding
 │       ├── email_tools.py  IMAP reading, SMTP sending
 │       ├── browser.py      ATLAS's own browser window and restaurant reservations

@@ -882,3 +882,34 @@ def test_new_capability_tools_registered_with_expected_gating():
         assert name in TOOLS, name
     # browser tools must not be statically gated: their gates record the per-element grant
     assert not any(n.startswith("browser_") for n in config.SENSITIVE_TOOLS)
+
+
+LIVE_DATA_TOOLS = {
+    "get_stock_details", "get_market_movers", "get_stock_news", "get_technicals", "get_yield_curve",
+    "get_crypto", "get_sec_filings", "get_company_financials", "get_earnings_calendar", "get_market_sentiment",
+    "get_economic_data", "get_sports_scores", "get_sports_standings", "get_team_schedule", "get_sports_news",
+}
+
+
+def test_system_prompt_live_data_section():
+    import re
+
+    prompt = agent.build_system_prompt(config.Settings())
+    for heading in ("PERSONALITY", "CURRENT CONTEXT", "HOW YOU RESPOND", "KNOWLEDGE & ACCURACY", "LIVE DATA",
+                    "TOOLS & ACTIONS", "WEB BROWSER & RESERVATIONS", "LONG-TERM MEMORY ABOUT THE USER"):
+        assert f"\n{heading}" in prompt, heading
+    section = prompt[prompt.index("\nLIVE DATA"):prompt.index("\nTOOLS & ACTIONS")]
+    named = set(re.findall(r"\b(get_[a-z_]+)\b", section))
+    assert LIVE_DATA_TOOLS <= named  # every new data tool is introduced to the model
+    assert named <= set(TOOLS), named - set(TOOLS)  # and nothing it names is missing from the registry
+    assert "15 minutes" in section and "source" in section and "buy/sell" in section
+    assert len(section) < 3000  # keep the per-call prompt tight
+
+
+def test_live_data_tools_run_without_approval():
+    s = config.Settings()
+    for name in LIVE_DATA_TOOLS:
+        t = TOOLS[name]
+        assert not s.needs_confirmation(name) and t.gate is None and t.preview is None, name
+        assert t.label and t.label != name and 0 < t.timeout <= 90, name
+        assert not agent._sequential(name)

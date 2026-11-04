@@ -84,6 +84,14 @@ EDITABLE_KEYS = {
     "HOME_ASSISTANT_URL",
     "HOME_ASSISTANT_TOKEN",
     "HOME_ASSISTANT_CONFIRM_DOMAINS",
+    # live data: finance (Yahoo Finance, CoinGecko, SEC EDGAR, FRED) and sports (ESPN)
+    "FINANCE_REGION",
+    "FINANCE_USER_AGENT",
+    "COINGECKO_API_KEY",
+    "SEC_CONTACT_EMAIL",
+    "FRED_API_KEY",
+    "SPORTS_TIMEZONE",
+    "SPORTS_PANEL_LEAGUES",
 }
 
 # Editable keys whose values are credentials: never sent back to the browser, and a blank value in
@@ -94,6 +102,8 @@ SECRET_KEYS = {
     "TWILIO_AUTH_TOKEN",
     "HOME_ASSISTANT_TOKEN",
     "CALENDAR_ICS_URLS",
+    "COINGECKO_API_KEY",
+    "FRED_API_KEY",
 }
 
 

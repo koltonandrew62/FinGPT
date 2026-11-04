@@ -10,6 +10,7 @@ import threading
 import unicodedata
 import webbrowser
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
@@ -22,11 +23,13 @@ from .agent import ConfirmationBroker, run_turn
 from .config import EDITABLE_KEYS, SECRET_KEYS, WEB_DIR, Settings, load_env_file, update_env_file
 from .llm import LLMError, OpenRouter
 from .tools import ToolContext
+from .tools import data_sources, finance_data
 from .tools.calendar_tools import agenda_for_panel
 from .tools.markets import watchlist_snapshot
 from .tools.memory import delete_memory, memories, pending_reminders, pop_due_reminders
 from .tools.news import CATEGORIES, headlines_for_panel
 from .tools.pc import capabilities, system_snapshot
+from .tools.sports import scores_for_panel
 from .tools.weather import get_weather_data
 
 tool_registry.load_all()
@@ -73,6 +76,10 @@ async def lifespan(app: FastAPI):
         from .tools import browser
 
         await browser.shutdown()
+    except Exception:
+        pass
+    try:
+        await finance_data.shutdown()  # the dedicated Yahoo Finance session client
     except Exception:
         pass
     await S.http.aclose()
@@ -166,6 +173,7 @@ _STATE_KEYS = {
     "BROWSER_HEADLESS", "BROWSER_CHANNEL", "BROWSER_EXECUTABLE", "BROWSER_VISION_MODEL",
     "CALENDAR_PROVIDER", "CALENDAR_DAY_HOURS", "TWILIO_ACCOUNT_SID", "TWILIO_FROM_NUMBER",
     "DEFAULT_COUNTRY_CODE", "HOME_ASSISTANT_URL", "HOME_ASSISTANT_CONFIRM_DOMAINS", "MARKET_WATCHLIST",
+    "FINANCE_REGION", "FINANCE_USER_AGENT", "SEC_CONTACT_EMAIL", "SPORTS_TIMEZONE", "SPORTS_PANEL_LEAGUES",
 }
 
 
@@ -279,6 +287,58 @@ async def markets():
         return {"quotes": await watchlist_snapshot(S.ctx())}
     except Exception as exc:
         return {"quotes": [], "error": str(exc)}
+
+
+# Each part of the market pulse has its own deadline, so one slow source can't hold up the others.
+PANEL_PART_TIMEOUT = 30.0
+
+
+async def _panel_part(name: str, coro, empty: dict) -> dict:
+    """Await one dashboard source; any failure becomes that part's `error`, never the whole response's."""
+    try:
+        out = await asyncio.wait_for(coro, PANEL_PART_TIMEOUT)
+    except asyncio.TimeoutError:
+        return {**empty, "error": f"{name} data didn't arrive in time."}
+    except Exception as exc:  # the panel functions shouldn't raise; if one does, show its class, not its text
+        return {**empty, "error": f"{name} data is unavailable right now ({exc.__class__.__name__})."}
+    if not isinstance(out, dict):
+        return {**empty, "error": f"{name} data is unavailable right now."}
+    return out
+
+
+async def _movers_part() -> dict:
+    out = await _panel_part("Market movers", finance_data.market_pulse(S.ctx()), {})
+    if "gainers" not in out:  # keep the movers shape: its failures are listed in `errors`
+        try:
+            state = finance_data.clock_market_state()
+        except Exception:
+            state = None
+        out = {
+            "status": "unavailable", "market_state": state, "gainers": [], "losers": [], "most_active": [],
+            "trending": [], "errors": [out.get("error") or "Market movers data is unavailable right now."],
+            "as_of": datetime.now(timezone.utc).isoformat(timespec="minutes"),
+        }
+    return out
+
+
+@app.get("/api/market_pulse")
+async def market_pulse():
+    movers, crypto, sentiment = await asyncio.gather(
+        _movers_part(),
+        _panel_part("Crypto", data_sources.crypto_pulse(S.ctx()), {"coins": [], "global": None, "source": "CoinGecko"}),
+        _panel_part("Sentiment", data_sources.sentiment_pulse(S.ctx()), {"fear_greed": None, "vix": None}),
+    )
+    return {"movers": movers, "crypto": crypto, "sentiment": sentiment}
+
+
+@app.get("/api/sports")
+async def sports():
+    try:
+        return {"leagues": await asyncio.wait_for(scores_for_panel(S.ctx()), PANEL_PART_TIMEOUT)}
+    except asyncio.TimeoutError:
+        return {"leagues": [], "error": "Scores didn't arrive in time."}
+    except Exception as exc:
+        return {"leagues": [], "error": f"Scores are unavailable right now ({exc.__class__.__name__})."}
 
 
 @app.get("/api/weather")

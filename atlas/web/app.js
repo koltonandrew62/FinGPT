@@ -2140,12 +2140,22 @@
   function buildNewsTabs(cats) {
     var list = Array.isArray(cats) && cats.length ? cats.slice() : ['top', 'world', 'us', 'business', 'technology', 'science'];
     ['top', 'world', 'business', 'technology', 'science'].forEach(function (c) { if (list.indexOf(c) === -1) list.push(c); });
+    list = list.filter(function (c) { return c !== MK_TAB; });
     var key = list.join(',');
     if (key === builtCats) return;
     builtCats = key;
-    if (list.indexOf(S.newsCat) === -1) S.newsCat = 'top';
+    if (list.indexOf(S.newsCat) === -1 && S.newsCat !== MK_TAB) S.newsCat = 'top';
     var bar = $('#news-tabs');
     bar.innerHTML = '';
+    // Markets leads the bar (it is a dashboard, not a news category), set off by a hairline.
+    var mt = el('button', 'tab tab-mk', '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l5.5-6 4 3.5L21 6"/><path d="M16 6h5v5"/></svg><span>Markets</span>');
+    mt.type = 'button';
+    mt.setAttribute('role', 'tab');
+    mt.dataset.cat = MK_TAB;
+    mt.id = 'tab-' + MK_TAB;
+    mt.setAttribute('aria-controls', 'news-body');
+    bar.appendChild(mt);
+    bar.appendChild(el('span', 'tab-div', null)).setAttribute('aria-hidden', 'true');
     list.forEach(function (c) {
       var b = el('button', 'tab', esc(CAT_LABELS[c] || c));
       b.type = 'button';
@@ -2190,6 +2200,7 @@
     paintTabs();
     var tab = $('#tab-' + cat);
     if (tab && user && tab.scrollIntoView) { try { tab.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) { /* ignore */ } }
+    if (cat === MK_TAB) { newsSeq++; showMarkets(); return; } // a news reply still in flight must not land here
     var cached = S.newsCache[cat];
     if (cached && Date.now() - cached.at < 5 * 60000) renderNews(cached.data);
     else loadNews();
@@ -2229,6 +2240,7 @@
   var newsSeq = 0;
   function loadNews() {
     var cat = S.newsCat;
+    if (cat === MK_TAB) { pulseKick(false); return Promise.resolve(); } // the Markets tab keeps its own 60 s cadence
     var seq = ++newsSeq;
     if (!S.newsCache[cat]) $('#news-body').innerHTML = '<div class="skeleton list"><i></i><i></i><i></i><i></i><i></i></div>';
     return api('/api/headlines?category=' + encodeURIComponent(cat)).then(function (d) {
@@ -2242,6 +2254,352 @@
       panelStatus('panel-news', 'offline');
       $('#news-body').replaceChildren(offlineBlock('FEED OFFLINE', errText(e), loadNews));
     });
+  }
+
+  // ------------------------------------------------------------------ markets (Live Feed tab)
+  /* GET /api/market_pulse → {movers, crypto, sentiment}. The server answers every part on its own, so
+   * each sub-section here renders (or faults, with Retry) on its own too. Refreshes every 60 s, but only
+   * while the tab is on screen: another tab, the phone's Core view or a hidden browser tab pauses it. */
+  var MK_TAB = 'markets';
+  var MK_EVERY = 60000;
+  var MK = { d: null, at: 0, ok: 0, err: null, loading: null, seg: 'gainers' };
+  var MV_KINDS = [['gainers', 'Gainers', 'up'], ['losers', 'Losers', 'down'], ['most_active', 'Active', '']];
+  var MK_STATE = {
+    open: ['Market open', 'is-open'], 'pre-market': ['Pre-market', 'is-ext'],
+    'after-hours': ['After hours', 'is-ext'], closed: ['Market closed', 'is-closed']
+  };
+  var FG_BANDS = [[0, 25, 'Extreme fear', 'xf'], [25, 45, 'Fear', 'f'], [45, 55, 'Neutral', 'n'], [55, 75, 'Greed', 'g'], [75, 100, 'Extreme greed', 'xg']];
+  var MK_SKELETON = '<div class="skeleton list" aria-label="Loading market data"><i></i><i></i><i></i><i></i><i></i></div>';
+
+  function onMarkets() { return S.newsCat === MK_TAB; }
+  function pulseVisible() {
+    if (!onMarkets() || document.hidden || S.expired) return false;
+    var p = document.getElementById('panel-news');
+    return !!(p && p.getClientRects().length); // display:none (phone Core / Intel views) has no boxes
+  }
+  /** Fetch if the tab is on screen and the data is older than a minute (or always, with force). */
+  function pulseKick(force) {
+    if (!pulseVisible()) return;
+    if (force || Date.now() - MK.at >= MK_EVERY) loadPulse();
+  }
+  function showMarkets() {
+    if (MK.d || MK.err) renderMarkets(true);
+    else $('#news-body').innerHTML = MK_SKELETON;
+    pulseKick(false);
+  }
+  function retryPulse() {
+    $$('#news-body .of-retry, #news-body .ag-note-act').forEach(function (b) { b.disabled = true; b.classList.add('is-busy'); });
+    loadPulse();
+  }
+  function loadPulse() {
+    if (MK.loading) return MK.loading;
+    MK.at = Date.now(); // failures wait a full minute too (the server backs off its sources as well)
+    if (onMarkets() && !MK.d) $('#news-body').innerHTML = MK_SKELETON;
+    MK.loading = api('/api/market_pulse').then(function (d) {
+      MK.d = isObj(d) ? d : {};
+      MK.err = null;
+      MK.ok = Date.now();
+    }, function (e) {
+      MK.err = e;
+    }).then(function () {
+      MK.loading = null;
+      if (onMarkets()) safely('markets', function () { renderMarkets(false); });
+    });
+    return MK.loading;
+  }
+
+  // ---- formatting (every value from the server is untrusted: checked, clipped, escaped)
+  function mkSym(v) { var s = str(v, 24); return s ? s.trim().toUpperCase() : ''; }
+  function mkName(v) { var s = str(v, 80); return s ? s.trim() : ''; }
+  function mkPct(v) { var n = num(v); return n == null ? '—' : (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n).toFixed(2) + '%'; }
+  function mkDir(v) { var n = num(v); return n == null || n === 0 ? 'flat' : n > 0 ? 'up' : 'down'; }
+  function mkSay(v) { var n = num(v); return n == null ? 'change unknown' : n === 0 ? 'unchanged' : (n > 0 ? 'up ' : 'down ') + Math.abs(n).toFixed(2) + ' percent'; }
+  function mkAsOf(s) { var d = typeof s === 'string' ? new Date(s) : null; return d && !isNaN(d) ? fmtHM(d) : ''; }
+  /** Server error text, tidied: "(ProxyError).; Yahoo" → "(ProxyError); Yahoo", list prefixes dropped. */
+  function mkErr(s) {
+    s = str(s, 300);
+    if (!s) return '';
+    return clip(s.replace(/^(gainers|losers|most_active|trending)\b:?\s*/i, '').replace(/\.(?=\s*[;)])/g, '').trim(), 200);
+  }
+  function mkAsk(sym, name) { askAbout('Give me a rundown on ' + sym + (name && name.toUpperCase() !== sym ? ' (' + name + ')' : '')); }
+  function mkFault(title, detail) { var b = offlineBlock(title, detail, retryPulse); b.classList.add('is-compact'); return b; }
+  function mkEmpty(title, detail) { var b = offlineBlock(title, detail, null, 'empty'); b.classList.add('is-compact'); return b; }
+  function mkSec(cls, label, extra, tag) {
+    var s = el('section', 'mk-sec ' + cls);
+    var h = agHead(label, extra);
+    if (tag) h.insertAdjacentHTML('beforeend', '<em class="ag-tag hi" title="' + esc(tag[1]) + '">' + esc(tag[0]) + '</em>');
+    s.appendChild(h);
+    return s;
+  }
+  function mkStale(part) {
+    if (!part || part.stale !== true) return null;
+    var t = mkAsOf(part.as_of);
+    return ['Stale', 'Couldn’t refresh — showing the last good data' + (t ? ' from ' + t : '') + '.'];
+  }
+
+  /** One instrument row: symbol, name, price, day change. Clicking asks ATLAS for a rundown. */
+  function mkRow(q, key, extra) {
+    var sym = mkSym(q.symbol), name = mkName(q.name);
+    var coin = !!(extra && extra.coin);
+    var ch = coin ? extra.chg : q.change_pct;
+    var li = el('li');
+    var b = el('button', 'mk-row');
+    b.type = 'button';
+    b.dataset.mkKey = key + ':' + sym;
+    b.setAttribute('aria-label', sym + (name ? ', ' + name : '') + ', ' + fmtPrice(q.price) + ', ' + (coin ? '24 hours ' : '') + mkSay(ch) +
+      (coin && num(extra.d7) != null ? ', 7 days ' + mkSay(extra.d7) : '') + '. Ask for a rundown.');
+    b.innerHTML = '<span class="mk-sym">' + esc(sym) + '</span>' +
+      '<span class="mk-name">' + esc(name || sym) + '</span>' +
+      '<span class="mk-px">' + esc(fmtPrice(q.price)) + '</span>' +
+      (coin ? '<span class="mk-d7 ' + mkDir(extra.d7) + '">' + esc(mkPct(extra.d7)) + '</span>' : '') +
+      '<span class="mk-chg ' + mkDir(ch) + '">' + esc(mkPct(ch)) + '</span>';
+    b.title = (name || sym) + ' — ask ' + assistantName() + ' for a rundown';
+    b.addEventListener('click', function () { mkAsk(sym, name); });
+    li.appendChild(b);
+    return li;
+  }
+  function mkRows(list, key, max) {
+    return (Array.isArray(list) ? list : []).filter(function (q) { return isObj(q) && mkSym(q.symbol); }).slice(0, max);
+  }
+
+  // ---- sub-sections
+  function mkStateLine(d) {
+    var m = isObj(d.movers) ? d.movers : {};
+    var st = MK_STATE[m.market_state];
+    var row = el('div', 'mk-state ' + (st ? st[1] : 'is-closed'));
+    var t = mkAsOf(m.as_of) || (MK.ok ? fmtHM(new Date(MK.ok)) : '');
+    row.innerHTML = '<i class="mk-dot" aria-hidden="true"></i><b>' + esc(st ? st[0] : 'Session unknown') + '</b>' +
+      '<span class="mk-note">US equities · may be ~15 min delayed</span>' + (t ? '<time>as of ' + esc(t) + '</time>' : '');
+    return row;
+  }
+
+  // Same edges as the server's bands: <25 extreme fear, <45 fear, ≤55 neutral, ≤75 greed, else extreme greed.
+  function fgBand(score) { var s = Math.round(score); return FG_BANDS[s < 25 ? 0 : s < 45 ? 1 : s <= 55 ? 2 : s <= 75 ? 3 : 4]; }
+  /** CNN's own rating when it names one of the five bands, else the band the score falls in. */
+  function fgRated(rating, score) {
+    var r = String(rating || '').toLowerCase().trim();
+    return FG_BANDS.filter(function (b) { return b[2].toLowerCase() === r; })[0] || fgBand(score);
+  }
+  function gPt(s, r) { var t = Math.PI * (1 - Math.max(0, Math.min(100, s)) / 100); return [50 + r * Math.cos(t), 50 - r * Math.sin(t)]; }
+  function gArc(s0, s1, r) {
+    var a = gPt(s0, r), b = gPt(s1, r);
+    return 'M' + a[0].toFixed(2) + ' ' + a[1].toFixed(2) + 'A' + r + ' ' + r + ' 0 0 1 ' + b[0].toFixed(2) + ' ' + b[1].toFixed(2);
+  }
+  /** Fear & Greed: a five-band diverging arc (fear red · neutral gray · greed green), score in the hollow. */
+  function gaugeSvg(score, prev) {
+    var R = 41;
+    var band = score == null ? null : fgBand(score);
+    var arcs = FG_BANDS.map(function (b) {
+      return '<path class="g-b g-' + b[3] + (band && band[3] === b[3] ? ' on' : '') + '" d="' + gArc(b[0] + (b[0] ? 1.3 : 0), b[1] - (b[1] < 100 ? 1.3 : 0), R) + '"/>';
+    }).join('');
+    var marks = '';
+    if (prev != null) {
+      var p0 = gPt(prev, R - 7.5), p1 = gPt(prev, R + 7.5);
+      marks += '<path class="g-prev" d="M' + p0[0].toFixed(2) + ' ' + p0[1].toFixed(2) + 'L' + p1[0].toFixed(2) + ' ' + p1[1].toFixed(2) + '"/>';
+    }
+    if (score != null) { var c = gPt(score, R); marks += '<circle class="g-dot" cx="' + c[0].toFixed(2) + '" cy="' + c[1].toFixed(2) + '" r="4.6"/>'; }
+    return '<svg class="mk-gauge" viewBox="0 0 100 54" aria-hidden="true"><path class="g-track" d="' + gArc(0, 100, R) + '"/>' + arcs + marks + '</svg>';
+  }
+  function mkSentiment(d) {
+    var s = isObj(d.sentiment) ? d.sentiment : {};
+    var fg = isObj(s.fear_greed) ? s.fear_greed : null;
+    var vix = isObj(s.vix) ? s.vix : null;
+    var score = fg ? num(fg.score) : null;
+    var vv = vix ? num(vix.value) : null;
+    var sec = mkSec('mk-sent', 'Sentiment', 'Fear & Greed · VIX', mkStale(s));
+    if (score == null && vv == null) {
+      sec.appendChild(s.error ? mkFault('SENTIMENT OFFLINE', mkErr(s.error)) : mkEmpty('NO SENTIMENT DATA', 'Neither the Fear & Greed index nor the VIX answered.'));
+      return sec;
+    }
+    score = score == null ? null : Math.max(0, Math.min(100, Math.round(score)));
+    var band = score == null ? null : fgRated(fg.rating, score);
+    var prev = fg && isObj(fg.previous_close) ? num(fg.previous_close.score) : null;
+    var week = fg && isObj(fg.one_week_ago) ? num(fg.one_week_ago.score) : null;
+    var delta = score != null && prev != null ? score - Math.round(prev) : null;
+    var dTxt = delta == null ? '' : delta === 0 ? 'Level with prev close (' + Math.round(prev) + ')' :
+      '<i aria-hidden="true">' + (delta > 0 ? '▲' : '▼') + '</i>' + (delta > 0 ? '+' : '−') + Math.abs(delta) + ' vs prev close (' + Math.round(prev) + ')';
+    var vch = vix ? num(vix.change_pct) : null;
+    var level = vix ? str(vix.level, 40) : '';
+    var b = el('button', 'mk-sent-btn' + (band ? ' fg-' + band[3] : ''));
+    b.type = 'button';
+    b.dataset.mkKey = 'sentiment';
+    b.innerHTML =
+      '<span class="mk-g">' + gaugeSvg(score, prev) + '<b class="mk-g-n">' + (score == null ? '—' : score) + '</b></span>' +
+      '<span class="mk-sent-txt">' +
+        '<span class="mk-sent-k">Fear &amp; Greed</span>' +
+        '<span class="mk-sent-r">' + esc(band ? band[2] : 'Unavailable') + '</span>' +
+        (dTxt ? '<span class="mk-sent-d ' + (delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat') + '">' + dTxt + '</span>' : '') + // numbers and fixed text only
+        (week != null ? '<span class="mk-sent-w">1 week ago · ' + Math.round(week) + ' ' + esc(fgBand(week)[2].toLowerCase()) + '</span>' : '') +
+        (vv != null ? '<span class="mk-vix"><b>VIX</b><span class="mk-vix-v">' + esc(vv.toFixed(2)) + '</span>' +
+          (vch != null ? '<span class="mk-chg ' + mkDir(vch) + '">' + esc(mkPct(vch)) + '</span>' : '') +
+          (level ? '<i>' + esc(level) + '</i>' : '') + '</span>' : '<span class="mk-vix is-off">VIX unavailable</span>') +
+      '</span>';
+    var say = score != null ? 'Fear and Greed index ' + score + ' of 100, ' + band[2].toLowerCase() + (delta ? ', ' + Math.abs(delta) + (delta > 0 ? ' points above' : ' points below') + ' the previous close' : '') + '. ' : 'Fear and Greed index unavailable. ';
+    if (vv != null) say += 'VIX ' + vv.toFixed(2) + ', ' + mkSay(vch) + (level ? ', ' + level : '') + '. ';
+    b.setAttribute('aria-label', say + 'Ask about market sentiment.');
+    b.title = 'Ask ' + assistantName() + ' about market sentiment';
+    b.addEventListener('click', function () { askAbout('How’s market sentiment right now? Walk me through the Fear & Greed index and the VIX.'); });
+    sec.appendChild(b);
+    return sec;
+  }
+
+  /** Server errors, sorted by the list they belong to ("gainers: …", "trending AAPL: …"). */
+  function mvErrors(m) {
+    var out = { gainers: [], losers: [], most_active: [], trending: [], other: [] };
+    (Array.isArray(m.errors) ? m.errors : []).slice(0, 20).forEach(function (e) {
+      var t = str(e, 300);
+      if (!t) return;
+      var k = /^(gainers|losers|most_active|trending)\b/i.exec(t);
+      out[k ? k[1].toLowerCase() : 'other'].push(mkErr(t));
+    });
+    return out;
+  }
+  function mkMovers(d) {
+    var m = isObj(d.movers) ? d.movers : {};
+    var errs = mvErrors(m);
+    var lists = {};
+    MV_KINDS.forEach(function (k) { lists[k[0]] = mkRows(m[k[0]], k[0], 5); });
+    var trend = mkRows(m.trending, 'trend', 8);
+    var none = !lists.gainers.length && !lists.losers.length && !lists.most_active.length;
+    var anyErr = errs.gainers.length || errs.losers.length || errs.most_active.length || errs.other.length;
+    var frag = document.createDocumentFragment();
+    if (none && !trend.length && (anyErr || errs.trending.length || m.status === 'unavailable')) {
+      // Yahoo answered nothing at all: one fault for movers and trending rather than two.
+      var sec0 = mkSec('mk-movers', 'Movers & trending', 'US · Yahoo Finance');
+      var first = errs.other[0] || errs.gainers[0] || errs.losers[0] || errs.most_active[0] || errs.trending[0] || 'Yahoo Finance sent no market movers.';
+      sec0.appendChild(mkFault('MOVERS OFFLINE', first));
+      frag.appendChild(sec0);
+      return frag;
+    }
+    var sec = mkSec('mk-movers', 'Movers', 'US · Yahoo Finance');
+    if (none) {
+      sec.appendChild(anyErr ? mkFault('MOVERS OFFLINE', errs.other[0] || errs.gainers[0] || errs.losers[0] || errs.most_active[0]) : mkEmpty('NO MOVERS', 'Yahoo Finance listed no movers right now.'));
+    } else {
+      if (!lists[MK.seg].length) { var avail = MV_KINDS.filter(function (k) { return lists[k[0]].length; })[0]; if (avail && !errs[MK.seg].length) MK.seg = avail[0]; }
+      var seg = el('div', 'mk-seg');
+      seg.setAttribute('role', 'group');
+      seg.setAttribute('aria-label', 'Show movers');
+      MV_KINDS.forEach(function (k) {
+        var on = MK.seg === k[0];
+        var sb = el('button', 'mk-seg-b' + (k[2] ? ' ' + k[2] : ''), '<i aria-hidden="true"></i>' + esc(k[1]));
+        sb.type = 'button';
+        sb.dataset.mkKey = 'seg:' + k[0];
+        sb.setAttribute('aria-pressed', on ? 'true' : 'false');
+        sb.setAttribute('aria-controls', 'mk-mv-list');
+        if (!lists[k[0]].length) sb.classList.add('is-empty');
+        sb.addEventListener('click', function () {
+          if (MK.seg === k[0]) return;
+          MK.seg = k[0];
+          safely('markets', function () { renderMarkets(false); });
+        });
+        seg.appendChild(sb);
+      });
+      sec.appendChild(seg);
+      var rows = lists[MK.seg];
+      if (rows.length) {
+        var ol = el('ol', 'mk-list');
+        ol.id = 'mk-mv-list';
+        rows.forEach(function (q) { ol.appendChild(mkRow(q, 'mv-' + MK.seg)); });
+        sec.appendChild(ol);
+      } else {
+        var lbl = MV_KINDS.filter(function (k) { return k[0] === MK.seg; })[0][1].toUpperCase();
+        var box = errs[MK.seg].length ? mkFault(lbl + ' OFFLINE', errs[MK.seg][0]) : mkEmpty('NO ' + lbl, 'Nothing in this list right now.');
+        box.id = 'mk-mv-list';
+        sec.appendChild(box);
+      }
+    }
+    frag.appendChild(sec);
+    // Trending tickers: chips (a symbol alone when Yahoo sent no quote for it).
+    var tsec = mkSec('mk-trend', 'Trending', 'Yahoo Finance');
+    if (trend.length) {
+      var ul = el('ul', 'mk-chips');
+      trend.forEach(function (q) {
+        var sym = mkSym(q.symbol), name = mkName(q.name), ch = num(q.change_pct);
+        var li = el('li');
+        var cb = el('button', 'mk-chip ' + mkDir(ch), '<b>' + esc(sym) + '</b>' + (ch != null ? '<span>' + esc(mkPct(ch)) + '</span>' : ''));
+        cb.type = 'button';
+        cb.dataset.mkKey = 'trend:' + sym;
+        cb.title = (name ? name + ' — ' : '') + 'ask for a rundown';
+        cb.setAttribute('aria-label', sym + (name ? ', ' + name : '') + (ch != null ? ', ' + mkSay(ch) : '') + '. Ask for a rundown.');
+        cb.addEventListener('click', function () { mkAsk(sym, name); });
+        li.appendChild(cb);
+        ul.appendChild(li);
+      });
+      tsec.appendChild(ul);
+    } else {
+      tsec.appendChild(errs.trending.length ? mkFault('TRENDING OFFLINE', errs.trending[0]) : mkEmpty('NOTHING TRENDING', 'Yahoo Finance listed no trending tickers.'));
+    }
+    frag.appendChild(tsec);
+    return frag;
+  }
+
+  function mkCrypto(d) {
+    var c = isObj(d.crypto) ? d.crypto : {};
+    var src = str(c.source, 40) || 'CoinGecko';
+    var sec = mkSec('mk-crypto', 'Crypto', src, mkStale(c));
+    var coins = mkRows(c.coins, 'coin', 6);
+    var g = isObj(c.global) ? c.global : null;
+    if (g) {
+      var cap = str(g.total_market_cap, 24), gch = num(g.change_24h_pct), dom = num(g.btc_dominance_pct);
+      if (cap || gch != null || dom != null) {
+        var dl = el('dl', 'mk-stats');
+        dl.innerHTML = '<div><dt>Market cap</dt><dd>' + esc(cap || '—') + '</dd></div>' +
+          '<div><dt>24h</dt><dd class="mk-chg ' + mkDir(gch) + '">' + esc(mkPct(gch)) + '</dd></div>' +
+          '<div><dt>BTC dominance</dt><dd>' + (dom == null ? '—' : esc(dom.toFixed(1)) + '%') + '</dd></div>';
+        sec.appendChild(dl);
+      }
+    }
+    if (!coins.length) {
+      sec.appendChild(c.error ? mkFault('CRYPTO OFFLINE', mkErr(c.error)) : mkEmpty('NO COINS', 'No crypto prices came back.'));
+      return sec;
+    }
+    var ol = el('ol', 'mk-list mk-coins');
+    ol.insertAdjacentHTML('beforeend', '<li class="mk-cols" aria-hidden="true"><span>Coin</span><span></span><span>Price</span><span class="mk-d7">7d</span><span>24h</span></li>');
+    coins.forEach(function (q) { ol.appendChild(mkRow(q, 'coin', { coin: true, chg: q.change_24h_pct, d7: q.change_7d_pct })); });
+    sec.appendChild(ol);
+    return sec;
+  }
+
+  function mkFoot(d) {
+    var t = MK.ok ? fmtHM(new Date(MK.ok)) : '';
+    return el('p', 'news-end mk-end', '<span>Market pulse</span><span>Refreshes every minute' + (t ? ' · ' + esc(t) : '') + '</span>');
+  }
+
+  function mkHasData(d) {
+    var m = isObj(d.movers) ? d.movers : {}, c = isObj(d.crypto) ? d.crypto : {}, s = isObj(d.sentiment) ? d.sentiment : {};
+    return ['gainers', 'losers', 'most_active', 'trending'].some(function (k) { return Array.isArray(m[k]) && m[k].length; }) ||
+      (Array.isArray(c.coins) && c.coins.length > 0) || isObj(s.fear_greed) || isObj(s.vix);
+  }
+
+  function renderMarkets(fromTab) {
+    var body = $('#news-body');
+    var d = MK.d;
+    if (!d) {
+      if (MK.loading) { body.innerHTML = MK_SKELETON; return; }
+      body.replaceChildren(offlineBlock('MARKETS OFFLINE', MK.err ? errText(MK.err) : 'No market data yet.', retryPulse));
+      panelStatus('panel-news', 'offline');
+      return;
+    }
+    var act = document.activeElement;
+    var keep = act && body.contains(act) && act.dataset ? act.dataset.mkKey : null;
+    var top = body.scrollTop;
+    var wrap = el('div', 'mk');
+    if (MK.err) {
+      wrap.appendChild(agNotice('err', 'Update failed', 'Showing data from ' + (MK.ok ? fmtHM(new Date(MK.ok)) : 'earlier') + ' — ' + errText(MK.err), { label: 'Retry', run: retryPulse }));
+    }
+    [mkStateLine, mkSentiment, mkMovers, mkCrypto, mkFoot].forEach(function (fn) {
+      var n = null;
+      try { n = fn(d); } catch (e) { n = mkFault('SECTION UNAVAILABLE', 'This part of the market data couldn’t be shown.'); }
+      if (n) wrap.appendChild(n);
+    });
+    body.replaceChildren(wrap);
+    body.scrollTop = fromTab ? 0 : top;
+    if (keep) {
+      var f = body.querySelector('[data-mk-key="' + (window.CSS && CSS.escape ? CSS.escape(keep) : keep.replace(/["\\]/g, '')) + '"]');
+      if (f) { try { f.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
+    }
+    var live = mkHasData(d) && !MK.err;
+    panelStatus('panel-news', live ? 'live' : 'offline', live && MK.ok ? fmtHM(new Date(MK.ok)) : undefined);
   }
 
   // ------------------------------------------------------------------ markets ticker
@@ -2379,7 +2737,7 @@
   function isDrawerOpen() { return !drawer.hidden; }
 
   // Credentials are never sent to the browser and never prefilled: a blank field keeps the current value.
-  var SECRET_KEYS = ['OPENROUTER_API_KEY', 'EMAIL_PASSWORD', 'TWILIO_AUTH_TOKEN', 'HOME_ASSISTANT_TOKEN', 'CALENDAR_ICS_URLS'];
+  var SECRET_KEYS = ['OPENROUTER_API_KEY', 'EMAIL_PASSWORD', 'TWILIO_AUTH_TOKEN', 'HOME_ASSISTANT_TOKEN', 'CALENDAR_ICS_URLS', 'FRED_API_KEY', 'COINGECKO_API_KEY'];
   // Where a field's current value lives in /api/state; every other key is read from state.extra.
   var STATE_FIELD = {
     ASSISTANT_NAME: 'assistant_name', USER_NAME: 'user_name', USER_ADDRESS_AS: 'address_as', USER_PHONE: 'user_phone',
@@ -2395,7 +2753,11 @@
     CALENDAR_DAY_HOURS: [/^\d{1,2}(:[0-5]\d)?\s*-\s*\d{1,2}(:[0-5]\d)?$/, '“Your day” should look like 08:00-20:00.'],
     DEFAULT_COUNTRY_CODE: [/^(\+|00)?\s*[1-9]\d{0,2}$/, 'The country code should look like +1 or +44.'],
     HOME_ASSISTANT_URL: [/^https?:\/\/[^\s/?#]+[^\s]*$/i, 'The Home Assistant URL should start with http:// or https://.'],
-    TWILIO_ACCOUNT_SID: [/^AC[0-9a-f]{32}$/i, 'A Twilio account SID is 34 characters and starts with AC.']
+    TWILIO_ACCOUNT_SID: [/^AC[0-9a-f]{32}$/i, 'A Twilio account SID is 34 characters and starts with AC.'],
+    SEC_CONTACT_EMAIL: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'The SEC contact should be an email address, e.g. you@example.com.'],
+    FINANCE_REGION: [/^[A-Z]{2}$/, 'The finance region is a two-letter code such as US or GB.'],
+    SPORTS_TIMEZONE: [/^(UTC|GMT|[A-Za-z][A-Za-z_]*(\/[A-Za-z0-9_+\-]+){1,2})$/, 'The sports time zone should be an IANA name such as America/Chicago.'],
+    SPORTS_PANEL_LEAGUES: [/^[a-z0-9][a-z0-9 .\-]*(,[a-z0-9][a-z0-9 .\-]*){0,7}$/, 'Sports leagues are names such as nfl,nba,epl separated by commas — at most 8.']
   };
   var EYE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg>';
 
@@ -2411,6 +2773,8 @@
     var v = String(f.value || '').trim();
     if (f.name === 'NEWS_REGION') return v.toUpperCase();
     if (f.name === 'NEWS_LANGUAGE') return v.toLowerCase();
+    if (f.name === 'FINANCE_REGION') return v.toUpperCase();
+    if (f.name === 'SPORTS_PANEL_LEAGUES') return v.toLowerCase().split(',').map(function (s) { return s.trim().replace(/\s+/g, ' '); }).filter(Boolean).join(',');
     return v;
   }
   function setField(f, value) {
@@ -2464,6 +2828,10 @@
     sectionBadge('home', ha === 2 ? 'Connected' : ha ? 'Incomplete' : 'Off', ha === 2, ha === 1);
     var ch = { chrome: 'Chrome', msedge: 'Edge', chromium: 'Chromium' }[String(ex.BROWSER_CHANNEL || '').toLowerCase()];
     sectionBadge('browser', truthy(ex.BROWSER_HEADLESS) ? 'Headless' : ex.BROWSER_EXECUTABLE ? 'Custom path' : ch || 'Auto', true);
+    // Live data works keyless; only the SEC contact email is worth a nudge (SEC may refuse requests without it).
+    var dk = [has('FRED_API_KEY'), has('COINGECKO_API_KEY')].filter(Boolean).length;
+    var sec = !!ex.SEC_CONTACT_EMAIL;
+    sectionBadge('data', sec ? (dk ? 'Ready · ' + dk + (dk === 1 ? ' key' : ' keys') : 'Ready') : 'No SEC email', sec, !sec);
   }
 
   function openDrawer(opts) {
@@ -2701,7 +3069,7 @@
       var n = Object.keys(values).length;
       toast('Configuration saved (' + n + (n === 1 ? ' setting' : ' settings') + ').', { tone: 'ok' });
       closeDrawer();
-      loadWeather(); S.newsCache = {}; loadNews(); loadMarkets(); loadAgenda();
+      loadWeather(); S.newsCache = {}; MK.at = 0; loadNews(); loadMarkets(); loadAgenda();
     }).catch(function (err) {
       toast('Couldn’t save settings: ' + errText(err));
     }).then(function () {
@@ -2758,6 +3126,7 @@
     if (v === 'core') requestAnimationFrame(function () { if (core) core.resize(); scrollToEnd(true); });
     var main = $('#layout');
     if (main) main.scrollTop = 0;
+    if (v === 'feed') safely('market pulse', function () { pulseKick(false); }); // the Markets tab may just have come on screen
   }
   $$('.mobile-tabs button').forEach(function (b) { b.addEventListener('click', function () { setView(b.dataset.view); }); });
 
@@ -2894,10 +3263,13 @@
   every(10000, pollDue, false);
   every(5 * 60000, function () { S.newsCache = {}; loadNews(); }, true);
   every(60000, loadMarkets, true);
+  // The Markets tab checks every 5 s whether it is on screen and its data is a minute old (cheap: no request otherwise).
+  every(5000, function marketPulse() { pulseKick(false); }, true);
 
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden) {
       tickClock();
+      safely('market pulse', function () { pulseKick(false); });
       if (S.engaged) loadSystem();
       if (AG.tried && Date.now() - AG.at > 5 * 60000) loadAgenda();
     }
@@ -2913,5 +3285,5 @@
   setTimeout(function () { var b = $('#engage-btn'); if (b && !S.engaged) b.focus({ preventScroll: true }); }, 50);
 
   // Expose a tiny debug hook (no secrets).
-  window.ATLAS_UI = { state: S, core: core, send: sendMessage, setView: setView, parseSSE: drainSSE, refresh: { markets: loadMarkets, news: loadNews, weather: loadWeather, system: loadSystem, reminders: loadReminders, agenda: loadAgenda }, openSettings: openDrawer };
+  window.ATLAS_UI = { state: S, core: core, send: sendMessage, setView: setView, parseSSE: drainSSE, refresh: { markets: loadMarkets, pulse: loadPulse, news: loadNews, weather: loadWeather, system: loadSystem, reminders: loadReminders, agenda: loadAgenda }, openSettings: openDrawer };
 })();
