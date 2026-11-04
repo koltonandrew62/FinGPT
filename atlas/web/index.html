@@ -1,1 +1,354 @@
-<html><body>placeholder {{ATLAS_TOKEN}}</body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="atlas-token" content="{{ATLAS_TOKEN}}">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#03070d">
+  <meta name="description" content="Voice-driven personal assistant console">
+  <title>ATLAS</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2303070d'/%3E%3Ccircle cx='16' cy='16' r='12' fill='none' stroke='%235fe1ff' stroke-width='1.5' stroke-dasharray='14 4'/%3E%3Ccircle cx='16' cy='16' r='7' fill='none' stroke='%235fe1ff' stroke-width='1.2' opacity='.6'/%3E%3Ccircle cx='16' cy='16' r='3' fill='%235fe1ff'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@300;400;500;600&display=swap">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body data-state="standby" data-view="core" class="is-locked">
+  <!-- Ambient background: grid, scanlines, vignette -->
+  <div class="bg" aria-hidden="true">
+    <div class="bg-grid"></div>
+    <div class="bg-scan"></div>
+    <div class="bg-vignette"></div>
+  </div>
+
+  <a class="skip-link" href="#cmd-input">Skip to command bar</a>
+
+  <!-- ============================================================ TOP BAR -->
+  <header class="topbar" role="banner">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true">
+        <circle cx="20" cy="20" r="18" class="bm-outer"/>
+        <circle cx="20" cy="20" r="13.5" class="bm-seg"/>
+        <circle cx="20" cy="20" r="8" class="bm-inner"/>
+        <circle cx="20" cy="20" r="3.2" class="bm-core"/>
+        <path d="M20 0.5v4M20 35.5v4M0.5 20h4M35.5 20h4" class="bm-tick"/>
+      </svg>
+      <div class="brand-text">
+        <span class="brand-name" id="brand-name">ATLAS</span>
+        <span class="brand-sub"><span id="brand-sub-text">PERSONAL INTELLIGENCE</span><span class="brand-ver"> // v1.0</span></span>
+      </div>
+    </div>
+
+    <div class="status-pill" id="status-pill" role="status" aria-live="polite">
+      <i class="status-dot" aria-hidden="true"></i>
+      <span class="status-label">STATUS</span>
+      <span class="status-text" id="status-text">STANDBY</span>
+    </div>
+
+    <dl class="topbar-readouts" aria-label="Session telemetry">
+      <div><dt>MODEL</dt><dd id="tb-model">—</dd></div>
+      <div><dt>TOKENS</dt><dd id="tb-tokens">0</dd></div>
+      <div><dt>COST</dt><dd id="tb-cost">$0.0000</dd></div>
+    </dl>
+
+    <div class="clock" aria-label="Local time">
+      <time class="clock-time" id="clock-time">--:--:--</time>
+      <span class="clock-date" id="clock-date">--- -- ---</span>
+    </div>
+
+    <button class="icon-btn settings-btn" id="settings-btn" type="button" aria-label="Open settings" aria-haspopup="dialog" aria-controls="settings">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/><circle cx="12" cy="12" r="6.6" class="dim"/></svg>
+    </button>
+  </header>
+
+  <!-- ============================================================ LAYOUT -->
+  <main class="layout" id="layout">
+    <!-- LEFT: situation panels -->
+    <aside class="col col-left" id="col-left" aria-label="Situation">
+      <section class="panel" id="panel-weather" aria-labelledby="h-weather" data-status="loading">
+        <header class="panel-head">
+          <span class="idx">01</span><span class="sep" aria-hidden="true">//</span>
+          <h2 class="panel-title" id="h-weather">Weather</h2>
+          <span class="panel-meta"><i class="live-dot" aria-hidden="true"></i><span class="panel-sync" data-sync>SYNC</span></span>
+        </header>
+        <div class="panel-rule" aria-hidden="true"></div>
+        <div class="panel-body" id="weather-body">
+          <div class="skeleton" aria-label="Loading weather"><i></i><i></i><i></i></div>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-system" aria-labelledby="h-system" data-status="loading">
+        <header class="panel-head">
+          <span class="idx">02</span><span class="sep" aria-hidden="true">//</span>
+          <h2 class="panel-title" id="h-system">System</h2>
+          <span class="panel-meta"><i class="live-dot" aria-hidden="true"></i><span class="panel-sync" data-sync>SYNC</span></span>
+        </header>
+        <div class="panel-rule" aria-hidden="true"></div>
+        <div class="panel-body" id="system-body">
+          <div class="skeleton" aria-label="Loading telemetry"><i></i><i></i><i></i></div>
+        </div>
+      </section>
+
+      <section class="panel panel-grow" id="panel-reminders" aria-labelledby="h-reminders" data-status="loading">
+        <header class="panel-head">
+          <span class="idx">03</span><span class="sep" aria-hidden="true">//</span>
+          <h2 class="panel-title" id="h-reminders">Reminders</h2>
+          <span class="panel-meta"><span class="count-badge" id="reminder-count">0</span></span>
+        </header>
+        <div class="panel-rule" aria-hidden="true"></div>
+        <div class="panel-body scroll" id="reminders-body"></div>
+      </section>
+      <section class="panel" id="panel-session" aria-labelledby="h-session" data-status="live">
+        <header class="panel-head">
+          <span class="idx">04</span><span class="sep" aria-hidden="true">//</span>
+          <h2 class="panel-title" id="h-session">Session</h2>
+          <span class="panel-meta"><span class="panel-sync" id="session-uptime">00:00:00</span></span>
+        </header>
+        <div class="panel-rule" aria-hidden="true"></div>
+        <div class="panel-body">
+          <p class="sess-model"><span>Model</span><b id="s-model">—</b></p>
+          <dl class="session-grid">
+            <div><dt>In</dt><dd id="s-prompt">0</dd></div>
+            <div><dt>Out</dt><dd id="s-completion">0</dd></div>
+            <div><dt>Cost</dt><dd id="s-cost">$0.0000</dd></div>
+            <div><dt>Turns</dt><dd id="s-turns">0</dd></div>
+          </dl>
+        </div>
+      </section>
+    </aside>
+
+    <!-- CENTER: core, transcript, command -->
+    <section class="col col-center" id="col-center" aria-label="Assistant">
+      <div class="core-wrap" id="core-wrap">
+        <button class="core" id="core" type="button" aria-label="Voice core. Click to talk, or to stop speaking.">
+          <canvas id="core-canvas" aria-hidden="true"></canvas>
+          <span class="core-label" aria-hidden="true">
+            <span class="core-name" id="core-name">ATLAS</span>
+            <span class="core-state" id="core-state">STANDBY</span>
+          </span>
+        </button>
+        <div class="core-readout tl" aria-hidden="true"><b>VOICE IN</b><span id="ro-in">—</span></div>
+        <div class="core-readout tr" aria-hidden="true"><b>VOICE OUT</b><span id="ro-out">—</span></div>
+        <div class="core-readout bl" aria-hidden="true"><b>UPLINK</b><span id="ro-link">LOCAL · SECURE</span></div>
+        <div class="core-readout br" aria-hidden="true"><b>LATENCY</b><span id="ro-lat">— ms</span></div>
+      </div>
+
+      <div class="transcript-wrap">
+        <div class="transcript" id="transcript" role="log" aria-live="polite" aria-relevant="additions" aria-label="Conversation" tabindex="0">
+        </div>
+        <div class="transcript-empty" id="transcript-empty">
+          <p class="te-title">Awaiting instruction</p>
+          <p class="te-sub">Say “<span data-name>ATLAS</span>, brief me” or type below.</p>
+          <p class="te-keys"><kbd>Ctrl</kbd><kbd>Space</kbd> voice <span aria-hidden="true">·</span> <kbd>Esc</kbd> stop <span aria-hidden="true">·</span> <kbd>/</kbd> focus</p>
+        </div>
+        <button class="jump-latest" id="jump-latest" type="button" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg> Latest
+        </button>
+      </div>
+
+      <div class="chips" role="toolbar" aria-label="Quick actions" id="chips">
+        <button class="chip" type="button" data-action="briefing"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg><span>Daily briefing</span></button>
+        <button class="chip" type="button" data-action="headlines"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 11h16M4 16h10"/></svg><span>Headlines</span></button>
+        <button class="chip" type="button" data-action="markets"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l5-5 4 3 8-8"/><path d="M15 7h5v5"/></svg><span>Markets</span></button>
+        <button class="chip" type="button" data-action="inbox"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v12H3z"/><path d="M3 7l9 6 9-6"/></svg><span>Inbox</span></button>
+        <button class="chip" type="button" data-action="system"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z"/><path d="M10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4"/></svg><span>System check</span></button>
+      </div>
+
+      <form class="cmdbar" id="cmdbar" autocomplete="off">
+        <button class="cmd-btn mic-btn" id="mic-btn" type="button" aria-label="Start voice input" aria-pressed="false" title="Voice input (Ctrl+Space)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg>
+          <i class="mic-ring" aria-hidden="true"></i>
+        </button>
+        <span class="cmd-prompt" aria-hidden="true">›</span>
+        <label class="sr-only" for="cmd-input">Command</label>
+        <input class="cmd-input" id="cmd-input" name="q" type="text" enterkeyhint="send" spellcheck="true" placeholder="Speak or type a command…" maxlength="8000">
+        <span class="cmd-hint" aria-hidden="true"><kbd>↵</kbd></span>
+        <button class="cmd-btn send-btn" id="send-btn" type="submit" aria-label="Send">
+          <svg class="i-send" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h14M13 6l6 6-6 6"/></svg>
+          <svg class="i-stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10"/></svg>
+        </button>
+      </form>
+    </section>
+
+    <!-- RIGHT: feeds -->
+    <aside class="col col-right" id="col-right" aria-label="Feeds">
+      <section class="panel panel-grow" id="panel-news" aria-labelledby="h-news" data-status="loading">
+        <header class="panel-head">
+          <span class="idx">06</span><span class="sep" aria-hidden="true">//</span>
+          <h2 class="panel-title" id="h-news">Live Feed</h2>
+          <span class="panel-meta"><i class="live-dot" aria-hidden="true"></i><span class="panel-sync" data-sync>SYNC</span></span>
+        </header>
+        <div class="panel-rule" aria-hidden="true"></div>
+        <div class="news-tabs" role="tablist" aria-label="News categories" id="news-tabs"></div>
+        <div class="panel-body scroll" id="news-body" role="tabpanel" aria-labelledby="h-news"></div>
+      </section>
+
+    </aside>
+  </main>
+
+  <!-- ============================================================ TICKER -->
+  <footer class="ticker" id="ticker" aria-label="Markets">
+    <div class="ticker-label"><span class="idx">05</span><span class="sep" aria-hidden="true">//</span><span>Markets</span></div>
+    <div class="ticker-viewport" id="ticker-viewport">
+      <div class="ticker-track" id="ticker-track"><span class="ticker-msg">ACQUIRING MARKET FEED…</span></div>
+    </div>
+  </footer>
+
+  <!-- ============================================================ MOBILE NAV -->
+  <nav class="mobile-tabs" aria-label="Sections">
+    <button type="button" data-view="core" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg><span>Core</span></button>
+    <button type="button" data-view="intel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h7v6H4zM13 5h7v14h-7zM4 13h7v6H4z"/></svg><span>Intel</span></button>
+    <button type="button" data-view="feed"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 11h14M5 16h9"/></svg><span>Feed</span></button>
+  </nav>
+
+  <!-- ============================================================ SETTINGS DRAWER -->
+  <div class="scrim" id="scrim" hidden></div>
+  <aside class="drawer" id="settings" role="dialog" aria-modal="true" aria-labelledby="settings-title" hidden>
+    <header class="drawer-head">
+      <div>
+        <span class="idx">SYS</span><span class="sep" aria-hidden="true">//</span>
+        <h2 id="settings-title">Configuration</h2>
+      </div>
+      <button class="icon-btn" type="button" id="settings-close" aria-label="Close settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </header>
+
+    <form class="drawer-body" id="settings-form" autocomplete="off" novalidate>
+      <fieldset class="set-group">
+        <legend><span class="idx">01</span> Identity</legend>
+        <div class="field-row">
+          <label class="field"><span>Assistant name</span><input name="ASSISTANT_NAME" type="text" maxlength="40" placeholder="ATLAS"></label>
+          <label class="field"><span>Your name</span><input name="USER_NAME" type="text" maxlength="60" autocomplete="given-name"></label>
+        </div>
+        <div class="field-row">
+          <label class="field"><span>Address me as</span><input name="USER_ADDRESS_AS" type="text" maxlength="40" placeholder="e.g. sir, boss, Kolton"></label>
+          <label class="field"><span>Home city</span><input name="HOME_CITY" type="text" maxlength="80" placeholder="e.g. Austin"></label>
+        </div>
+        <div class="field-row">
+          <label class="field"><span>Units</span>
+            <select name="UNITS"><option value="imperial">Imperial (°F, mph)</option><option value="metric">Metric (°C, km/h)</option></select>
+          </label>
+          <label class="field"><span>News region</span><input name="NEWS_REGION" type="text" maxlength="4" placeholder="US"></label>
+        </div>
+      </fieldset>
+
+      <fieldset class="set-group">
+        <legend><span class="idx">02</span> Intelligence</legend>
+        <label class="field"><span>Model <em class="field-note" id="model-note"></em></span>
+          <select name="ATLAS_MODEL" id="model-select"><option value="">Automatic (recommended)</option></select>
+        </label>
+        <label class="field"><span>Research / search model <em class="field-note">optional</em></span>
+          <input name="ATLAS_SEARCH_MODEL" type="text" list="model-list" placeholder="Automatic">
+          <datalist id="model-list"></datalist>
+        </label>
+      </fieldset>
+
+      <fieldset class="set-group">
+        <legend><span class="idx">03</span> Voice</legend>
+        <label class="field"><span>Voice</span>
+          <select id="voice-select" data-local="voiceURI"><option value="">Automatic</option></select>
+        </label>
+        <div class="field-row">
+          <label class="field range"><span>Rate <output id="rate-out">1.00</output></span><input id="rate-input" type="range" min="0.6" max="1.6" step="0.05" value="1" data-local="rate"></label>
+          <label class="field range"><span>Pitch <output id="pitch-out">1.00</output></span><input id="pitch-input" type="range" min="0.5" max="1.5" step="0.05" value="1" data-local="pitch"></label>
+        </div>
+        <label class="toggle"><input type="checkbox" id="speak-toggle" data-local="speak" checked><i aria-hidden="true"></i><span>Speak replies aloud</span></label>
+        <label class="toggle"><input type="checkbox" id="wake-toggle" data-local="wake"><i aria-hidden="true"></i><span>Wake word — listen for “<b data-name>ATLAS</b>”</span></label>
+        <p class="field-help" id="voice-support"></p>
+        <button class="btn btn-ghost btn-sm" type="button" id="voice-test">Test voice</button>
+      </fieldset>
+
+      <fieldset class="set-group">
+        <legend><span class="idx">04</span> Email</legend>
+        <label class="field"><span>Email address</span><input name="EMAIL_ADDRESS" type="email" autocomplete="email" placeholder="you@gmail.com"></label>
+        <label class="field"><span>App password <em class="field-note" id="email-note">blank = keep current</em></span><input name="EMAIL_PASSWORD" type="password" autocomplete="new-password" placeholder="••••••••••••••••"></label>
+        <p class="field-help">Gmail: create an app password at <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer">myaccount.google.com/apppasswords</a> (requires 2-Step Verification).</p>
+        <details class="advanced">
+          <summary>Advanced mail servers</summary>
+          <div class="field-row">
+            <label class="field"><span>SMTP host</span><input name="SMTP_HOST" type="text" placeholder="auto"></label>
+            <label class="field small"><span>Port</span><input name="SMTP_PORT" type="text" inputmode="numeric" placeholder="465"></label>
+          </div>
+          <div class="field-row">
+            <label class="field"><span>IMAP host</span><input name="IMAP_HOST" type="text" placeholder="auto"></label>
+            <label class="field small"><span>Port</span><input name="IMAP_PORT" type="text" inputmode="numeric" placeholder="993"></label>
+          </div>
+        </details>
+      </fieldset>
+
+      <fieldset class="set-group">
+        <legend><span class="idx">05</span> OpenRouter key</legend>
+        <label class="field"><span>Replace API key <em class="field-note" id="key-hint"></em></span><input name="OPENROUTER_API_KEY" type="password" autocomplete="off" placeholder="sk-or-… (blank = keep current)"></label>
+      </fieldset>
+
+      <fieldset class="set-group">
+        <legend><span class="idx">06</span> Long-term memory</legend>
+        <ul class="memory-list" id="memory-list"><li class="muted">Loading…</li></ul>
+      </fieldset>
+
+      <fieldset class="set-group">
+        <legend><span class="idx">07</span> Session</legend>
+        <button class="btn btn-danger btn-sm" type="button" id="clear-convo">Clear conversation</button>
+      </fieldset>
+    </form>
+
+    <footer class="drawer-foot">
+      <button class="btn btn-ghost" type="button" id="settings-cancel">Cancel</button>
+      <button class="btn btn-primary" type="submit" form="settings-form" id="settings-save">Save configuration</button>
+    </footer>
+  </aside>
+
+  <!-- ============================================================ TOASTS -->
+  <div class="toasts" id="toasts" aria-live="assertive" aria-atomic="false"></div>
+
+  <!-- ============================================================ SETUP -->
+  <div class="overlay setup" id="setup" role="dialog" aria-modal="true" aria-labelledby="setup-title" hidden>
+    <form class="setup-card" id="setup-form" autocomplete="off">
+      <span class="idx">INIT // 00</span>
+      <h2 id="setup-title">Initial configuration</h2>
+      <p class="setup-lede">Connect a language model to bring <span data-name>ATLAS</span> online. Your key is stored only in the local <code>.env</code> file on this computer.</p>
+      <label class="field"><span>OpenRouter API key</span><input name="OPENROUTER_API_KEY" type="password" required autocomplete="off" placeholder="sk-or-v1-…"></label>
+      <p class="field-help">Get one at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer">openrouter.ai/keys</a>.</p>
+      <div class="field-row">
+        <label class="field"><span>Your name <em class="field-note">optional</em></span><input name="USER_NAME" type="text" maxlength="60"></label>
+        <label class="field"><span>Home city <em class="field-note">optional</em></span><input name="HOME_CITY" type="text" maxlength="80"></label>
+      </div>
+      <p class="setup-error" id="setup-error" role="alert" hidden></p>
+      <button class="btn btn-primary btn-wide" type="submit">Bring online</button>
+    </form>
+  </div>
+
+  <!-- ============================================================ ENGAGE -->
+  <div class="overlay engage" id="engage" role="dialog" aria-modal="true" aria-labelledby="engage-name">
+    <div class="engage-frame" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <div class="engage-top" aria-hidden="true">
+      <span>LOCAL NODE <b id="eg-host">127.0.0.1</b></span>
+      <span>SECURE TOKEN <b id="eg-token">—</b></span>
+    </div>
+    <div class="engage-center">
+      <div class="engage-core"><canvas id="engage-canvas" aria-hidden="true"></canvas></div>
+      <h1 class="engage-name" id="engage-name"><span data-name>ATLAS</span></h1>
+      <p class="engage-tag">Personal intelligence system</p>
+      <div class="engage-action" id="engage-action">
+        <button class="engage-btn" id="engage-btn" type="button">
+          <span class="eb-label">Engage</span>
+          <span class="eb-sheen" aria-hidden="true"></span>
+        </button>
+        <p class="engage-hint">Initializes voice &amp; audio · press <kbd>Enter</kbd></p>
+      </div>
+      <ol class="boot-log" id="boot-log" aria-live="polite" hidden></ol>
+    </div>
+    <div class="engage-bottom" aria-hidden="true">
+      <span id="eg-date">—</span>
+      <span>BUILD 1.0 // HALO</span>
+    </div>
+  </div>
+
+  <script src="/static/markdown.js"></script>
+  <script src="/static/hud.js"></script>
+  <script src="/static/voice.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
