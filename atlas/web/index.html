@@ -90,14 +90,16 @@
         </div>
       </section>
 
-      <section class="panel panel-grow" id="panel-reminders" aria-labelledby="h-reminders" data-status="loading">
+      <section class="panel panel-grow" id="panel-agenda" aria-labelledby="h-agenda" data-status="loading">
         <header class="panel-head">
           <span class="idx">03</span><span class="sep" aria-hidden="true">//</span>
-          <h2 class="panel-title" id="h-reminders">Reminders</h2>
-          <span class="panel-meta"><span class="count-badge" id="reminder-count">0</span></span>
+          <h2 class="panel-title" id="h-agenda">Agenda</h2>
+          <span class="panel-meta"><i class="live-dot" aria-hidden="true"></i><span class="panel-sync" data-sync>SYNC</span><span class="count-badge" id="agenda-count" title="Events, open to-dos and reminders shown">0</span></span>
         </header>
         <div class="panel-rule" aria-hidden="true"></div>
-        <div class="panel-body scroll" id="reminders-body"></div>
+        <div class="panel-body scroll" id="agenda-body">
+          <div class="skeleton" aria-label="Loading agenda"><i></i><i></i><i></i></div>
+        </div>
       </section>
       <section class="panel" id="panel-session" aria-labelledby="h-session" data-status="live">
         <header class="panel-head">
@@ -132,10 +134,18 @@
         <div class="core-readout tr" aria-hidden="true"><b>VOICE OUT</b><span id="ro-out">—</span></div>
         <div class="core-readout bl" aria-hidden="true"><b>UPLINK</b><span id="ro-link">LOCAL · SECURE</span></div>
         <div class="core-readout br" aria-hidden="true"><b>LATENCY</b><span id="ro-lat">— ms</span></div>
+        <!-- Shown while ATLAS operates its own browser window (browser_* tools, reservation_search). -->
+        <div class="web-agent" id="web-agent" data-state="run" aria-hidden="true" hidden>
+          <svg class="wa-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.3 3.6 5.1 3.6 8.5s-1.2 6.2-3.6 8.5c-2.4-2.3-3.6-5.1-3.6-8.5s1.2-6.2 3.6-8.5z"/></svg>
+          <b class="wa-k">Web agent</b>
+          <span class="wa-act" id="wa-act"></span>
+          <span class="wa-host" id="wa-host"></span>
+          <span class="wa-step" id="wa-step"></span>
+        </div>
       </div>
 
       <div class="transcript-wrap">
-        <div class="transcript" id="transcript" role="log" aria-live="polite" aria-relevant="additions" aria-label="Conversation" tabindex="0">
+        <div class="transcript" id="transcript" role="log" aria-live="off" aria-label="Conversation" tabindex="0">
         </div>
         <div class="transcript-empty" id="transcript-empty">
           <p class="te-title">Awaiting instruction</p>
@@ -147,12 +157,15 @@
         </button>
       </div>
 
+      <!-- Numbered quick actions on one row. Narrow centre columns show the short label (.chip-s). -->
       <div class="chips" role="toolbar" aria-label="Quick actions" id="chips">
-        <button class="chip" type="button" data-action="briefing"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg><span>Daily briefing</span></button>
-        <button class="chip" type="button" data-action="headlines"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 11h16M4 16h10"/></svg><span>Headlines</span></button>
-        <button class="chip" type="button" data-action="markets"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l5-5 4 3 8-8"/><path d="M15 7h5v5"/></svg><span>Markets</span></button>
-        <button class="chip" type="button" data-action="inbox"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v12H3z"/><path d="M3 7l9 6 9-6"/></svg><span>Inbox</span></button>
-        <button class="chip" type="button" data-action="system"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z"/><path d="M10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4"/></svg><span>System check</span></button>
+        <button class="chip" type="button" data-action="briefing"><span class="chip-i" aria-hidden="true">01</span><span class="chip-l">Daily briefing</span><span class="chip-s">Briefing</span></button>
+        <button class="chip" type="button" data-action="myday"><span class="chip-i" aria-hidden="true">02</span><span class="chip-l">My day</span></button>
+        <button class="chip chip-fill" type="button" data-action="table" title="Starts the request in the command bar — finish it and press Enter"><span class="chip-i" aria-hidden="true">03</span><span class="chip-l">Book a table…</span><span class="chip-s">Table…</span></button>
+        <button class="chip" type="button" data-action="headlines"><span class="chip-i" aria-hidden="true">04</span><span class="chip-l">Headlines</span><span class="chip-s">News</span></button>
+        <button class="chip" type="button" data-action="markets"><span class="chip-i" aria-hidden="true">05</span><span class="chip-l">Markets</span></button>
+        <button class="chip" type="button" data-action="inbox"><span class="chip-i" aria-hidden="true">06</span><span class="chip-l">Inbox</span></button>
+        <button class="chip" type="button" data-action="system"><span class="chip-i" aria-hidden="true">07</span><span class="chip-l">System check</span><span class="chip-s">System</span></button>
       </div>
 
       <form class="cmdbar" id="cmdbar" autocomplete="off">
@@ -216,82 +229,193 @@
     </header>
 
     <form class="drawer-body" id="settings-form" autocomplete="off" novalidate>
-      <fieldset class="set-group">
-        <legend><span class="idx">01</span> Identity</legend>
-        <div class="field-row">
-          <label class="field"><span>Assistant name</span><input name="ASSISTANT_NAME" type="text" maxlength="40" placeholder="ATLAS"></label>
-          <label class="field"><span>Your name</span><input name="USER_NAME" type="text" maxlength="60" autocomplete="given-name"></label>
-        </div>
-        <div class="field-row">
-          <label class="field"><span>Address me as</span><input name="USER_ADDRESS_AS" type="text" maxlength="40" placeholder="e.g. sir, boss, Kolton"></label>
-          <label class="field"><span>Home city</span><input name="HOME_CITY" type="text" maxlength="80" placeholder="e.g. Austin"></label>
-        </div>
-        <div class="field-row">
-          <label class="field"><span>Units</span>
-            <select name="UNITS"><option value="imperial">Imperial (°F, mph)</option><option value="metric">Metric (°C, km/h)</option></select>
+      <p class="set-intro">Saved to the <code>.env</code> file on this computer. Secret fields are never shown again: leave one blank to keep its current value.</p>
+
+      <details class="set-sec" id="sec-assistant" open>
+        <summary><span class="idx">01</span><span class="ss-title">Assistant &amp; voice</span><span class="ss-dirty">Edited</span><span class="ss-badge" data-badge="voice"></span><i class="ss-chev" aria-hidden="true"></i></summary>
+        <div class="set-body">
+          <label class="field"><span>Assistant name <em class="field-note">also the wake word</em></span><input name="ASSISTANT_NAME" type="text" maxlength="40" placeholder="ATLAS"></label>
+          <label class="field"><span>Voice</span>
+            <select id="voice-select" data-local="voiceURI"><option value="">Automatic</option></select>
           </label>
-          <label class="field"><span>News region</span><input name="NEWS_REGION" type="text" maxlength="4" placeholder="US"></label>
-        </div>
-      </fieldset>
-
-      <fieldset class="set-group">
-        <legend><span class="idx">02</span> Intelligence</legend>
-        <label class="field"><span>Model <em class="field-note" id="model-note"></em></span>
-          <select name="ATLAS_MODEL" id="model-select"><option value="">Automatic (recommended)</option></select>
-        </label>
-        <label class="field"><span>Research / search model <em class="field-note">optional</em></span>
-          <input name="ATLAS_SEARCH_MODEL" type="text" list="model-list" placeholder="Automatic">
-          <datalist id="model-list"></datalist>
-        </label>
-      </fieldset>
-
-      <fieldset class="set-group">
-        <legend><span class="idx">03</span> Voice</legend>
-        <label class="field"><span>Voice</span>
-          <select id="voice-select" data-local="voiceURI"><option value="">Automatic</option></select>
-        </label>
-        <div class="field-row">
-          <label class="field range"><span>Rate <output id="rate-out">1.00</output></span><input id="rate-input" type="range" min="0.6" max="1.6" step="0.05" value="1" data-local="rate"></label>
-          <label class="field range"><span>Pitch <output id="pitch-out">1.00</output></span><input id="pitch-input" type="range" min="0.5" max="1.5" step="0.05" value="1" data-local="pitch"></label>
-        </div>
-        <label class="toggle"><input type="checkbox" id="speak-toggle" data-local="speak" checked><i aria-hidden="true"></i><span>Speak replies aloud</span></label>
-        <label class="toggle"><input type="checkbox" id="wake-toggle" data-local="wake"><i aria-hidden="true"></i><span>Wake word — listen for “<b data-name>ATLAS</b>”</span></label>
-        <p class="field-help" id="voice-support"></p>
-        <button class="btn btn-ghost btn-sm" type="button" id="voice-test">Test voice</button>
-      </fieldset>
-
-      <fieldset class="set-group">
-        <legend><span class="idx">04</span> Email</legend>
-        <label class="field"><span>Email address</span><input name="EMAIL_ADDRESS" type="email" autocomplete="email" placeholder="you@gmail.com"></label>
-        <label class="field"><span>App password <em class="field-note" id="email-note">blank = keep current</em></span><input name="EMAIL_PASSWORD" type="password" autocomplete="new-password" placeholder="••••••••••••••••"></label>
-        <p class="field-help">Gmail: create an app password at <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer">myaccount.google.com/apppasswords</a> (requires 2-Step Verification).</p>
-        <details class="advanced">
-          <summary>Advanced mail servers</summary>
           <div class="field-row">
-            <label class="field"><span>SMTP host</span><input name="SMTP_HOST" type="text" placeholder="auto"></label>
-            <label class="field small"><span>Port</span><input name="SMTP_PORT" type="text" inputmode="numeric" placeholder="465"></label>
+            <label class="field range" for="rate-input"><span>Rate <output id="rate-out" for="rate-input">1.00</output></span><input id="rate-input" type="range" min="0.6" max="1.6" step="0.05" value="1" data-local="rate"></label>
+            <label class="field range" for="pitch-input"><span>Pitch <output id="pitch-out" for="pitch-input">1.00</output></span><input id="pitch-input" type="range" min="0.5" max="1.5" step="0.05" value="1" data-local="pitch"></label>
+          </div>
+          <label class="toggle"><input type="checkbox" id="speak-toggle" data-local="speak" checked><i aria-hidden="true"></i><span>Speak replies aloud</span></label>
+          <label class="toggle"><input type="checkbox" id="wake-toggle" data-local="wake"><i aria-hidden="true"></i><span>Wake word — listen for “<b data-name>ATLAS</b>”</span></label>
+          <p class="field-help" id="voice-support"></p>
+          <p class="field-help">Voice choices apply straight away and are kept in this browser.</p>
+          <button class="btn btn-ghost btn-sm" type="button" id="voice-test">Test voice</button>
+        </div>
+      </details>
+
+      <details class="set-sec" id="sec-you">
+        <summary><span class="idx">02</span><span class="ss-title">You</span><span class="ss-dirty">Edited</span><span class="ss-badge" data-badge="you"></span><i class="ss-chev" aria-hidden="true"></i></summary>
+        <div class="set-body">
+          <div class="field-row">
+            <label class="field"><span>Your name</span><input name="USER_NAME" type="text" maxlength="60"></label>
+            <label class="field"><span>Address me as</span><input name="USER_ADDRESS_AS" type="text" maxlength="40" placeholder="e.g. sir, boss, Kolton"></label>
+          </div>
+          <label class="field"><span>Phone <em class="field-note">for bookings &amp; forms</em></span><input name="USER_PHONE" type="tel" maxlength="40" placeholder="e.g. +1 555 555 0123"></label>
+          <label class="field"><span>Home address <em class="field-note">start for directions</em></span><input name="HOME_ADDRESS" type="text" maxlength="200" placeholder="e.g. 123 Main St, Austin, TX 78701"></label>
+          <label class="field"><span>Work address</span><input name="WORK_ADDRESS" type="text" maxlength="200" placeholder="what “work” means for directions"></label>
+          <div class="field-row">
+            <label class="field"><span>Home city</span><input name="HOME_CITY" type="text" maxlength="80" placeholder="e.g. Austin"></label>
+            <label class="field"><span>Units</span>
+              <select name="UNITS"><option value="imperial">Imperial (°F, mph)</option><option value="metric">Metric (°C, km/h)</option></select>
+            </label>
           </div>
           <div class="field-row">
-            <label class="field"><span>IMAP host</span><input name="IMAP_HOST" type="text" placeholder="auto"></label>
-            <label class="field small"><span>Port</span><input name="IMAP_PORT" type="text" inputmode="numeric" placeholder="993"></label>
+            <label class="field"><span>News region</span><input name="NEWS_REGION" type="text" maxlength="4" placeholder="US"></label>
+            <label class="field"><span>News language</span><input name="NEWS_LANGUAGE" type="text" maxlength="5" placeholder="en"></label>
           </div>
-        </details>
-      </fieldset>
+          <label class="field"><span>Market watchlist <em class="field-note">blank = default</em></span><input name="MARKET_WATCHLIST" type="text" maxlength="400" spellcheck="false" aria-describedby="help-watch" placeholder="^GSPC,^IXIC,AAPL,BTC-USD"></label>
+          <p class="field-help" id="help-watch">Ticker symbols as Yahoo Finance writes them, separated by commas.</p>
+          <p class="field-help">Your details fill in reservations and forms. Leave any blank and <span data-name>ATLAS</span> asks when it needs it.</p>
+        </div>
+      </details>
 
-      <fieldset class="set-group">
-        <legend><span class="idx">05</span> OpenRouter key</legend>
-        <label class="field"><span>Replace API key <em class="field-note" id="key-hint"></em></span><input name="OPENROUTER_API_KEY" type="password" autocomplete="off" placeholder="sk-or-… (blank = keep current)"></label>
-      </fieldset>
+      <details class="set-sec" id="sec-model">
+        <summary><span class="idx">03</span><span class="ss-title">AI model</span><span class="ss-dirty">Edited</span><span class="ss-badge" data-badge="model"></span><i class="ss-chev" aria-hidden="true"></i></summary>
+        <div class="set-body">
+          <label class="field"><span>Model <em class="field-note" id="model-note"></em></span>
+            <select name="ATLAS_MODEL" id="model-select"><option value="">Automatic (recommended)</option></select>
+          </label>
+          <label class="field"><span>Research / search model <em class="field-note">optional</em></span>
+            <input name="ATLAS_SEARCH_MODEL" type="text" list="model-list" spellcheck="false" placeholder="Automatic">
+            <datalist id="model-list"></datalist>
+          </label>
+          <div class="field">
+            <label class="field-lbl" for="f-OPENROUTER_API_KEY"><span>OpenRouter API key</span><em class="field-note"><b class="cfg" data-cfg="OPENROUTER_API_KEY"></b> <span id="key-hint"></span></em></label>
+            <div class="secret"><input id="f-OPENROUTER_API_KEY" name="OPENROUTER_API_KEY" type="password" data-secret autocomplete="off" spellcheck="false" aria-describedby="help-key" placeholder="sk-or-v1-… (blank = keep current)"><button class="reveal" type="button" aria-controls="f-OPENROUTER_API_KEY" aria-pressed="false" aria-label="Show the key you typed"></button></div>
+          </div>
+          <p class="field-help" id="help-key">Get a key at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer">openrouter.ai/keys</a>.</p>
+        </div>
+      </details>
 
-      <fieldset class="set-group">
-        <legend><span class="idx">06</span> Long-term memory</legend>
-        <ul class="memory-list" id="memory-list"><li class="muted">Loading…</li></ul>
-      </fieldset>
+      <details class="set-sec" id="sec-email">
+        <summary><span class="idx">04</span><span class="ss-title">Email</span><span class="ss-dirty">Edited</span><span class="ss-badge" data-badge="email"></span><i class="ss-chev" aria-hidden="true"></i></summary>
+        <div class="set-body">
+          <label class="field"><span>Email address</span><input name="EMAIL_ADDRESS" type="email" autocomplete="email" placeholder="you@gmail.com"></label>
+          <div class="field">
+            <label class="field-lbl" for="f-EMAIL_PASSWORD"><span>App password</span><em class="field-note"><b class="cfg" data-cfg="EMAIL_PASSWORD"></b> <span id="email-note"></span></em></label>
+            <div class="secret"><input id="f-EMAIL_PASSWORD" name="EMAIL_PASSWORD" type="password" data-secret autocomplete="new-password" spellcheck="false" aria-describedby="help-mail" placeholder="•••• •••• •••• •••• (blank = keep)"><button class="reveal" type="button" aria-controls="f-EMAIL_PASSWORD" aria-pressed="false" aria-label="Show the password you typed"></button></div>
+          </div>
+          <p class="field-help" id="help-mail">Gmail: create an app password at <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer">myaccount.google.com/apppasswords</a> (requires 2-Step Verification).</p>
+          <details class="advanced">
+            <summary>Advanced mail servers</summary>
+            <div class="field-row">
+              <label class="field"><span>SMTP host</span><input name="SMTP_HOST" type="text" placeholder="auto"></label>
+              <label class="field small"><span>Port</span><input name="SMTP_PORT" type="text" inputmode="numeric" placeholder="465"></label>
+            </div>
+            <div class="field-row">
+              <label class="field"><span>IMAP host</span><input name="IMAP_HOST" type="text" placeholder="auto"></label>
+              <label class="field small"><span>Port</span><input name="IMAP_PORT" type="text" inputmode="numeric" placeholder="993"></label>
+            </div>
+          </details>
+        </div>
+      </details>
 
-      <fieldset class="set-group">
-        <legend><span class="idx">07</span> Session</legend>
-        <button class="btn btn-danger btn-sm" type="button" id="clear-convo">Clear conversation</button>
-      </fieldset>
+      <details class="set-sec" id="sec-calendar">
+        <summary><span class="idx">05</span><span class="ss-title">Calendar</span><span class="ss-dirty">Edited</span><span class="ss-badge" data-badge="calendar"></span><i class="ss-chev" aria-hidden="true"></i></summary>
+        <div class="set-body">
+          <div class="field">
+            <label class="field-lbl" for="f-CALENDAR_ICS_URLS"><span>Secret iCal (ICS) addresses</span><em class="field-note"><b class="cfg" data-cfg="CALENDAR_ICS_URLS"></b></em></label>
+            <div class="secret"><input id="f-CALENDAR_ICS_URLS" name="CALENDAR_ICS_URLS" type="password" data-secret autocomplete="off" spellcheck="false" aria-describedby="help-ics" placeholder="https://…/basic.ics (blank = keep current)"><button class="reveal" type="button" aria-controls="f-CALENDAR_ICS_URLS" aria-pressed="false" aria-label="Show the addresses you typed"></button></div>
+          </div>
+          <div class="field-help help-list" id="help-ics">
+            <p>Read-only links that let <span data-name>ATLAS</span> see your events. Where to find yours:</p>
+            <ul>
+              <li><b>Google</b> — <a href="https://calendar.google.com/calendar/r/settings" target="_blank" rel="noopener noreferrer">calendar.google.com</a> → Settings → pick the calendar → Integrate calendar → <em>Secret address in iCal format</em>.</li>
+              <li><b>iCloud</b> — share the calendar, tick <em>Public Calendar</em> and copy the <code>webcal://</code> link.</li>
+              <li><b>Outlook</b> — Outlook on the web → Settings → Calendar → Shared calendars → <em>Publish a calendar</em> → copy the ICS link.</li>
+            </ul>
+            <p>Several calendars: separate with commas, and name them if you like: <code>Work=https://…</code>. Treat these links like passwords.</p>
+          </div>
+          <div class="field-row">
+            <label class="field"><span>New events go to</span>
+              <select name="CALENDAR_PROVIDER" aria-describedby="help-provider">
+                <option value="google">Google Calendar</option>
+                <option value="outlook">Outlook.com</option>
+                <option value="office365">Microsoft 365 (work)</option>
+                <option value="ics">Calendar app (.ics file)</option>
+                <option value="local">ATLAS only (local)</option>
+              </select>
+            </label>
+            <label class="field"><span>Your day <em class="field-note">24-hour</em></span><input name="CALENDAR_DAY_HOURS" type="text" maxlength="11" spellcheck="false" inputmode="numeric" aria-describedby="help-day" placeholder="08:00-20:00"></label>
+          </div>
+          <p class="field-help" id="help-provider">New events open pre-filled in that calendar and you click Save there. <span id="help-day">“Your day” is used when looking for free time.</span></p>
+        </div>
+      </details>
+
+      <details class="set-sec" id="sec-comms">
+        <summary><span class="idx">06</span><span class="ss-title">Texting &amp; calls</span><span class="ss-dirty">Edited</span><span class="ss-badge" data-badge="comms"></span><i class="ss-chev" aria-hidden="true"></i></summary>
+        <div class="set-body">
+          <p class="field-help note">On a Mac, texts can go through the <b>Messages app</b> (iMessage) with no setup — Twilio is optional there. Calls open your computer’s calling app and you press Call.</p>
+          <label class="field"><span>Twilio account SID</span><input name="TWILIO_ACCOUNT_SID" type="text" maxlength="64" spellcheck="false" placeholder="AC…"></label>
+          <div class="field">
+            <label class="field-lbl" for="f-TWILIO_AUTH_TOKEN"><span>Twilio auth token</span><em class="field-note"><b class="cfg" data-cfg="TWILIO_AUTH_TOKEN"></b></em></label>
+            <div class="secret"><input id="f-TWILIO_AUTH_TOKEN" name="TWILIO_AUTH_TOKEN" type="password" data-secret autocomplete="off" spellcheck="false" aria-describedby="help-twilio" placeholder="blank = keep current"><button class="reveal" type="button" aria-controls="f-TWILIO_AUTH_TOKEN" aria-pressed="false" aria-label="Show the token you typed"></button></div>
+          </div>
+          <div class="field-row">
+            <label class="field"><span>Twilio number</span><input name="TWILIO_FROM_NUMBER" type="tel" maxlength="40" spellcheck="false" placeholder="+15555550123"></label>
+            <label class="field"><span>Default country code</span><input name="DEFAULT_COUNTRY_CODE" type="text" maxlength="6" inputmode="tel" spellcheck="false" placeholder="+1"></label>
+          </div>
+          <p class="field-help" id="help-twilio">All three Twilio values are on the <a href="https://console.twilio.com" target="_blank" rel="noopener noreferrer">Twilio Console</a> home page. Trial accounts can only text numbers you have verified. The country code applies to numbers written without a leading +.</p>
+        </div>
+      </details>
+
+      <details class="set-sec" id="sec-home">
+        <summary><span class="idx">07</span><span class="ss-title">Smart home</span><span class="ss-dirty">Edited</span><span class="ss-badge" data-badge="home"></span><i class="ss-chev" aria-hidden="true"></i></summary>
+        <div class="set-body">
+          <label class="field"><span>Home Assistant URL</span><input name="HOME_ASSISTANT_URL" type="url" maxlength="300" spellcheck="false" placeholder="http://homeassistant.local:8123"></label>
+          <div class="field">
+            <label class="field-lbl" for="f-HOME_ASSISTANT_TOKEN"><span>Long-lived access token</span><em class="field-note"><b class="cfg" data-cfg="HOME_ASSISTANT_TOKEN"></b></em></label>
+            <div class="secret"><input id="f-HOME_ASSISTANT_TOKEN" name="HOME_ASSISTANT_TOKEN" type="password" data-secret autocomplete="off" spellcheck="false" aria-describedby="help-ha" placeholder="blank = keep current"><button class="reveal" type="button" aria-controls="f-HOME_ASSISTANT_TOKEN" aria-pressed="false" aria-label="Show the token you typed"></button></div>
+          </div>
+          <p class="field-help" id="help-ha">In Home Assistant, open your profile (your name, bottom left) → <b>Security</b> → <b>Long-lived access tokens</b> → Create token.</p>
+          <label class="field"><span>Always ask before <em class="field-note">optional</em></span><input name="HOME_ASSISTANT_CONFIRM_DOMAINS" type="text" maxlength="400" spellcheck="false" aria-describedby="help-ha-confirm" placeholder="e.g. light, climate.set_temperature, switch.heater"></label>
+          <p class="field-help" id="help-ha-confirm">Extra domains, services or devices that need your approval (* = everything). Locks, alarms, garage doors, valves and cameras always ask first.</p>
+        </div>
+      </details>
+
+      <details class="set-sec" id="sec-browser">
+        <summary><span class="idx">08</span><span class="ss-title">Web browser</span><span class="ss-dirty">Edited</span><span class="ss-badge" data-badge="browser"></span><i class="ss-chev" aria-hidden="true"></i></summary>
+        <div class="set-body">
+          <p class="field-help note"><span data-name>ATLAS</span> opens its own Chrome or Edge window to book tables and run web errands. Sign in to OpenTable, Resy and Google there once — it stays signed in, separate from your everyday browser. Final Book / Pay / Submit clicks always wait for your approval.</p>
+          <label class="toggle"><input type="checkbox" name="BROWSER_HEADLESS" data-bool aria-describedby="help-headless"><i aria-hidden="true"></i><span>Run without a visible window (headless)</span></label>
+          <p class="field-help" id="help-headless">Only for computers without a screen: you can’t sign in, solve a CAPTCHA or watch a booking in a window you can’t see.</p>
+          <div class="field-row">
+            <label class="field"><span>Browser</span>
+              <select name="BROWSER_CHANNEL">
+                <option value="">Automatic</option>
+                <option value="chrome">Google Chrome</option>
+                <option value="msedge">Microsoft Edge</option>
+                <option value="chromium">Chromium</option>
+              </select>
+            </label>
+            <label class="field"><span>Vision model <em class="field-note">optional</em></span><input name="BROWSER_VISION_MODEL" type="text" list="model-list" spellcheck="false" placeholder="Same as main model"></label>
+          </div>
+          <label class="field"><span>Browser program path <em class="field-note">overrides Browser</em></span><input name="BROWSER_EXECUTABLE" type="text" maxlength="400" spellcheck="false" placeholder="e.g. /usr/bin/chromium"></label>
+          <p class="field-help">Automatic tries Chrome, then Edge, then Playwright’s Chromium. The vision model reads screenshots of date pickers and seating maps. Changes apply the next time the window opens.</p>
+        </div>
+      </details>
+
+      <details class="set-sec" id="sec-memory">
+        <summary><span class="idx">09</span><span class="ss-title">Memory</span><span class="ss-badge" data-badge="memory"></span><i class="ss-chev" aria-hidden="true"></i></summary>
+        <div class="set-body">
+          <ul class="memory-list" id="memory-list"><li class="muted">Loading…</li></ul>
+        </div>
+      </details>
+
+      <details class="set-sec set-danger" id="sec-danger">
+        <summary><span class="idx">10</span><span class="ss-title">Danger zone</span><i class="ss-chev" aria-hidden="true"></i></summary>
+        <div class="set-body">
+          <p class="field-help">Clears the transcript and chat history stored in this browser. Settings and long-term memory are kept.</p>
+          <button class="btn btn-danger btn-sm" type="button" id="clear-convo">Clear conversation</button>
+        </div>
+      </details>
     </form>
 
     <footer class="drawer-foot">
@@ -302,10 +426,12 @@
 
   <!-- ============================================================ TOASTS -->
   <div class="toasts" id="toasts" aria-live="assertive" aria-atomic="false"></div>
+  <!-- Finished replies and reminders are announced here once; the transcript log itself is aria-live=off. -->
+  <div class="sr-only" id="sr-live" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <!-- ============================================================ SETUP -->
   <div class="overlay setup" id="setup" role="dialog" aria-modal="true" aria-labelledby="setup-title" hidden>
-    <form class="setup-card" id="setup-form" autocomplete="off">
+    <form class="setup-card" id="setup-form" autocomplete="off" novalidate>
       <span class="idx">INIT // 00</span>
       <h2 id="setup-title">Initial configuration</h2>
       <p class="setup-lede">Connect a language model to bring <span data-name>ATLAS</span> online. Your key is stored only in the local <code>.env</code> file on this computer.</p>

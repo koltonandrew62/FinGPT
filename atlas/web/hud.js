@@ -49,6 +49,7 @@
     this.levels = new Float32Array(BARS);
     this.peaks = new Float32Array(BARS);
     this.input = null;
+    this.inputSource = null;
     this.inputAt = 0;
     this.pulseV = 0;
     this.ripples = [];
@@ -92,6 +93,11 @@
   Core.prototype.setInput = function (arr) {
     this.input = arr;
     this.inputAt = performance.now();
+  };
+
+  /** Pull levels from `fn` once per drawn frame (null to stop), so no extra rAF loop is needed. */
+  Core.prototype.setInputSource = function (fn) {
+    this.inputSource = typeof fn === 'function' ? fn : null;
   };
 
   /** A speech boundary or other transient: brief swell plus a ripple. */
@@ -184,6 +190,11 @@
   };
 
   Core.prototype.update = function (dt) {
+    if (this.inputSource) {
+      var lv = null;
+      try { lv = this.inputSource(); } catch (e) { lv = null; }
+      if (lv) this.setInput(lv);
+    }
     var target = STATES[this.state] || STATES.standby;
     var k = 1 - Math.exp(-dt * 3.0);
     for (var c = 0; c < 3; c++) this.rgb[c] += (target.rgb[c] - this.rgb[c]) * k;

@@ -18,7 +18,7 @@
   function el(tag, cls, html) { var e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
   function pad2(n) { return String(n).padStart(2, '0'); }
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
-  function safeUrl(u) { return typeof u === 'string' && /^https?:\/\//i.test(u) ? u : null; }
+  function safeUrl(u) { return MD.safeUrl(u); } // http(s) only, parsed, no credentials
 
   var TOKEN = (($('meta[name="atlas-token"]') || {}).content || '').trim();
   var reduceMotion = false;
@@ -36,11 +36,161 @@
     get: function (k, d) {
       try { var v = window.localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; }
     },
+    raw: function (k) {
+      try { return window.localStorage.getItem(k); } catch (e) { return null; }
+    },
     set: function (k, v) {
       try { window.localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; }
     },
     del: function (k) { try { window.localStorage.removeItem(k); } catch (e) { /* ignore */ } }
   };
+
+  // ------------------------------------------------------------------ persisted-state validation
+  /* Everything read back from localStorage is untrusted: it may come from an older build, be
+   * truncated, hand-edited or wrong-typed. Each entry is checked on its own; anything malformed is
+   * dropped (never thrown on), and storage is rewritten with the repaired copy. */
+  var MAX_TEXT = 200000;
+  var MAX_HISTORY_KEEP = 120;
+  var MAX_TRANSCRIPT_KEEP = 150;
+  var MAX_SEND = 100;
+  function isObj(v) { return v != null && typeof v === 'object' && !Array.isArray(v); }
+  function str(v, max) {
+    if (typeof v === 'string') return max && v.length > max ? v.slice(0, max) : v;
+    if (typeof v === 'number' && isFinite(v)) return String(v);
+    return null;
+  }
+  function tsOf(v) { var n = Number(v); return isFinite(n) && n > 0 && n < 8.64e15 ? n : Date.now(); }
+  var ROLES = { user: 1, assistant: 1, tool: 1 };
+
+  function cleanHistoryMsg(m) {
+    if (!isObj(m) || !ROLES[m.role]) return null;
+    var out = { role: m.role };
+    if (typeof m.content === 'string') out.content = m.content.length > MAX_TEXT ? m.content.slice(0, MAX_TEXT) : m.content;
+    else if (m.content == null) out.content = null;
+    else return null;
+    if (m.role === 'user' && typeof out.content !== 'string') return null;
+    if (m.role === 'assistant' && m.tool_calls != null) {
+      if (!Array.isArray(m.tool_calls)) return null;
+      var calls = m.tool_calls.filter(function (c) {
+        return isObj(c) && typeof c.id === 'string' && isObj(c.function) && typeof c.function.name === 'string';
+      });
+      if (calls.length) out.tool_calls = calls.slice(0, 32);
+    }
+    if (m.role === 'assistant' && !out.tool_calls && !(typeof out.content === 'string' && out.content)) return null;
+    if (m.role === 'tool') {
+      if (typeof m.tool_call_id !== 'string' || !m.tool_call_id) return null;
+      out.tool_call_id = m.tool_call_id;
+      if (typeof m.name === 'string') out.name = m.name;
+      if (out.content == null) out.content = '';
+    }
+    return out;
+  }
+  function trimToUser(list) {
+    while (list.length && list[0].role !== 'user') list.shift(); // never start mid tool-exchange
+    return list;
+  }
+  function cleanHistory(arr) {
+    if (!Array.isArray(arr)) return [];
+    var out = [];
+    arr.slice(-MAX_HISTORY_KEEP * 2).forEach(function (m) {
+      var c = null;
+      try { c = cleanHistoryMsg(m); } catch (e) { c = null; }
+      if (c) out.push(c);
+    });
+    return trimToUser(out.slice(-MAX_HISTORY_KEEP));
+  }
+
+  var TOOL_STATES = { run: 1, ok: 1, err: 1 };
+  var SYS_TONES = { info: 1, warn: 1, error: 1, ok: 1 };
+  function cleanTool(it) {
+    if (!isObj(it)) return null;
+    return {
+      id: str(it.id, 200) || '', name: str(it.name, 120) || '',
+      label: str(it.label, 200) || str(it.name, 120) || 'Tool',
+      hint: str(it.hint, 200) || '', state: TOOL_STATES[it.state] ? it.state : 'err', summary: str(it.summary, 2000) || ''
+    };
+  }
+  function cleanPart(p) {
+    if (!isObj(p)) return null;
+    switch (p.t) {
+      case 'text': {
+        var t = str(p.text, MAX_TEXT);
+        return t == null ? null : { t: 'text', text: t };
+      }
+      case 'tools': {
+        if (!Array.isArray(p.items)) return null;
+        var items = p.items.map(cleanTool).filter(Boolean).slice(0, 64);
+        return items.length ? { t: 'tools', items: items } : null;
+      }
+      case 'confirm': {
+        var fields = Array.isArray(p.fields) ? p.fields.filter(function (f) { return Array.isArray(f) && f.length >= 2; })
+          .map(function (f) { return [str(f[0], 200) || '', str(f[1], 4000) || '']; }).slice(0, 40) : [];
+        var out = {
+          t: 'confirm', id: str(p.id, 200) || '', call_id: str(p.call_id, 200) || '', name: str(p.name, 120) || '',
+          title: str(p.title, 400) || '', fields: fields, body: str(p.body, 20000) || '', code: p.code === true,
+          result: p.result === true || p.result === false ? p.result : null, expired: p.expired === true
+        };
+        if (!out.id) return null; // no id: not a card the server ever sent
+        if (out.result == null) out.expired = true; // the stream that could have resolved it is gone
+        return out;
+      }
+      case 'error':
+      case 'note': {
+        var x = str(p.text, 4000);
+        return x == null ? null : { t: p.t, text: x };
+      }
+      default:
+        return null;
+    }
+  }
+  function cleanEntry(e) {
+    if (!isObj(e)) return null;
+    if (e.k === 'u') {
+      var text = str(e.text, MAX_TEXT);
+      if (text == null) return null;
+      return { k: 'u', text: text, ts: tsOf(e.ts), via: e.via === 'voice' || e.via === 'wake' ? e.via : 'text' };
+    }
+    if (e.k === 's') {
+      var st = str(e.text, 4000);
+      if (st == null) return null;
+      return { k: 's', text: st, tone: SYS_TONES[e.tone] ? e.tone : 'info', tag: str(e.tag, 40) || 'SYSTEM', ts: tsOf(e.ts) };
+    }
+    if (e.k === 'a') {
+      if (!Array.isArray(e.parts)) return null;
+      var parts = e.parts.slice(0, 200).map(function (p) {
+        try { return cleanPart(p); } catch (x) { return null; }
+      }).filter(Boolean);
+      parts.forEach(function (p) {
+        if (p.t === 'tools') p.items.forEach(function (it) { if (it.state === 'run') { it.state = 'err'; it.summary = it.summary || 'interrupted'; } });
+      });
+      if (!parts.length) return null; // nothing left worth showing
+      return { k: 'a', parts: parts, ts: tsOf(e.ts), model: str(e.model, 200) || '' };
+    }
+    return null;
+  }
+  function cleanTranscript(arr) {
+    if (!Array.isArray(arr)) return [];
+    var out = [];
+    arr.slice(-MAX_TRANSCRIPT_KEEP).forEach(function (e) {
+      var c = null;
+      try { c = cleanEntry(e); } catch (x) { c = null; }
+      if (c) out.push(c);
+    });
+    return out;
+  }
+  function cleanVoice(v) {
+    var d = { voiceURI: '', rate: 1, pitch: 1, speak: true, wake: false };
+    if (!isObj(v)) return d;
+    var rate = Number(v.rate), pitch = Number(v.pitch);
+    return {
+      voiceURI: typeof v.voiceURI === 'string' ? v.voiceURI.slice(0, 300) : '',
+      rate: isFinite(rate) && rate >= 0.5 && rate <= 2 ? rate : 1,
+      pitch: isFinite(pitch) && pitch >= 0 && pitch <= 2 ? pitch : 1,
+      speak: typeof v.speak === 'boolean' ? v.speak : true,
+      wake: v.wake === true
+    };
+  }
+  function cleanCat(c) { return typeof c === 'string' && /^[a-z][a-z0-9_-]{0,23}$/i.test(c) ? c : 'top'; }
 
   // ------------------------------------------------------------------ app state
   var S = {
@@ -48,6 +198,7 @@
     engaged: false,
     streaming: false,
     abort: null,
+    turn: null,
     toolsRunning: 0,
     pendingConfirm: null,
     errorUntil: 0,
@@ -61,36 +212,85 @@
     usage: { prompt: 0, completion: 0, cost: 0 },
     turns: 0,
     model: '',
-    newsCat: store.get(KEYS.news, 'top'),
+    newsCat: cleanCat(store.get(KEYS.news, 'top')),
     newsCache: {},
     cpuHist: [],
     stick: true,
-    voice: Object.assign({ voiceURI: '', rate: 1, pitch: 1, speak: true, wake: false }, store.get(KEYS.voice, {}) || {}),
+    voice: cleanVoice(store.get(KEYS.voice, null)),
     sessionStart: Date.now()
   };
+  // ATLAS's own browser window, as seen from the current turn's tool events (see "web agent" below).
+  var web = { running: 0, steps: 0, host: '', ids: {}, last: null, hideT: 0 };
 
-  var hist = store.get(KEYS.history, []);
-  S.history = Array.isArray(hist) ? hist.filter(function (m) { return m && typeof m === 'object' && m.role; }) : [];
-  var trn = store.get(KEYS.transcript, []);
-  S.transcript = Array.isArray(trn) ? trn.filter(function (e) { return e && typeof e === 'object' && e.k; }) : [];
+  /** Load, validate and (if anything was dropped or rewritten) repair one stored list. */
+  function loadList(key, clean) {
+    var raw = store.raw(key);
+    if (raw == null) return [];
+    var parsed = null;
+    try { parsed = JSON.parse(raw); } catch (e) { parsed = null; }
+    var out = [];
+    try { out = clean(parsed); } catch (e) { out = []; }
+    var same = false;
+    try { same = JSON.stringify(out) === raw; } catch (e) { same = false; }
+    if (!same) { if (out.length) store.set(key, out); else store.del(key); }
+    return out;
+  }
+  S.history = loadList(KEYS.history, cleanHistory);
+  S.transcript = loadList(KEYS.transcript, cleanTranscript);
+  (function repairSmallKeys() {
+    var rawV = store.raw(KEYS.voice);
+    if (rawV != null && rawV !== JSON.stringify(S.voice)) store.set(KEYS.voice, S.voice);
+    var rawN = store.raw(KEYS.news);
+    if (rawN != null && rawN !== JSON.stringify(S.newsCat)) store.set(KEYS.news, S.newsCat);
+  })();
 
+  /** Write a list, dropping older entries until it fits the quota. Never throws. */
+  function saveList(key, list, steps) {
+    if (store.set(key, list)) return list;
+    for (var i = 0; i < steps.length; i++) {
+      var cut = list.slice(-steps[i]);
+      if (key === KEYS.history) trimToUser(cut);
+      if (store.set(key, cut)) return cut;
+    }
+    store.del(key);
+    return list;
+  }
   function saveHistory() {
-    if (S.history.length > 120) {
-      S.history = S.history.slice(-120);
-      while (S.history.length && S.history[0].role !== 'user') S.history.shift();
+    if (S.history.length > MAX_HISTORY_KEEP) S.history = trimToUser(S.history.slice(-MAX_HISTORY_KEEP));
+    S.history = saveList(KEYS.history, S.history, [30, 8]);
+  }
+  function persistedPart(p) {
+    if (p.t === 'confirm') {
+      return { t: 'confirm', id: p.id, call_id: p.call_id, name: p.name, title: p.title, fields: p.fields, body: p.body, code: p.code, result: p.result, expired: !!p.expired };
     }
-    if (!store.set(KEYS.history, S.history)) {
-      S.history = S.history.slice(-30);
-      while (S.history.length && S.history[0].role !== 'user') S.history.shift();
-      store.set(KEYS.history, S.history);
-    }
+    if (p.t === 'tools') return { t: 'tools', items: p.items };
+    if (p.t === 'text') return { t: 'text', text: p.text };
+    return { t: p.t, text: p.text };
   }
   function saveTranscript() {
-    if (S.transcript.length > 150) S.transcript = S.transcript.slice(-150);
-    var clean = S.transcript.filter(function (e) { return !e.ephemeral; });
-    if (!store.set(KEYS.transcript, clean)) store.set(KEYS.transcript, clean.slice(-30));
+    if (S.transcript.length > MAX_TRANSCRIPT_KEEP) S.transcript = S.transcript.slice(-MAX_TRANSCRIPT_KEEP);
+    var clean = S.transcript.filter(function (e) { return !e.ephemeral; }).map(function (e) {
+      if (e.k !== 'a') return e;
+      return { k: 'a', ts: e.ts, model: e.model, parts: e.parts.map(persistedPart) };
+    });
+    saveList(KEYS.transcript, clean, [30, 8]);
   }
+  // Throttled save for the in-progress turn, so a reload mid-stream keeps the partial bubble.
+  var saveTranscriptSoon = (function () {
+    var timer = 0, last = 0;
+    return function () {
+      if (timer) return;
+      timer = setTimeout(function () { timer = 0; last = Date.now(); saveTranscript(); }, Math.max(0, 1200 - (Date.now() - last)));
+    };
+  })();
   function saveVoice() { store.set(KEYS.voice, S.voice); }
+
+  /** The outgoing /api/chat payload: the last ~100 messages, starting on a user turn. */
+  function outgoingHistory() {
+    var h = S.history.slice(-MAX_SEND);
+    trimToUser(h);
+    return h.length ? h : S.history.slice(-1);
+  }
 
   // ------------------------------------------------------------------ toasts
   var toastBox = $('#toasts');
@@ -222,9 +422,14 @@
   listener.onstate = function (mode) {
     S.listening = mode;
     if (!mode) { S.armed = false; $('#cmd-input').classList.remove('interim'); }
-    if (mode === 'command') mic.start(); else if (!mode || mode === 'wake') mic.stop();
+    if (mode === 'command') startMic(); else stopMic();
     refreshState();
   };
+  // The core pulls mic levels inside its own animation frame while the mic is live; nothing runs
+  // when the mic is off, and the core itself sleeps while the tab is hidden.
+  function micLevels() { return mic.on ? mic.levels() : null; }
+  function startMic() { mic.start(); if (core) core.setInputSource(micLevels); }
+  function stopMic() { mic.stop(); if (core) core.setInputSource(null); }
   listener.onwake = function () {
     S.armed = true;
     V.chime('wake');
@@ -233,7 +438,10 @@
     setTimeout(function () { S.armed = false; refreshState(); }, 8000);
   };
   listener.onheard = function (text) {
-    if (S.pendingConfirm) return approvalFromPhrase(text) || true;
+    if (S.pendingConfirm) {
+      if (!approvalFromPhrase(text)) toast('Say “yes” to approve or “no” to deny.', { tone: 'info', key: 'say-yn', cooldown: 5000 });
+      return true;
+    }
     if (S.streaming && /^(stop|cancel|abort|enough|be quiet|silence|never ?mind)\b/i.test(text)) { stopAll(); return true; }
     return false;
   };
@@ -255,18 +463,12 @@
     }
   };
 
-  function micLoop() {
-    if (core && mic.on) { var lv = mic.levels(); if (lv) core.setInput(lv); }
-    requestAnimationFrame(micLoop);
-  }
-  requestAnimationFrame(micLoop);
-
   function startListening() {
     if (!listener.supported) {
       toast('Voice input isn’t supported in this browser — try Chrome or Edge. You can still type.', { tone: 'info', key: 'sr-unsupported' });
       return;
     }
-    if (S.speaking) speaker.stop();
+    if (S.speaking || speaker.busy()) stopSpeaking();
     V.unlockAudio();
     listener.start('command');
   }
@@ -290,7 +492,7 @@
     document.body.dataset.state = st;
     if (core) core.setState(st);
     var label = STATUS_TEXT[st];
-    if (st === 'thinking') label = S.pendingConfirm ? 'AWAITING AUTH' : S.toolsRunning > 0 ? 'EXECUTING' : 'PROCESSING';
+    if (st === 'thinking') label = S.pendingConfirm ? 'AWAITING AUTH' : web.running > 0 ? 'BROWSING' : S.toolsRunning > 0 ? 'EXECUTING' : 'PROCESSING';
     if (st === 'standby' && S.listening === 'wake') label = 'STANDBY · WAKE';
     $('#status-text').textContent = label;
     $('#core-state').textContent = CORE_TEXT[label] || label;
@@ -377,9 +579,13 @@
 
   // ------------------------------------------------------------------ transcript
   var tx = $('#transcript');
+  var jumpBtn = $('#jump-latest');
+  var srLive = $('#sr-live');
   var partEls = new WeakMap();
   var renderQueue = new Set();
-  var renderRaf = 0;
+  var frameReq = 0;
+  var wantScroll = 0;      // 0 = none, 1 = follow if pinned, 2 = force to bottom
+  var scrollDirty = false; // the user scrolled: re-measure at the start of the next frame
 
   function fmtClock(ts) {
     var d = new Date(ts || Date.now());
@@ -387,19 +593,68 @@
   }
 
   function nearBottom() { return tx.scrollHeight - tx.scrollTop - tx.clientHeight < 48; }
-  function scrollToEnd(force) {
-    if (force || S.stick) {
-      tx.scrollTop = tx.scrollHeight;
-      $('#jump-latest').hidden = true;
-    } else {
-      $('#jump-latest').hidden = false;
+  function setJump(show) { if (jumpBtn.hidden === show) jumpBtn.hidden = !show; }
+
+  /* One frame does all transcript work: measure first (layout is still clean), then write the DOM,
+   * then scroll once. Nothing here reads layout between writes, so there is no forced reflow. */
+  function scheduleFrame() { if (!frameReq) frameReq = requestAnimationFrame(runFrame); }
+  function runFrame() {
+    frameReq = 0;
+    if (scrollDirty) {
+      scrollDirty = false;
+      S.stick = nearBottom();
+      if (S.stick) setJump(false);
+    }
+    if (renderQueue.size) {
+      renderQueue.forEach(paintText);
+      renderQueue.clear();
+    }
+    if (wantScroll) {
+      var force = wantScroll === 2;
+      wantScroll = 0;
+      if (force) S.stick = true;
+      if (S.stick) { tx.scrollTop = tx.scrollHeight; setJump(false); }
+      else if (S.streaming) setJump(true);
     }
   }
-  tx.addEventListener('scroll', function () {
-    S.stick = nearBottom();
-    if (S.stick) $('#jump-latest').hidden = true;
-  }, { passive: true });
-  $('#jump-latest').addEventListener('click', function () { S.stick = true; scrollToEnd(true); });
+  function scrollToEnd(force) {
+    wantScroll = Math.max(wantScroll, force ? 2 : 1);
+    scheduleFrame();
+  }
+  tx.addEventListener('scroll', function () { scrollDirty = true; scheduleFrame(); }, { passive: true });
+  jumpBtn.addEventListener('click', function () { scrollToEnd(true); });
+  // Re-pin to the bottom when the transcript is resized (window resize, core shrinking, phone keyboard).
+  if (typeof ResizeObserver === 'function') {
+    try { new ResizeObserver(function () { if (S.stick) scrollToEnd(false); }).observe(tx); } catch (e) { /* ignore */ }
+  }
+
+  /** Announce a finished reply once (the log itself is aria-live=off so streaming isn't read out). */
+  var announceT = 0;
+  function announce(text) {
+    if (!srLive) return;
+    var t = clip(String(text || '').replace(/\s+/g, ' ').trim(), 600);
+    if (!t) return;
+    clearTimeout(announceT);
+    srLive.textContent = '';
+    announceT = setTimeout(function () { srLive.textContent = t; }, 80);
+  }
+
+  /* Streaming text is painted incrementally: blocks that can no longer change (everything before
+   * the last blank line outside a code fence) are rendered once; only the tail is rebuilt. */
+  function paintText(p) {
+    var node = partEls.get(p);
+    if (!node) return;
+    var text = p.text || '';
+    var st = node._md || (node._md = { stable: 0, tail: [] });
+    for (var i = 0; i < st.tail.length; i++) { if (st.tail[i].parentNode === node) node.removeChild(st.tail[i]); }
+    st.tail = [];
+    var cut = MD.stableCut(text);
+    if (cut < st.stable) { node.textContent = ''; st.stable = 0; }
+    if (cut > st.stable) { node.appendChild(MD.fragment(text.slice(st.stable, cut))); st.stable = cut; }
+    var frag = MD.fragment(text.slice(st.stable));
+    st.tail = Array.prototype.slice.call(frag.childNodes);
+    node.appendChild(frag);
+  }
 
   function setConvoMode() {
     var has = S.transcript.some(function (e) { return e.k === 'u' || e.k === 'a'; });
@@ -439,7 +694,8 @@
     var node;
     if (p.t === 'text') {
       node = el('div', 'md');
-      node.innerHTML = MD.render(p.text || '');
+      MD.renderInto(node, p.text || '');
+      node._md = { stable: 0, tail: Array.prototype.slice.call(node.childNodes) };
     } else if (p.t === 'tools') {
       node = el('div', 'tools');
       (p.items || []).forEach(function (it) { node.appendChild(renderTool(it)); });
@@ -459,15 +715,27 @@
   function toolHint(args) {
     if (!args || typeof args !== 'object') return '';
     var keys = ['query', 'q', 'topic', 'category', 'location', 'city', 'symbols', 'symbol', 'expression', 'command', 'to', 'subject',
-      'app', 'name', 'url', 'path', 'message', 'fact', 'action', 'keys', 'text'];
+      'title', 'app', 'name', 'url', 'path', 'message', 'fact', 'action', 'keys', 'text', 'question', 'entity_id', 'service',
+      'destination', 'key', 'option', 'direction'];
     for (var i = 0; i < keys.length; i++) {
       var v = args[keys[i]];
       if (v == null || v === '') continue;
       if (Array.isArray(v)) v = v.join(', ');
       if (typeof v === 'object') continue;
+      if (keys[i] === 'url') v = hostOf(v) || v;
       return clip(String(v).replace(/\s+/g, ' '), 42);
     }
     return '';
+  }
+  /** "www.opentable.com/r/x" → "opentable.com"; '' for anything that isn't a web address. */
+  function hostOf(u) {
+    var s = String(u || '').trim();
+    if (!s) return '';
+    if (!/^[a-z][a-z0-9+.-]*:/i.test(s)) s = 'https://' + s;
+    try {
+      var h = new URL(s).hostname;
+      return /^[a-z0-9.-]+$/i.test(h) ? h.replace(/^www\./i, '') : '';
+    } catch (e) { return ''; }
   }
 
   function renderTool(it) {
@@ -477,35 +745,182 @@
     var hint = it.hint ? '<span class="tool-hint">' + esc(it.hint) + '</span>' : '';
     c.innerHTML = '<i class="tool-ico" aria-hidden="true"></i><span class="tool-label">' + esc(it.label || it.name || 'Tool') + '</span>' + hint +
       '<span class="tool-sum">' + esc(it.summary || '') + '</span>';
-    c.setAttribute('role', 'status');
+    // No role=status here: each chip would be its own live region and chatter during a briefing.
     c.title = (it.label || it.name || '') + (it.hint ? ' — ' + it.hint : '') + (it.summary ? ' · ' + it.summary : '');
     return c;
   }
 
-  function renderConfirm(p, entry) {
+  // ------------------------------------------------------------------ web agent indicator
+  /* While ATLAS drives its own browser window (browser_* tools, reservation_search) a small live
+   * readout sits on the core: the current action, the site and the step count. It stays up, dimmed,
+   * between steps and fades a moment after the turn ends. */
+  var waEl = $('#web-agent');
+  function isWebTool(name) { name = String(name || ''); return /^browser_/.test(name) || name === 'reservation_search'; }
+  function webDetail(name, args) {
+    var a = isObj(args) ? args : {};
+    var v = '';
+    if (name === 'reservation_search') v = [a.query, a.party_size ? 'party of ' + a.party_size : ''].filter(function (x) { return x && typeof x !== 'object'; }).join(' · ');
+    else if (name === 'browser_type') v = typeof a.text === 'string' && a.text ? '“' + clip(a.text, 24) + '”' : '';
+    else if (name === 'browser_fill') v = Array.isArray(a.fields) ? a.fields.length + (a.fields.length === 1 ? ' field' : ' fields') : '';
+    else if (name === 'browser_select') v = a.option;
+    else if (name === 'browser_press') v = a.key;
+    else if (name === 'browser_scroll') v = a.direction;
+    else if (name === 'browser_look') v = a.question;
+    return v != null && typeof v !== 'object' ? clip(String(v).replace(/\s+/g, ' '), 38) : '';
+  }
+  function webPaint(state) {
+    if (!waEl) return;
+    clearTimeout(web.hideT);
+    var last = web.last || { action: 'Working', detail: '' };
+    waEl.dataset.state = state;
+    var act = state === 'auth' ? 'Awaiting your approval' : last.action + (last.detail ? ' · ' + last.detail : '');
+    $('#wa-act').textContent = act;
+    $('#wa-host').textContent = web.host || '';
+    $('#wa-step').textContent = web.steps ? 'STEP ' + pad2(web.steps) : '';
+    if (waEl.hidden) { waEl.hidden = false; waEl.classList.remove('out'); }
+    document.body.classList.add('web-active');
+  }
+  function webStart(it, args) {
+    web.running++;
+    web.steps++;
+    web.ids[it.id] = true;
+    if (it.name === 'browser_open') { var h = hostOf(isObj(args) ? args.url : ''); if (h) web.host = h; }
+    web.last = { action: it.label || 'Working', detail: webDetail(it.name, args) };
+    webPaint('run');
+  }
+  function webFinish(id, ok) {
+    if (!web.ids[id]) return;
+    delete web.ids[id];
+    web.running = Math.max(0, web.running - 1);
+    if (!web.running) webPaint(ok ? 'ok' : 'err');
+  }
+  function webAwait(p) {
+    var site = hostOf(cardField(p.fields || [], 'site'));
+    if (site) web.host = site;
+    webPaint('auth');
+  }
+  function webResolved(approved) { if (waEl && !waEl.hidden && waEl.dataset.state === 'auth') webPaint(approved ? 'run' : 'err'); }
+  function webEnd() {
+    web.running = 0; web.ids = {}; web.steps = 0; web.host = ''; web.last = null;
+    document.body.classList.remove('web-active');
+    if (!waEl || waEl.hidden) return;
+    if (waEl.dataset.state === 'run' || waEl.dataset.state === 'auth') waEl.dataset.state = 'ok';
+    clearTimeout(web.hideT);
+    web.hideT = setTimeout(function () {
+      waEl.classList.add('out');
+      web.hideT = setTimeout(function () { waEl.hidden = true; waEl.classList.remove('out'); }, reduceMotion ? 0 : 400);
+    }, 2600);
+  }
+
+  var CONFIRM_MS = 300000; // the server waits 300 s for a decision (agent.CONFIRM_TIMEOUT)
+  var confirmTimer = 0;
+  function fmtLeft(ms) { var sec = Math.ceil(ms / 1000); return Math.floor(sec / 60) + ':' + pad2(sec % 60); }
+  function isTouch() { try { return window.matchMedia('(pointer: coarse)').matches; } catch (e) { return false; } }
+
+  function tickConfirm() {
+    var p = S.pendingConfirm;
+    if (!p || p.result != null || p.expired) { clearInterval(confirmTimer); confirmTimer = 0; return; }
+    var left = Math.max(0, (p.deadline || 0) - Date.now());
+    var card = partEls.get(p);
+    if (card && card._timer) {
+      card._timer.bar.style.transform = 'scaleX(' + (left / CONFIRM_MS).toFixed(4) + ')';
+      card._timer.label.textContent = fmtLeft(left);
+      card.classList.toggle('urgent', left <= 30000);
+    }
+    if (!left && !p.sending) {
+      lockConfirm(p, 'expired');
+      refreshState();
+      saveTranscript();
+    }
+  }
+  function startConfirmTimer() {
+    clearInterval(confirmTimer);
+    confirmTimer = setInterval(tickConfirm, 1000);
+    tickConfirm();
+  }
+
+  var ICON_OK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg>';
+  var ICON_NO = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+
+  /* Approvals for actions that leave the computer get their own header and body layout:
+   * website clicks show the page excerpt, texts show the message as it will be sent. */
+  var CONFIRM_KINDS = {
+    web: { head: 'Confirm on website', aria: 'Confirm on website',
+      icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.3 3.6 5.1 3.6 8.5s-1.2 6.2-3.6 8.5c-2.4-2.3-3.6-5.1-3.6-8.5s1.2-6.2 3.6-8.5z"/></svg>' },
+    msg: { head: 'Confirm message', aria: 'Confirm message',
+      icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/></svg>' },
+    call: { head: 'Confirm call', aria: 'Confirm phone call',
+      icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z"/></svg>' },
+    home: { head: 'Confirm home action', aria: 'Confirm home action',
+      icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-6.5 8 6.5"/><path d="M6.5 9.5V20h11V9.5"/><path d="M10 20v-5h4v5"/></svg>' }
+  };
+  function confirmKind(name) {
+    name = String(name || '');
+    if (/^browser_/.test(name)) return 'web';
+    if (name === 'send_text_message') return 'msg';
+    if (name === 'make_phone_call') return 'call';
+    if (name === 'smart_home_control') return 'home';
+    return '';
+  }
+  function cardField(fields, label) {
+    for (var i = 0; i < fields.length; i++) if (String(fields[i][0]).toLowerCase() === label) return String(fields[i][1] || '');
+    return '';
+  }
+  /** A website card's body ("Filled in:\n• …\n\nOn the page:\n…") as titled, readable sections. */
+  function pageBodyHtml(body) {
+    var blocks = String(body).split(/\n{2,}/).filter(function (b) { return b.trim(); });
+    var secs = blocks.map(function (b) {
+      var lines = b.replace(/^\n+|\n+$/g, '').split('\n');
+      var head = '';
+      if (lines.length > 1 && /^[^:\n]{1,40}:$/.test(lines[0].trim())) head = lines.shift().trim().slice(0, -1);
+      return '<section class="cp-sec">' + (head ? '<h5 class="cp-h">' + esc(head) + '</h5>' : '') +
+        '<div class="cp-txt">' + esc(lines.join('\n')) + '</div></section>';
+    }).join('');
+    return '<div class="confirm-page" tabindex="0" role="region" aria-label="Page details">' + secs + '</div>';
+  }
+
+  function renderConfirm(p) {
     var card = el('div', 'confirm');
+    var kind = confirmKind(p.name);
+    var K = CONFIRM_KINDS[kind];
+    if (kind) card.classList.add('confirm-' + kind);
     card.dataset.state = p.result === true ? 'approved' : p.result === false ? 'denied' : p.expired ? 'expired' : 'pending';
+    card.setAttribute('role', 'group');
+    card.setAttribute('aria-label', (K ? K.aria : 'Approval required') + ': ' + String(p.title || 'action'));
     var fields = (Array.isArray(p.fields) ? p.fields : []).filter(function (f) { return Array.isArray(f) && f.length >= 2; });
     var grid = fields.length ? '<dl class="confirm-fields">' + fields.map(function (f) {
       return '<div><dt>' + esc(f[0]) + '</dt><dd>' + esc(f[1]) + '</dd></div>';
     }).join('') + '</dl>' : '';
-    var body = p.body ? '<pre class="confirm-body' + (p.code ? ' code' : '') + '">' + esc(p.body) + '</pre>' : '';
+    var body = '';
+    if (p.body && kind === 'web') body = pageBodyHtml(p.body);
+    else if (p.body && kind === 'msg') {
+      var n = Array.from(String(p.body)).length;
+      body = '<figure class="confirm-msg"><figcaption>Message · ' + n + ' character' + (n === 1 ? '' : 's') + '</figcaption>' +
+        '<p class="cm-bubble">' + esc(p.body) + '</p></figure>';
+    } else if (p.body) body = '<pre class="confirm-body' + (p.code ? ' code' : '') + '" tabindex="0">' + esc(p.body) + '</pre>';
+    var site = kind === 'web' ? hostOf(cardField(fields, 'site')) || clip(cardField(fields, 'site'), 60) : '';
+    var head = K
+      ? '<span class="confirm-idx">' + K.icon + '<span>' + esc(K.head) + '</span>' + (site ? '<i class="confirm-site">' + esc(site) + '</i>' : '') + '</span>'
+      : '<span class="confirm-idx">AUTH // ' + esc(String(p.name || 'action').toUpperCase()) + '</span>';
+    var hint = listener.supported ? 'or say “yes” / “no”' : 'or type yes / no';
     card.innerHTML =
-      '<div class="confirm-head"><span class="confirm-idx">AUTH // ' + esc(String(p.name || 'action').toUpperCase()) + '</span>' +
-      '<span class="confirm-flag" aria-live="polite"></span></div>' +
+      '<div class="confirm-head">' + head +
+      '<span class="confirm-flag" tabindex="-1" aria-live="polite"></span></div>' +
       '<h4 class="confirm-title">' + esc(p.title || 'Approve this action?') + '</h4>' + grid + body +
+      '<div class="confirm-timer" aria-hidden="true"><span class="ct-track"><i class="ct-bar"></i></span><b class="ct-left">' + fmtLeft(CONFIRM_MS) + '</b></div>' +
       '<div class="confirm-actions">' +
-      '<button type="button" class="btn btn-primary btn-sm" data-act="approve"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg>Approve</button>' +
-      '<button type="button" class="btn btn-danger btn-sm" data-act="deny"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>Deny</button>' +
-      '<span class="confirm-hint">' + (listener.supported ? 'or say “approve” / “deny”' : 'or type “yes” / “no”') + '</span></div>' +
+      '<button type="button" class="btn btn-primary btn-sm" data-act="approve" aria-keyshortcuts="y">' + ICON_OK + '<span>Approve</span><kbd aria-hidden="true">Y</kbd></button>' +
+      '<button type="button" class="btn btn-danger btn-sm" data-act="deny" aria-keyshortcuts="n">' + ICON_NO + '<span>Deny</span><kbd aria-hidden="true">N</kbd></button>' +
+      '<span class="confirm-hint">' + esc(hint) + '</span></div>' +
       '<div class="confirm-stamp" aria-hidden="true"></div>';
     var flag = card.querySelector('.confirm-flag');
     var stamp = card.querySelector('.confirm-stamp');
+    card._timer = { bar: card.querySelector('.ct-bar'), label: card.querySelector('.ct-left') };
     function paint() {
-      var s = card.dataset.state;
-      flag.textContent = s === 'pending' ? 'AWAITING APPROVAL' : s === 'approved' ? 'APPROVED' : s === 'denied' ? 'DENIED' : 'EXPIRED';
-      stamp.textContent = s === 'pending' ? '' : flag.textContent;
-      $$('button', card).forEach(function (b) { b.disabled = s !== 'pending'; });
+      var st = card.dataset.state;
+      flag.textContent = st === 'pending' ? (p.sending ? 'TRANSMITTING…' : 'AWAITING APPROVAL') : st === 'approved' ? 'APPROVED' : st === 'denied' ? 'DENIED' : 'EXPIRED';
+      stamp.textContent = st === 'pending' ? '' : flag.textContent;
+      $$('button', card).forEach(function (b) { b.disabled = st !== 'pending' || !!p.sending; });
     }
     paint();
     card._paint = paint;
@@ -515,19 +930,44 @@
     return card;
   }
 
+  /** After a card resolves, focus goes to the command bar (or the card's status on touch), never <body>. */
+  function refocusAfterCard(card) {
+    var a = document.activeElement;
+    if (a && a !== document.body && !card.contains(a)) return;
+    if (!S.engaged || isDrawerOpen()) return;
+    var flag = card.querySelector('.confirm-flag');
+    if (isTouch() && flag) { try { flag.focus({ preventScroll: true }); } catch (e) { /* ignore */ } return; }
+    try { $('#cmd-input').focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+  }
+
   function lockConfirm(p, state) {
-    var card = partEls.get(p);
+    if (p.result != null || p.expired) return false;
     if (state === 'approved') p.result = true;
     else if (state === 'denied') p.result = false;
     else p.expired = true;
-    if (card) { card.dataset.state = state; if (card._paint) card._paint(); }
+    p.sending = false;
+    var card = partEls.get(p);
+    if (card) {
+      card.dataset.state = state;
+      card.classList.remove('urgent');
+      if (card._paint) card._paint();
+      refocusAfterCard(card);
+    }
+    if (S.pendingConfirm === p) S.pendingConfirm = null;
+    tickConfirm();
+    return true;
   }
 
   function resolveConfirm(p, approved) {
     if (!p || p.result != null || p.expired || p.sending) return;
     p.sending = true;
     var card = partEls.get(p);
-    if (card) $$('button', card).forEach(function (b) { b.disabled = true; });
+    if (card) {
+      // Disabling the focused button would drop focus to <body>; park it on the card's status first.
+      var flag = card.querySelector('.confirm-flag');
+      if (card.contains(document.activeElement) && flag) { try { flag.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
+      if (card._paint) card._paint();
+    }
     api('/api/confirm/' + encodeURIComponent(p.id), { method: 'POST', body: { approved: !!approved } })
       .then(function () {
         lockConfirm(p, approved ? 'approved' : 'denied');
@@ -535,30 +975,57 @@
       })
       .catch(function (e) {
         if (e.status === 404) { lockConfirm(p, 'expired'); toast('That approval request has expired.', { tone: 'warn' }); }
-        else if (e.status !== 401) { toast('Couldn’t send your decision: ' + e.message); if (card) $$('button', card).forEach(function (b) { b.disabled = false; }); }
+        else if (e.status !== 401) {
+          p.sending = false;
+          if (card && card._paint) card._paint();
+          toast('Couldn’t send your decision: ' + e.message);
+        }
       })
       .then(function () {
         p.sending = false;
-        if (p.result != null || p.expired) { if (S.pendingConfirm === p) S.pendingConfirm = null; refreshState(); saveTranscript(); }
+        refreshState();
+        saveTranscript();
       });
   }
 
-  var YES = /\b(yes|yeah|yep|yup|approve[d]?|confirm(ed)?|send it|do it|go ahead|affirmative|proceed|run it|ok(ay)?)\b/i;
-  var NO = /\b(no|nope|nah|deny|denied|decline|cancel|stop|don'?t|do not|negative|abort|reject)\b/i;
+  /* Typed or spoken answers must be a whole yes/no phrase ("yes", "go ahead", "no thanks"), so a
+   * sentence that merely contains "ok" or "do it" can never approve a command by accident. */
+  var YES_WORDS = 'yes|yeah|yep|yup|ya|sure|ok|okay|alright|all right|affirmative|correct|approve|approved|i approve|confirm|confirmed|' +
+    'send it|send|do it|go ahead|go for it|proceed|run it|run|execute|execute it|carry on|make it so|accept|allow|allow it';
+  var NO_WORDS = 'no|nope|nah|deny|denied|decline|declined|cancel|cancel it|cancel that|stop|stop it|don\'t|dont|do not|don\'t do it|' +
+    'do not do it|negative|abort|reject|rejected|never mind|nevermind|no way|not now|hold on|wait|block|block it|refuse';
+  var YES_RE = new RegExp('^(?:' + YES_WORDS + ')(?: (?:' + YES_WORDS + '))*$');
+  var NO_RE = new RegExp('^(?:' + NO_WORDS + ')(?: (?:' + NO_WORDS + '))*$');
+  function normPhrase(t) {
+    var name = assistantName().toLowerCase().replace(/[^a-z0-9 ]+/g, '').trim();
+    var s = String(t || '').toLowerCase().replace(/[’`]/g, "'").replace(/[^a-z0-9' ]+/g, ' ').replace(/\s+/g, ' ').trim();
+    s = s.replace(/^(?:(?:um+|uh+|erm?|well|so|hey|oh)\s+)+/, '');
+    if (name) {
+      if (s.indexOf(name + ' ') === 0) s = s.slice(name.length + 1);
+      if (s.slice(-name.length - 1) === ' ' + name) s = s.slice(0, -name.length - 1);
+    }
+    s = s.replace(/(?:\s+(?:please|thanks|thank you|now|then|sir|ma'am|mate|boss))+$/, '');
+    return s.trim();
+  }
   function approvalFromPhrase(text) {
     var p = S.pendingConfirm;
     if (!p) return false;
-    var t = String(text || '').trim();
-    if (NO.test(t)) { resolveConfirm(p, false); return true; }
-    if (YES.test(t)) { resolveConfirm(p, true); return true; }
+    var t = normPhrase(text);
+    if (!t) return false;
+    if (NO_RE.test(t)) { resolveConfirm(p, false); return true; }
+    if (YES_RE.test(t)) { resolveConfirm(p, true); return true; }
     return false;
   }
 
+  var MAX_DOM_ENTRIES = 220;
   function appendEntry(entry) {
     S.transcript.push(entry);
     var node = entry.k === 'u' ? renderUser(entry) : entry.k === 's' ? renderSysLine(entry) : renderAssistantShell(entry);
     node.classList.add('enter');
     tx.appendChild(node);
+    // Long sessions: keep the DOM bounded (storage keeps the last 150 entries anyway).
+    var rows = Array.prototype.filter.call(tx.children, function (n) { return n.classList.contains('msg') || n.classList.contains('msg-sys'); });
+    for (var i = 0; i < rows.length - MAX_DOM_ENTRIES; i++) tx.removeChild(rows[i]);
     setConvoMode();
     scrollToEnd(entry.k === 'u');
     return node;
@@ -566,10 +1033,9 @@
 
   function systemLine(text, tone, tag, ephemeral) {
     var entry = { k: 's', text: text, tone: tone || 'info', tag: tag || 'SYSTEM', ts: Date.now(), ephemeral: !!ephemeral };
-    var stick = nearBottom();
     appendEntry(entry);
-    if (stick) scrollToEnd(true);
     if (!ephemeral) saveTranscript();
+    return entry;
   }
 
   function addPart(entry, p) {
@@ -582,50 +1048,46 @@
 
   function scheduleText(p) {
     renderQueue.add(p);
-    if (renderRaf) return;
-    renderRaf = requestAnimationFrame(function () {
-      renderRaf = 0;
-      var stick = S.stick;
-      renderQueue.forEach(function (q) {
-        var n = partEls.get(q);
-        if (n) n.innerHTML = MD.render(q.text);
-      });
-      renderQueue.clear();
-      if (stick) scrollToEnd(true); else $('#jump-latest').hidden = false;
-    });
+    wantScroll = Math.max(wantScroll, 1);
+    scheduleFrame();
   }
 
   function restoreTranscript() {
     tx.querySelectorAll('.msg, .msg-sys').forEach(function (n) { n.remove(); });
+    var kept = [];
     S.transcript.forEach(function (entry) {
-      if (entry.k === 'a') {
-        (entry.parts || []).forEach(function (p) {
-          if (p.t === 'confirm' && p.result == null) p.expired = true;
-          if (p.t === 'tools') (p.items || []).forEach(function (it) { if (it.state === 'run') { it.state = 'err'; it.summary = it.summary || 'interrupted'; } });
-        });
+      // Entries were validated on load; still, one bad entry must never stop the rest (or init).
+      try {
+        var node = entry.k === 'u' ? renderUser(entry) : entry.k === 's' ? renderSysLine(entry) : renderAssistantShell(entry);
+        tx.appendChild(node);
+        kept.push(entry);
+      } catch (e) {
+        if (window.console) console.warn('ATLAS: skipped a stored transcript entry', e);
       }
-      var node = entry.k === 'u' ? renderUser(entry) : entry.k === 's' ? renderSysLine(entry) : renderAssistantShell(entry);
-      tx.appendChild(node);
     });
+    if (kept.length !== S.transcript.length) { S.transcript = kept; saveTranscript(); }
     // Older sessions with history but no transcript: rebuild from the API history.
     if (!S.transcript.length && S.history.length) {
       S.history.forEach(function (m) {
-        if (m.role === 'user' && typeof m.content === 'string') {
-          var u = { k: 'u', text: m.content, ts: Date.now() };
-          S.transcript.push(u); tx.appendChild(renderUser(u));
-        } else if (m.role === 'assistant' && typeof m.content === 'string' && m.content) {
-          var a = { k: 'a', parts: [{ t: 'text', text: m.content }], ts: Date.now() };
-          S.transcript.push(a); tx.appendChild(renderAssistantShell(a));
-        }
+        try {
+          if (m.role === 'user' && typeof m.content === 'string') {
+            var u = { k: 'u', text: m.content, ts: Date.now(), via: 'text' };
+            tx.appendChild(renderUser(u)); S.transcript.push(u);
+          } else if (m.role === 'assistant' && typeof m.content === 'string' && m.content) {
+            var a = { k: 'a', parts: [{ t: 'text', text: m.content }], ts: Date.now(), model: '' };
+            tx.appendChild(renderAssistantShell(a)); S.transcript.push(a);
+          }
+        } catch (e) { /* skip */ }
       });
     }
     setConvoMode();
-    S.stick = true;
-    requestAnimationFrame(function () { scrollToEnd(true); });
+    scrollToEnd(true);
   }
 
   function clearConversation() {
     stopAll();
+    S.pendingConfirm = null;
+    tickConfirm();
     S.history = [];
     S.transcript = [];
     store.del(KEYS.history);
@@ -656,21 +1118,28 @@
     return buf;
   }
 
-  function stopAll() {
+  /** Stop speaking and stay quiet for the rest of the current turn (tokens keep rendering). */
+  function stopSpeaking() {
+    if (S.turn) S.turn.muted = true;
     speaker.stop();
+  }
+  function stopAll() {
+    stopSpeaking();
     if (S.abort) { try { S.abort.abort(); } catch (e) { /* ignore */ } }
   }
 
+  /** Returns true when the text was used (sent, or answered a pending approval). */
   function sendMessage(raw, via) {
     var text = String(raw || '').trim();
-    if (!text) return;
-    if (S.expired) { toast('Session expired — reload the page', { key: 'expired', cooldown: 5000 }); return; }
+    if (!text) return false;
+    if (S.expired) { toast('Session expired — reload the page', { key: 'expired', cooldown: 5000 }); return false; }
     if (S.pendingConfirm) {
-      if (!approvalFromPhrase(text)) toast('Approve or deny the pending action first.', { tone: 'warn', key: 'pending', cooldown: 4000 });
-      return;
+      if (approvalFromPhrase(text)) return true;
+      toast('Answer the pending approval first — type “yes” or “no”, or press Y / N.', { tone: 'warn', key: 'pending', cooldown: 4000 });
+      return false;
     }
-    if (S.streaming) { toast('Still working on the last request — press Esc to interrupt.', { tone: 'info', key: 'busy', cooldown: 4000 }); return; }
-    if (S.st && S.st.has_key === false) { showSetup(); return; }
+    if (S.streaming) { toast('Still working on the last request — press Esc to interrupt.', { tone: 'info', key: 'busy', cooldown: 4000 }); return false; }
+    if (S.st && S.st.has_key === false) { showSetup(); return false; }
 
     speaker.stop();
     S.lastVia = via || 'text';
@@ -680,19 +1149,38 @@
     saveHistory();
     saveTranscript();
     runTurn();
+    return true;
   }
 
   function runTurn() {
     var entry = { k: 'a', parts: [], ts: Date.now(), model: S.model };
     var shell = appendEntry(entry);
     shell.classList.add('pending');
+    shell.setAttribute('aria-busy', 'true');
     var cur = null;       // current text part
     var tools = null;     // current tools group
     var toolIndex = {};   // id -> item
     var gotDone = false;
     var t0 = performance.now();
     var first = true;
+    var turn = { entry: entry, muted: false, historyDone: false };
 
+    function speakOn() { return S.voice.speak && !turn.muted; }
+    function partialText() {
+      return entry.parts.filter(function (p) { return p.t === 'text'; }).map(function (p) { return p.text; }).join('\n\n').trim();
+    }
+    /* No 'done' (abort, failure, page closing): keep what was already said, so the model has the
+     * context and user/assistant turns keep alternating. */
+    function pushPartial() {
+      if (gotDone || turn.historyDone) return;
+      turn.historyDone = true;
+      var partial = partialText();
+      if (partial) S.history.push({ role: 'assistant', content: partial });
+      saveHistory();
+    }
+    turn.pushPartial = pushPartial;
+
+    S.turn = turn;
     S.streaming = true;
     S.toolsRunning = 0;
     refreshState();
@@ -709,11 +1197,18 @@
       if (cur) { var n = partEls.get(cur); if (n) n.classList.remove('streaming'); }
       cur = null;
     }
+    function chipFor(group, id) {
+      var g = partEls.get(group);
+      if (!g) return null;
+      var chips = g.querySelectorAll('.tool');
+      for (var i = 0; i < chips.length; i++) if (chips[i].dataset.id === String(id)) return chips[i];
+      return null;
+    }
 
     function onEvent(ev) {
       switch (ev.type) {
         case 'model':
-          if (ev.model) {
+          if (typeof ev.model === 'string' && ev.model) {
             setModel(ev.model);
             entry.model = ev.model;
             var mm = shell.querySelector('.msg-model');
@@ -730,62 +1225,74 @@
           }
           cur.text += ev.text;
           scheduleText(cur);
-          if (S.voice.speak) speaker.feed(ev.text);
+          if (speakOn()) speaker.feed(ev.text);
+          saveTranscriptSoon();
           break;
         case 'segment_end':
           closeText();
-          if (S.voice.speak) speaker.flush();
+          if (speakOn()) speaker.flush();
           break;
         case 'tool':
           firstSignal();
           if (ev.state === 'start') {
             closeText();
             if (!tools) { tools = { t: 'tools', items: [] }; addPart(entry, tools); }
-            var it = { id: ev.id, name: ev.name, label: ev.label || ev.name, hint: toolHint(ev.args), state: 'run', summary: '' };
+            var it = { id: str(ev.id, 200) || '', name: str(ev.name, 120) || '', label: str(ev.label, 200) || str(ev.name, 120) || 'Tool', hint: toolHint(ev.args), state: 'run', summary: '' };
             tools.items.push(it);
-            toolIndex[ev.id] = { item: it, group: tools };
+            toolIndex[it.id] = { item: it, group: tools };
             var gnode = partEls.get(tools);
             if (gnode) gnode.appendChild(renderTool(it));
             S.toolsRunning++;
+            if (isWebTool(it.name)) webStart(it, ev.args);
           } else {
-            var ref = toolIndex[ev.id];
+            var ref = toolIndex[str(ev.id, 200) || ''];
             if (ref) {
               ref.item.state = ev.state === 'done' ? 'ok' : 'err';
-              ref.item.summary = ev.summary || (ev.state === 'done' ? 'done' : 'failed');
-              var g = partEls.get(ref.group);
-              var chip = g && g.querySelector('.tool[data-id="' + (window.CSS && CSS.escape ? CSS.escape(String(ev.id)) : String(ev.id).replace(/"/g, '')) + '"]');
+              ref.item.summary = str(ev.summary, 2000) || (ev.state === 'done' ? 'done' : 'failed');
+              var chip = chipFor(ref.group, ref.item.id);
               if (chip) chip.replaceWith(renderTool(ref.item));
+              webFinish(ref.item.id, ev.state === 'done');
             }
             S.toolsRunning = Math.max(0, S.toolsRunning - 1);
           }
           scrollToEnd(false);
           refreshState();
+          saveTranscriptSoon();
           break;
         case 'confirm':
           firstSignal();
           closeText();
           tools = null;
-          var cp = { t: 'confirm', id: ev.id, call_id: ev.call_id, name: ev.name, title: ev.title, fields: ev.fields, body: ev.body, code: !!ev.code, result: null };
+          var cp = {
+            t: 'confirm', id: str(ev.id, 200) || '', call_id: str(ev.call_id, 200) || '', name: str(ev.name, 120) || '',
+            title: str(ev.title, 400) || '', fields: Array.isArray(ev.fields) ? ev.fields : [], body: str(ev.body, 20000) || '',
+            code: !!ev.code, result: null, deadline: Date.now() + CONFIRM_MS
+          };
           addPart(entry, cp);
           S.pendingConfirm = cp;
+          if (confirmKind(cp.name) === 'web') webAwait(cp);
+          startConfirmTimer();
           S.awaitVoiceAnswer = S.lastVia !== 'text' || S.voice.wake;
           V.chime('wake');
-          if (S.voice.speak && speaker.supported) speaker.say('Awaiting your approval.');
-          else if (S.awaitVoiceAnswer && listener.supported) { S.awaitVoiceAnswer = false; setTimeout(startListening, 300); }
+          if (speakOn() && speaker.supported) speaker.say('Awaiting your approval.');
+          else if (S.awaitVoiceAnswer && listener.supported) { S.awaitVoiceAnswer = false; setTimeout(function () { if (S.pendingConfirm === cp && !S.listening) startListening(); }, 300); }
           scrollToEnd(true);
           saveTranscript();
           refreshState();
-          var btn = partEls.get(cp) && partEls.get(cp).querySelector('[data-act="approve"]');
-          if (btn && S.lastVia === 'text' && document.activeElement === $('#cmd-input')) { /* keep typing focus */ }
           break;
         case 'confirm_result':
           var target = S.pendingConfirm && S.pendingConfirm.id === ev.id ? S.pendingConfirm :
             entry.parts.filter(function (x) { return x.t === 'confirm' && x.id === ev.id; })[0];
-          if (target) lockConfirm(target, ev.approved ? 'approved' : 'denied');
-          if (S.pendingConfirm && S.pendingConfirm.id === ev.id) S.pendingConfirm = null;
+          if (target) {
+            // The server answers "denied" when its 300 s wait ran out: show that as EXPIRED.
+            var timedOut = !ev.approved && !target.sending && target.deadline && Date.now() >= target.deadline - 3000;
+            lockConfirm(target, ev.approved ? 'approved' : timedOut ? 'expired' : 'denied');
+            if (confirmKind(target.name) === 'web') webResolved(!!ev.approved);
+          }
           S.awaitVoiceAnswer = false;
           if (S.listening === 'command') listener.stop();
           refreshState();
+          saveTranscriptSoon();
           break;
         case 'usage':
           S.usage.prompt += num(ev.prompt_tokens) || 0;
@@ -795,13 +1302,15 @@
           break;
         case 'refresh':
           if (ev.panel === 'reminders') loadReminders();
+          if (ev.panel === 'agenda') loadAgenda();
           if (ev.panel === 'memory' && isDrawerOpen()) loadMemory();
           break;
         case 'error':
           firstSignal();
           closeText();
-          addPart(entry, { t: 'error', text: String(ev.text || 'Something went wrong.') });
-          toast(String(ev.text || 'Something went wrong.'));
+          var et = str(ev.text, 2000) || 'Something went wrong.';
+          addPart(entry, { t: 'error', text: et });
+          toast(et);
           V.chime('error');
           errorFlash();
           scrollToEnd(false);
@@ -809,7 +1318,7 @@
         case 'done':
           gotDone = true;
           if (Array.isArray(ev.messages)) {
-            ev.messages.forEach(function (m) { if (m && typeof m === 'object') S.history.push(m); });
+            ev.messages.forEach(function (m) { if (isObj(m) && ROLES[m.role]) S.history.push(m); });
           }
           S.turns++;
           renderUsage();
@@ -820,7 +1329,7 @@
       }
     }
 
-    var req = api('/api/chat', { method: 'POST', body: { messages: S.history }, signal: ctrl ? ctrl.signal : undefined, raw: true });
+    var req = api('/api/chat', { method: 'POST', body: { messages: outgoingHistory() }, signal: ctrl ? ctrl.signal : undefined, raw: true });
     req.then(function (res) {
       if (!res.body || !res.body.getReader) {
         return res.text().then(function (txt) { drainSSE(txt + '\n\n', onEvent); });
@@ -855,83 +1364,137 @@
       errorFlash();
     }).then(function () {
       shell.classList.remove('pending');
+      shell.removeAttribute('aria-busy');
       closeText();
-      if (S.voice.speak) speaker.flush();
-      // Keep strict alternation when the turn ended without a 'done' (abort / failure).
-      if (!gotDone) {
-        var partial = entry.parts.filter(function (p) { return p.t === 'text'; }).map(function (p) { return p.text; }).join('\n\n').trim();
-        if (partial) S.history.push({ role: 'assistant', content: partial });
-        saveHistory();
-      }
-      if (S.pendingConfirm) { lockConfirm(S.pendingConfirm, 'expired'); S.pendingConfirm = null; }
+      if (speakOn()) speaker.flush();
+      pushPartial();
+      if (S.pendingConfirm) lockConfirm(S.pendingConfirm, 'expired');
       entry.parts.forEach(function (p) {
         if (p.t === 'tools') p.items.forEach(function (it) {
-          if (it.state === 'run') { it.state = 'err'; it.summary = 'interrupted'; var g = partEls.get(p); if (g) { var c = g.querySelector('.tool[data-id="' + String(it.id).replace(/"/g, '') + '"]'); if (c) c.replaceWith(renderTool(it)); } }
+          if (it.state === 'run') {
+            it.state = 'err'; it.summary = 'interrupted';
+            var c = chipFor(p, it.id);
+            if (c) c.replaceWith(renderTool(it));
+          }
         });
       });
       if (!entry.parts.length) { addPart(entry, { t: 'note', text: 'No response.' }); }
+      if (S.turn === turn) S.turn = null;
       S.streaming = false;
       S.abort = null;
       S.toolsRunning = 0;
+      webEnd();
       saveTranscript();
       refreshState();
       scrollToEnd(false);
+      // Screen readers hear the finished reply once (the streaming bubble itself is not announced).
+      var said = V.cleanForSpeech(partialText());
+      if (!said) {
+        var last = entry.parts[entry.parts.length - 1];
+        said = last && (last.t === 'error' || last.t === 'note') ? last.text : '';
+      }
+      announce(said ? assistantName() + ': ' + said : '');
     });
   }
+
+  // Closing or reloading mid-reply keeps the partial answer (transcript and history).
+  // (Only while a reply is streaming: otherwise this tab has nothing newer than storage.)
+  window.addEventListener('pagehide', function () {
+    if (!S.turn) return;
+    try {
+      if (S.turn.pushPartial) S.turn.pushPartial();
+      saveTranscript();
+    } catch (e) { /* ignore */ }
+  });
 
   // ------------------------------------------------------------------ command bar
   var form = $('#cmdbar');
   var input = $('#cmd-input');
   form.addEventListener('submit', function (e) {
     e.preventDefault();
-    if (S.streaming && !S.pendingConfirm && !input.value.trim()) { stopAll(); return; }
-    if (S.streaming && !S.pendingConfirm && input.value.trim()) {
+    var v = input.value;
+    if (S.pendingConfirm) {
+      // A typed "yes" / "no" answers the card; anything else is kept in the box.
+      if (!v.trim()) { toast('Type “yes” or “no”, or press Y / N, to answer the pending approval.', { tone: 'info', key: 'pending', cooldown: 4000 }); return; }
+      if (sendMessage(v, 'text')) { input.value = ''; input.classList.remove('interim'); }
+      return;
+    }
+    if (S.streaming && !v.trim()) { stopAll(); return; }
+    if (S.streaming) {
       toast('Still working — press Esc or the stop button to interrupt.', { tone: 'info', key: 'busy', cooldown: 4000 });
       return;
     }
-    var v = input.value;
     input.value = '';
     input.classList.remove('interim');
-    sendMessage(v, 'text');
+    if (!sendMessage(v, 'text') && v.trim() && !input.value) input.value = v;
   });
   $('#send-btn').addEventListener('click', function (e) {
-    if (S.streaming && !input.value.trim()) { e.preventDefault(); stopAll(); }
+    if (S.streaming && !S.pendingConfirm && !input.value.trim()) { e.preventDefault(); stopAll(); }
   });
   $('#mic-btn').addEventListener('click', function () { toggleListening(); });
   $('#core').addEventListener('click', function () {
-    if (S.speaking) { speaker.stop(); return; }
+    if (S.speaking || speaker.busy()) { stopSpeaking(); refreshState(); return; }
     if (S.streaming) { stopAll(); return; }
     toggleListening();
   });
 
   var QUICK = {
     briefing: 'Give me my daily briefing: local weather, top headlines across world, US, business and tech, a markets snapshot, my unread email count if email is set up, and upcoming reminders. Keep it tight.',
+    myday: "What's on my calendar and to-do list today?",
     headlines: 'What are the top headlines right now?',
     markets: 'Give me a quick markets snapshot.',
     inbox: 'Check my inbox — how many unread emails do I have, and is anything important?',
     system: 'Run a quick system check on this computer.'
   };
+  // Chips that only start a request: the text goes into the command bar for the user to finish.
+  var PREFILL = { table: 'Book a table for 2 at ' };
+  function prefill(text) {
+    input.classList.remove('interim');
+    input.value = text;
+    try {
+      input.focus({ preventScroll: true });
+      input.setSelectionRange(text.length, text.length);
+      input.scrollLeft = input.scrollWidth;
+    } catch (e) { /* ignore */ }
+  }
   $$('#chips .chip').forEach(function (c) {
-    c.addEventListener('click', function () { var q = QUICK[c.dataset.action]; if (q) sendMessage(q, 'text'); });
+    c.addEventListener('click', function () {
+      var a = c.dataset.action;
+      if (PREFILL[a]) { prefill(PREFILL[a]); return; }
+      var q = QUICK[a];
+      if (q) sendMessage(q, 'text');
+    });
   });
 
   // ------------------------------------------------------------------ keyboard
   document.addEventListener('keydown', function (e) {
-    var tag = (e.target && e.target.tagName) || '';
-    var typing = /INPUT|TEXTAREA|SELECT/.test(tag) || (e.target && e.target.isContentEditable);
+    var t = e.target;
+    var tag = (t && t.tagName) || '';
+    var typing = /INPUT|TEXTAREA|SELECT/.test(tag) || !!(t && t.isContentEditable);
+    var overlay = !$('#setup').hidden || !$('#engage').hidden;
     if ((e.ctrlKey || e.metaKey) && (e.code === 'Space' || e.key === ' ')) {
-      if (!S.engaged) return;
+      if (!S.engaged || overlay) return;
       e.preventDefault();
       toggleListening();
       return;
     }
     if (e.key === 'Escape') {
-      if (!$('#settings').hidden) { closeDrawer(); return; }
-      if (S.listening === 'command') listener.stop(true);
-      if (S.speaking || S.streaming) { stopAll(); e.preventDefault(); }
+      if (isDrawerOpen()) { closeDrawer(); return; }
+      var acted = false;
+      if (S.listening === 'command') { listener.stop(true); acted = true; }
+      if (S.speaking || speaker.busy()) { stopSpeaking(); acted = true; }
+      if (S.streaming) { stopAll(); acted = true; }
+      if (acted) { e.preventDefault(); refreshState(); }
       return;
     }
-    if (e.key === '/' && !typing && S.engaged && $('#settings').hidden) { e.preventDefault(); input.focus(); }
+    if (e.ctrlKey || e.metaKey || e.altKey || typing || overlay || !S.engaged || isDrawerOpen()) return;
+    // Y / N answer a pending approval card (never while typing in a field, never auto-repeat).
+    if (S.pendingConfirm && (e.key === 'y' || e.key === 'Y' || e.key === 'n' || e.key === 'N')) {
+      e.preventDefault();
+      if (!e.repeat) resolveConfirm(S.pendingConfirm, e.key === 'y' || e.key === 'Y');
+      return;
+    }
+    if (e.key === '/') { e.preventDefault(); input.focus(); }
   });
 
   // ------------------------------------------------------------------ panels: common
@@ -1129,8 +1692,12 @@
     });
   }
 
-  // ------------------------------------------------------------------ reminders
+  // ------------------------------------------------------------------ agenda (calendar · to-dos · reminders)
+  /* One panel for the day ahead: today's and tomorrow's events (GET /api/agenda?days=2), open to-dos
+   * (same call) and pending reminders (GET /api/reminders). Both feeds fail independently; every value
+   * is validated before use and rendered as text only (event titles come from outside calendars). */
   var reminders = [];
+  var AG = { data: null, err: '', remErr: '', tried: false, at: 0, seq: 0 };
   function parseDue(s) { var d = new Date(s); return isNaN(d) ? null : d; }
   function relTime(d) {
     var diff = d - Date.now();
@@ -1142,48 +1709,230 @@
     if (h < 24) return 'in ' + h + 'h ' + pad2(m % 60) + 'm';
     return 'in ' + Math.round(h / 24) + 'd';
   }
+  function hm(d) { return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }); }
   function dueLabel(d) {
     var now = new Date();
     var tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
-    var hm = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-    if (d.toDateString() === now.toDateString()) return 'Today ' + hm;
-    if (d.toDateString() === tomorrow.toDateString()) return 'Tomorrow ' + hm;
-    return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) + ' ' + hm;
+    if (d.toDateString() === now.toDateString()) return 'Today ' + hm(d);
+    if (d.toDateString() === tomorrow.toDateString()) return 'Tomorrow ' + hm(d);
+    return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) + ' ' + hm(d);
   }
-  function renderReminders() {
-    var body = $('#reminders-body');
-    $('#reminder-count').textContent = String(reminders.length);
-    if (!reminders.length) {
-      body.innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="7.5"/><path d="M12 9v4l2.5 2M9 2.5h6"/></svg>' +
-        '<b>NO ACTIVE REMINDERS</b><span>Try “remind me to stretch in 20 minutes”.</span></div>';
-      return;
+  function dayStart(d, add) { var x = new Date(d); x.setHours(0, 0, 0, 0); if (add) x.setDate(x.getDate() + add); return x; }
+  /** "2026-11-04" (an all-day date, local midnight) or an ISO date-time; null if neither. */
+  function agTime(s) {
+    if (typeof s !== 'string' || !s) return null;
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+    var d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(s);
+    return isNaN(d) ? null : d;
+  }
+  function cleanEvent(e) {
+    if (!isObj(e)) return null;
+    var allDay = e.all_day === true;
+    var start = agTime(e.start), end = agTime(e.end);
+    if (!start) return null;
+    if (allDay && end) end = dayStart(end, 1); // the server's all-day end date is inclusive
+    if (!end || end < start) end = allDay ? dayStart(start, 1) : start;
+    return {
+      title: (str(e.title, 300) || '').trim() || '(untitled event)', start: start, end: end, allDay: allDay,
+      location: (str(e.location, 200) || '').replace(/\s+/g, ' ').trim(), calendar: (str(e.calendar, 60) || '').trim(),
+      when: str(e.when, 120) || '', tentative: e.tentative === true, free: e.show_as === 'free'
+    };
+  }
+  var PRIORITY = { high: 3, normal: 2, low: 1 };
+  function cleanTask(t) {
+    if (!isObj(t) || t.done === true) return null;
+    var title = (str(t.title, 300) || '').trim();
+    if (!title) return null;
+    return {
+      title: title, priority: PRIORITY[t.priority] ? t.priority : 'normal', overdue: t.overdue === true,
+      due: str(t.due, 40) || '', dueHuman: str(t.due_human, 80) || ''
+    };
+  }
+  function askAbout(text) {
+    if (!sendMessage(text, 'text')) return;
+    if (isPhone() && document.body.dataset.view !== 'core') setView('core');
+  }
+  function agItem(cls, html, ask, title) {
+    var li = el('li');
+    var b = el('button', 'ag-item ' + cls, '<span class="sr-only">Ask about: </span>' + html);
+    b.type = 'button';
+    if (title) b.title = title;
+    b.addEventListener('click', function () { askAbout(ask); });
+    li.appendChild(b);
+    return li;
+  }
+  function agNotice(tone, tag, text, action) {
+    var d = el('div', 'ag-note tone-' + tone);
+    d.innerHTML = '<b>' + esc(tag) + '</b><span>' + esc(clip(text, 160)) + '</span>';
+    if (action) {
+      var b = el('button', 'ag-note-act', esc(action.label));
+      b.type = 'button';
+      b.addEventListener('click', action.run);
+      d.appendChild(b);
     }
-    var ul = el('ul', 'rem-list');
-    reminders.slice(0, 20).forEach(function (r) {
-      var d = parseDue(r.due);
-      var li = el('li', 'rem');
-      var soon = d && d - Date.now() < 10 * 60000;
-      if (soon) li.classList.add('soon');
-      li.innerHTML = '<span class="rem-time"><b>' + esc(d ? relTime(d) : '—') + '</b><i>' + esc(d ? dueLabel(d) : String(r.due || '')) + '</i></span>' +
-        '<span class="rem-msg">' + esc(r.message || '') + '</span>';
-      ul.appendChild(li);
+    return d;
+  }
+  function agHead(label, extra) {
+    return el('h3', 'ag-h', '<span>' + esc(label) + '</span>' + (extra ? '<i>' + esc(extra) + '</i>' : ''));
+  }
+  function shortDay(d) { return d.toLocaleDateString(undefined, { weekday: 'short', day: '2-digit', month: 'short' }); }
+
+  function eventRow(e, now, isNext) {
+    var live = e.start <= now && now < e.end;
+    var t1, t2;
+    if (e.allDay) { t1 = 'All day'; t2 = ''; }
+    else if (live) { t1 = 'Now'; t2 = e.end > e.start ? 'to ' + hm(e.end) : ''; }
+    else { t1 = hm(e.start); t2 = e.end > e.start ? hm(e.end) : ''; }
+    var sub = [e.location, e.calendar].filter(Boolean).map(function (x) { return clip(x, 60); }).join(' · ');
+    var tag = live && !e.allDay ? '<em class="ag-tag live">Live</em>'
+      : isNext && e.start - now < 3 * 3600000 ? '<em class="ag-tag">' + esc(relTime(e.start)) + '</em>'
+      : e.tentative ? '<em class="ag-tag dim">Maybe</em>' : '';
+    var html = '<span class="ag-time"><b>' + esc(t1) + '</b>' + (t2 ? '<i>' + esc(t2) + '</i>' : '') + '</span>' +
+      '<span class="ag-main"><span class="ag-title">' + esc(e.title) + '</span>' + (sub ? '<span class="ag-sub">' + esc(sub) + '</span>' : '') + '</span>' + tag;
+    var when = e.when || (e.allDay ? shortDay(e.start) + ', all day' : dueLabel(e.start));
+    var cls = 'ag-ev' + (live ? ' is-live' : '') + (isNext ? ' is-next' : '') + (e.free ? ' is-free' : '');
+    return agItem(cls, html, 'Tell me about my calendar event "' + clip(e.title, 160) + '" (' + clip(when, 80) + ').', e.title + (sub ? ' — ' + sub : ''));
+  }
+  function taskRow(t) {
+    var bars = '<span class="ag-pri" data-p="' + t.priority + '" title="' + esc(t.priority) + ' priority"><i></i><i></i><i></i></span>';
+    var due = t.dueHuman || t.due;
+    var html = bars + '<span class="ag-main"><span class="ag-title">' + esc(t.title) + '</span>' +
+      (due ? '<span class="ag-sub">Due ' + esc(due) + '</span>' : '') + '</span>' +
+      (t.overdue ? '<em class="ag-tag over">Overdue</em>' : t.priority === 'high' ? '<em class="ag-tag hi">High</em>' : '');
+    var ask = 'Tell me about my to-do "' + clip(t.title, 160) + '"' + (due ? ' (due ' + clip(due, 60) + (t.overdue ? ', overdue' : '') + ')' : '') + '.';
+    return agItem('ag-task' + (t.overdue ? ' is-over' : '') + ' pri-' + t.priority, html, ask, t.title);
+  }
+  function reminderRow(r) {
+    var d = parseDue(r.due);
+    var msg = (str(r.message, 300) || 'Reminder').trim() || 'Reminder';
+    var soon = d && d - Date.now() < 10 * 60000;
+    var html = '<span class="ag-time"><b>' + esc(d ? relTime(d) : '—') + '</b><i>' + esc(d ? hm(d) : '') + '</i></span>' +
+      '<span class="ag-main"><span class="ag-title">' + esc(msg) + '</span>' + (d && d.toDateString() !== new Date().toDateString() ? '<span class="ag-sub">' + esc(dueLabel(d)) + '</span>' : '') + '</span>';
+    return agItem('ag-rem' + (soon ? ' is-soon' : ''), html, 'Tell me about my reminder "' + clip(msg, 160) + '"' + (d ? ' (' + dueLabel(d) + ')' : '') + '.', msg);
+  }
+
+  function renderAgenda() {
+    if (!AG.tried) return; // keep the skeleton until the agenda call has answered once
+    var body = $('#agenda-body');
+    var d = AG.data;
+    var now = new Date();
+    var tomorrow0 = dayStart(now, 1), after0 = dayStart(now, 2);
+    var events = (d && Array.isArray(d.events) ? d.events : []).slice(0, 60).map(function (e) {
+      try { return cleanEvent(e); } catch (x) { return null; }
+    }).filter(function (e) {
+      return e && (e.end > now || (+e.end === +e.start && e.start >= now - 60000)); // drop what has ended since the last fetch
+    }).sort(function (a, b) { return a.start - b.start || (b.allDay - a.allDay); });
+    var tasks = (d && Array.isArray(d.tasks) ? d.tasks : []).slice(0, 30).map(function (t) {
+      try { return cleanTask(t); } catch (x) { return null; }
+    }).filter(Boolean);
+    var openTasks = d ? Math.max(tasks.length, num(d.open_tasks) || 0) : 0;
+    var rems = reminders.slice(0, 20);
+    var frag = document.createDocumentFragment();
+
+    // ---- notices: feed down, calendar not connected, per-feed errors
+    if (AG.err && !d) frag.appendChild(agNotice('err', 'Agenda offline', AG.err, { label: 'Retry', run: loadAgenda }));
+    else if (AG.err) frag.appendChild(agNotice('warn', 'Offline', 'Showing the last sync from ' + fmtHM(new Date(AG.at)) + '.', { label: 'Retry', run: loadAgenda }));
+    if (d && d.feeds_connected === false) {
+      frag.appendChild(agNotice('cal', 'Calendar not connected', 'Link Google, iCloud or Outlook to see your events here.', {
+        label: 'Connect', run: function () { openDrawer({ section: 'calendar', focus: 'CALENDAR_ICS_URLS' }); }
+      }));
+    }
+    (d && Array.isArray(d.errors) ? d.errors : []).slice(0, 3).forEach(function (m) {
+      var t = str(m, 300);
+      if (t) frag.appendChild(agNotice('warn', 'Feed error', t, { label: 'Retry', run: loadAgenda }));
     });
-    body.replaceChildren(ul);
+    if (AG.remErr) frag.appendChild(agNotice('warn', 'Reminders offline', AG.remErr, { label: 'Retry', run: loadReminders }));
+
+    var total = events.length + tasks.length + rems.length;
+    if (!total) {
+      var empty = el('div', 'empty-state ag-empty');
+      var connected = d && d.feeds_connected !== false;
+      empty.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5h16V20H4z"/><path d="M4 10.5h16M8.5 3.5v5M15.5 3.5v5"/><path d="M9 15l2 2 4-4"/></svg>' +
+        '<b>' + (d ? 'Clear schedule' : AG.err ? 'Nothing to show' : 'Clear schedule') + '</b>' +
+        '<span>' + (connected ? 'Nothing on the calendar today or tomorrow, and no open to-dos or reminders.' : 'No open to-dos or reminders.') +
+        ' Try “add a to-do to renew my passport”.</span>';
+      if (d || !AG.err) frag.appendChild(empty);
+    } else {
+      // ---- schedule, grouped by day
+      if (d && (events.length || d.feeds_connected !== false)) {
+        var sec = el('section', 'ag-sec ag-sched');
+        sec.setAttribute('aria-label', 'Schedule');
+        var groups = [
+          { label: 'Today', date: now, list: events.filter(function (e) { return e.start < tomorrow0; }) },
+          { label: 'Tomorrow', date: tomorrow0, list: events.filter(function (e) { return e.start >= tomorrow0 && e.start < after0; }) },
+          { label: 'Later', date: null, list: events.filter(function (e) { return e.start >= after0; }) }
+        ];
+        var next = events.filter(function (e) { return !e.allDay && e.start > now; })[0] || null;
+        groups.forEach(function (g, gi) {
+          if (!g.list.length && gi > 0) return;
+          sec.appendChild(agHead(g.label, g.date ? shortDay(g.date) : ''));
+          if (!g.list.length) { sec.appendChild(el('p', 'ag-none', 'Nothing else today.')); return; }
+          var ul = el('ul', 'ag-list');
+          g.list.slice(0, 12).forEach(function (e) { ul.appendChild(eventRow(e, now, e === next)); });
+          sec.appendChild(ul);
+          if (g.list.length > 12) sec.appendChild(el('p', 'ag-none', '+' + (g.list.length - 12) + ' more'));
+        });
+        if (!events.filter(function (e) { return e.start >= tomorrow0 && e.start < after0; }).length) sec.appendChild(el('p', 'ag-none ag-tmr', 'Tomorrow is clear so far.'));
+        frag.appendChild(sec);
+      }
+      // ---- to-dos
+      if (tasks.length) {
+        var ts = el('section', 'ag-sec ag-tasks');
+        ts.setAttribute('aria-label', 'To-do list');
+        var over = tasks.filter(function (t) { return t.overdue; }).length;
+        ts.appendChild(agHead('To-do', openTasks + ' open' + (over ? ' · ' + over + ' overdue' : '')));
+        var tl = el('ul', 'ag-list');
+        tasks.slice(0, 10).forEach(function (t) { tl.appendChild(taskRow(t)); });
+        ts.appendChild(tl);
+        if (openTasks > Math.min(10, tasks.length)) {
+          var more = el('button', 'ag-more', '+' + (openTasks - Math.min(10, tasks.length)) + ' more — show the full list');
+          more.type = 'button';
+          more.addEventListener('click', function () { askAbout('Show me my full to-do list.'); });
+          ts.appendChild(more);
+        }
+        frag.appendChild(ts);
+      }
+      // ---- reminders
+      if (rems.length) {
+        var rs = el('section', 'ag-sec ag-rems');
+        rs.setAttribute('aria-label', 'Reminders');
+        rs.appendChild(agHead('Reminders', String(reminders.length)));
+        var rl = el('ul', 'ag-list');
+        rems.forEach(function (r) { rl.appendChild(reminderRow(r)); });
+        rs.appendChild(rl);
+        frag.appendChild(rs);
+      }
+    }
+    $('#agenda-count').textContent = String(events.length + openTasks + reminders.length);
+    body.replaceChildren(frag);
+  }
+
+  function loadAgenda() {
+    var seq = ++AG.seq;
+    return api('/api/agenda?days=2').then(function (d) {
+      if (seq !== AG.seq) return;
+      if (!isObj(d)) throw new Error('Unexpected answer from the agenda feed');
+      AG.data = d; AG.err = ''; AG.at = Date.now();
+      panelStatus('panel-agenda', 'live');
+    }).catch(function (e) {
+      if (seq !== AG.seq) return;
+      AG.err = errText(e);
+      panelStatus('panel-agenda', 'offline');
+    }).then(function () {
+      if (seq !== AG.seq) return;
+      AG.tried = true;
+      renderAgenda();
+    });
   }
   function loadReminders() {
     return api('/api/reminders').then(function (d) {
-      if (!d || d.error || !Array.isArray(d.reminders)) {
-        panelStatus('panel-reminders', 'offline');
-        $('#reminders-body').replaceChildren(offlineBlock('REMINDERS OFFLINE', d && d.error, loadReminders));
-        return;
-      }
-      reminders = d.reminders;
-      renderReminders();
-      panelStatus('panel-reminders', 'live');
+      if (!d || d.error || !Array.isArray(d.reminders)) throw new Error((d && typeof d.error === 'string' && d.error) || 'No data received.');
+      reminders = d.reminders.filter(function (r) { return isObj(r) && (typeof r.message === 'string' || typeof r.due === 'string') && r.fired !== true; })
+        .sort(function (a, b) { var x = parseDue(a.due), y = parseDue(b.due); return (x ? +x : Infinity) - (y ? +y : Infinity); });
+      AG.remErr = '';
     }).catch(function (e) {
-      panelStatus('panel-reminders', 'offline');
-      $('#reminders-body').replaceChildren(offlineBlock('REMINDERS OFFLINE', errText(e), loadReminders));
-    });
+      AG.remErr = errText(e);
+    }).then(function () { safely('agenda render', renderAgenda); });
   }
   function pollDue() {
     if (S.expired) return;
@@ -1191,10 +1940,12 @@
       var due = d && Array.isArray(d.due) ? d.due : [];
       if (!due.length) return;
       due.forEach(function (r) {
-        var msg = String(r.message || 'Reminder');
+        if (!isObj(r)) return;
+        var msg = str(r.message, 500) || 'Reminder';
         V.chime('reminder');
         if (core) core.pulse(1.2);
         systemLine(msg, 'warn', 'REMINDER');
+        announce('Reminder: ' + msg);
         if (S.voice.speak) speaker.say('Reminder: ' + msg);
         try {
           if ('Notification' in window && Notification.permission === 'granted') {
@@ -1325,17 +2076,59 @@
     var pts = a.map(function (v, i) { return (i / (a.length - 1) * 40).toFixed(1) + ',' + (13 - (v - min) / span * 11).toFixed(1); }).join(' ');
     return '<svg class="tk-spark ' + (up ? 'up' : 'down') + '" viewBox="0 0 40 14" preserveAspectRatio="none" aria-hidden="true"><polyline points="' + pts + '"/></svg>';
   }
-  function renderTicker(quotes) {
+  function tickerItem(q, i) {
+    var ch = num(q.change_pct);
+    var up = ch == null ? true : ch >= 0;
+    var cls = ch == null ? 'flat' : up ? 'up' : 'down';
+    return '<span class="tk ' + cls + '" data-i="' + i + '"><span class="tk-name">' + esc(q.name || q.symbol || '') + '</span>' +
+      '<span class="tk-price">' + esc(fmtPrice(q.price)) + '</span>' +
+      '<span class="tk-chg">' + tickerChange(ch) + '</span>' + sparkSvg(q.spark, up) + '</span>';
+  }
+  function tickerChange(ch) { return ch == null ? '—' : (ch >= 0 ? '▲ ' : '▼ ') + Math.abs(ch).toFixed(2) + '%'; }
+  function tickerSig(quotes) { return quotes.map(function (q) { return String(q.symbol || q.name || ''); }).join('|'); }
+  var tickerState = { sig: '', quotes: null };
+
+  /* Same instruments as last time: rewrite the numbers inside every copy of the tape and leave the
+   * marquee animation alone, so it keeps gliding instead of jumping back to the start. */
+  function updateTickerInPlace(quotes) {
     var track = $('#ticker-track');
-    var vp = $('#ticker-viewport');
-    var items = quotes.map(function (q) {
+    quotes.forEach(function (q, i) {
       var ch = num(q.change_pct);
       var up = ch == null ? true : ch >= 0;
-      var cls = ch == null ? 'flat' : up ? 'up' : 'down';
-      return '<span class="tk ' + cls + '"><span class="tk-name">' + esc(q.name || q.symbol || '') + '</span>' +
-        '<span class="tk-price">' + fmtPrice(q.price) + '</span>' +
-        '<span class="tk-chg">' + (ch == null ? '—' : (up ? '▲ ' : '▼ ') + Math.abs(ch).toFixed(2) + '%') + '</span>' + sparkSvg(q.spark, up) + '</span>';
-    }).join('<span class="tk-sep" aria-hidden="true">◆</span>');
+      var cls = 'tk ' + (ch == null ? 'flat' : up ? 'up' : 'down');
+      var price = fmtPrice(q.price);
+      var chg = tickerChange(ch);
+      var spark = sparkSvg(q.spark, up);
+      $$('.tk[data-i="' + i + '"]', track).forEach(function (n) {
+        if (n.className !== cls) n.className = cls;
+        var pe = n.querySelector('.tk-price'), ce = n.querySelector('.tk-chg');
+        if (pe && pe.textContent !== price) pe.textContent = price;
+        if (ce && ce.textContent !== chg) ce.textContent = chg;
+        var old = n.querySelector('.tk-spark');
+        if (old) old.remove();
+        if (spark) n.insertAdjacentHTML('beforeend', spark);
+      });
+    });
+    // Price widths can shift a few pixels; keep the loop seamless without restarting it.
+    requestAnimationFrame(function () {
+      var g = track.firstElementChild;
+      if (!g || !track.classList.contains('run')) return;
+      var w = g.getBoundingClientRect().width;
+      var copies = Math.max(1, Math.round(parseFloat(track.style.getPropertyValue('--tk-dist')) / (w || 1)) || 1);
+      var dist = w * copies;
+      if (w && Math.abs(dist - parseFloat(track.style.getPropertyValue('--tk-dist') || '0')) > 1) track.style.setProperty('--tk-dist', dist + 'px');
+    });
+  }
+
+  function renderTicker(quotes, force) {
+    var track = $('#ticker-track');
+    var vp = $('#ticker-viewport');
+    var sig = tickerSig(quotes);
+    var hasTape = !!track.querySelector('.tk-group');
+    tickerState.quotes = quotes;
+    if (!force && hasTape && sig === tickerState.sig) { updateTickerInPlace(quotes); return; }
+    tickerState.sig = sig;
+    var items = quotes.map(tickerItem).join('<span class="tk-sep" aria-hidden="true">◆</span>');
     var group = '<span class="tk-group">' + items + '<span class="tk-sep" aria-hidden="true">◆</span></span>';
     track.innerHTML = group;
     track.classList.remove('run');
@@ -1357,6 +2150,7 @@
     return api('/api/markets').then(function (d) {
       var q = d && Array.isArray(d.quotes) ? d.quotes.filter(function (x) { return x && (x.name || x.symbol); }) : [];
       if (!q.length) {
+        tickerState.sig = '';
         $('#ticker').dataset.status = 'offline';
         $('#ticker-track').classList.remove('run');
         $('#ticker-track').innerHTML = '<span class="ticker-msg off">MARKET FEED OFFLINE' + (d && d.error ? ' — ' + esc(clip(d.error, 90)) : '') + ' · RETRYING</span>';
@@ -1365,6 +2159,7 @@
       $('#ticker').dataset.status = 'live';
       renderTicker(q);
     }).catch(function (e) {
+      tickerState.sig = '';
       $('#ticker').dataset.status = 'offline';
       $('#ticker-track').classList.remove('run');
       $('#ticker-track').innerHTML = '<span class="ticker-msg off">MARKET FEED OFFLINE — ' + esc(clip(errText(e), 90)) + '</span>';
@@ -1395,25 +2190,125 @@
   // ------------------------------------------------------------------ settings drawer
   var drawer = $('#settings');
   var scrim = $('#scrim');
+  var setForm = $('#settings-form');
   var lastFocus = null;
   function isDrawerOpen() { return !drawer.hidden; }
-  function openDrawer() {
-    lastFocus = document.activeElement;
-    drawer.hidden = false;
-    scrim.hidden = false;
-    requestAnimationFrame(function () { drawer.classList.add('open'); scrim.classList.add('open'); });
-    $('#settings-btn').setAttribute('aria-expanded', 'true');
-    populateSettings();
-    setTimeout(function () { var f = drawer.querySelector('.drawer-body input, .drawer-body select'); if (f) f.focus({ preventScroll: true }); }, 60);
+
+  // Credentials are never sent to the browser and never prefilled: a blank field keeps the current value.
+  var SECRET_KEYS = ['OPENROUTER_API_KEY', 'EMAIL_PASSWORD', 'TWILIO_AUTH_TOKEN', 'HOME_ASSISTANT_TOKEN', 'CALENDAR_ICS_URLS'];
+  // Where a field's current value lives in /api/state; every other key is read from state.extra.
+  var STATE_FIELD = {
+    ASSISTANT_NAME: 'assistant_name', USER_NAME: 'user_name', USER_ADDRESS_AS: 'address_as', USER_PHONE: 'user_phone',
+    HOME_ADDRESS: 'home_address', WORK_ADDRESS: 'work_address', HOME_CITY: 'home_city', UNITS: 'units',
+    NEWS_REGION: 'news_region', NEWS_LANGUAGE: 'news_language', ATLAS_MODEL: 'model', ATLAS_SEARCH_MODEL: 'search_model',
+    EMAIL_ADDRESS: 'email_address', SMTP_HOST: 'smtp_host', SMTP_PORT: 'smtp_port', IMAP_HOST: 'imap_host', IMAP_PORT: 'imap_port'
+  };
+  var SELECT_DEFAULT = { UNITS: 'imperial', CALENDAR_PROVIDER: 'google' }; // what a blank setting means on the server
+  // Checked only when the field is filled in; blank always means "use the default".
+  var FIELD_RULES = {
+    SMTP_PORT: [/^\d{1,5}$/, 'Mail server ports are whole numbers, e.g. 465.'],
+    IMAP_PORT: [/^\d{1,5}$/, 'Mail server ports are whole numbers, e.g. 993.'],
+    CALENDAR_DAY_HOURS: [/^\d{1,2}(:[0-5]\d)?\s*-\s*\d{1,2}(:[0-5]\d)?$/, '“Your day” should look like 08:00-20:00.'],
+    DEFAULT_COUNTRY_CODE: [/^(\+|00)?\s*[1-9]\d{0,2}$/, 'The country code should look like +1 or +44.'],
+    HOME_ASSISTANT_URL: [/^https?:\/\/[^\s/?#]+[^\s]*$/i, 'The Home Assistant URL should start with http:// or https://.'],
+    TWILIO_ACCOUNT_SID: [/^AC[0-9a-f]{32}$/i, 'A Twilio account SID is 34 characters and starts with AC.']
+  };
+  var EYE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+
+  function isSecretField(f) { return f.hasAttribute('data-secret') || SECRET_KEYS.indexOf(f.name) !== -1; }
+  function truthy(v) { return /^(1|true|yes|on)$/i.test(String(v == null ? '' : v).trim()); }
+  function settingValue(st, key) {
+    var v = STATE_FIELD[key] ? st[STATE_FIELD[key]] : (isObj(st.extra) ? st.extra[key] : null);
+    return v == null || typeof v === 'object' ? '' : String(v);
+  }
+  function settingsFields() { return $$('[name]', setForm).filter(function (f) { return f.name && !f.disabled; }); }
+  function fieldValue(f) {
+    if (f.type === 'checkbox') return f.checked ? 'true' : 'false';
+    var v = String(f.value || '').trim();
+    if (f.name === 'NEWS_REGION') return v.toUpperCase();
+    if (f.name === 'NEWS_LANGUAGE') return v.toLowerCase();
+    return v;
+  }
+  function setField(f, value) {
+    if (f.type === 'checkbox') { f.checked = truthy(value); f.dataset.orig = fieldValue(f); return; }
+    var v = value == null ? '' : String(value);
+    if (f.tagName === 'SELECT' && v && !$$('option', f).some(function (o) { return o.value === v; })) {
+      var o = document.createElement('option'); // keep an unusual saved value instead of silently replacing it
+      o.value = v; o.textContent = v;
+      f.appendChild(o);
+    }
+    f.value = v;
+    f.dataset.orig = fieldValue(f); // what the field showed: only edits are sent on save
+  }
+  function fieldChanged(f) {
+    if (isSecretField(f)) return fieldValue(f) !== '';
+    return f.dataset.orig == null || fieldValue(f) !== f.dataset.orig;
+  }
+  function markDirty() {
+    $$('.set-sec', setForm).forEach(function (sec) {
+      sec.classList.toggle('dirty', $$('[name]', sec).some(function (f) { return !f.disabled && fieldChanged(f); }));
+    });
+  }
+  function sectionBadge(key, text, on) {
+    var b = setForm.querySelector('[data-badge="' + key + '"]');
+    if (!b) return;
+    b.textContent = text || '';
+    b.hidden = !text;
+    b.classList.toggle('on', !!on);
+  }
+  function paintBadges(st) {
+    var sc = isObj(st.secrets_configured) ? st.secrets_configured : {};
+    var ex = isObj(st.extra) ? st.extra : {};
+    function has(k) { return sc[k] === true || (k === 'OPENROUTER_API_KEY' && st.has_key === true) || (k === 'EMAIL_PASSWORD' && st.email_configured === true); }
+    $$('.cfg[data-cfg]', setForm).forEach(function (b) {
+      var on = has(b.dataset.cfg);
+      b.textContent = on ? 'Configured · blank = keep' : 'Not set';
+      b.classList.toggle('on', on);
+    });
+    $('#key-hint').textContent = st.key_hint ? String(st.key_hint) : '';
+    $('#email-note').textContent = '';
+    sectionBadge('voice', !speaker.supported ? 'Text only' : !S.voice.speak ? 'Muted' : S.voice.wake ? 'Wake word' : 'Voice on', speaker.supported && S.voice.speak);
+    sectionBadge('you', st.user_name ? clip(String(st.user_name), 18) : 'Not set', !!st.user_name);
+    sectionBadge('model', st.has_key === false ? 'No key' : shortModel(st.model), st.has_key !== false);
+    sectionBadge('email', st.email_configured ? 'Connected' : 'Off', !!st.email_configured);
+    sectionBadge('calendar', has('CALENDAR_ICS_URLS') ? 'Connected' : 'Not connected', has('CALENDAR_ICS_URLS'));
+    var twilio = !!(ex.TWILIO_ACCOUNT_SID && has('TWILIO_AUTH_TOKEN') && ex.TWILIO_FROM_NUMBER);
+    var mac = /^macos/i.test(String(st.os || ''));
+    sectionBadge('comms', twilio ? 'Twilio' : mac ? 'Messages app' : 'Off', twilio || mac);
+    var ha = !!(ex.HOME_ASSISTANT_URL && has('HOME_ASSISTANT_TOKEN'));
+    sectionBadge('home', ha ? 'Connected' : 'Off', ha);
+    var ch = { chrome: 'Chrome', msedge: 'Edge', chromium: 'Chromium' }[String(ex.BROWSER_CHANNEL || '').toLowerCase()];
+    sectionBadge('browser', truthy(ex.BROWSER_HEADLESS) ? 'Headless' : ex.BROWSER_EXECUTABLE ? 'Custom path' : ch || 'Auto', true);
+  }
+
+  function openDrawer(opts) {
+    if (!isObj(opts) || (typeof Event === 'function' && opts instanceof Event)) opts = {};
+    if (!isDrawerOpen()) {
+      lastFocus = document.activeElement;
+      drawer.hidden = false;
+      scrim.hidden = false;
+      requestAnimationFrame(function () { drawer.classList.add('open'); scrim.classList.add('open'); });
+      $('#settings-btn').setAttribute('aria-expanded', 'true');
+      populateSettings();
+    }
+    var sec = opts.section ? $('#sec-' + opts.section) : null;
+    if (sec) sec.open = true;
+    setTimeout(function () {
+      var f = opts.focus ? setForm.querySelector('[name="' + opts.focus + '"]') : null;
+      if (!f && sec) f = sec.querySelector('summary');
+      if (!f) f = setForm.querySelector('.set-sec[open] .set-body input, .set-sec[open] .set-body select') || setForm.querySelector('summary');
+      if (sec) { try { sec.scrollIntoView({ block: 'start', behavior: reduceMotion ? 'auto' : 'smooth' }); } catch (e) { /* ignore */ } }
+      if (f) { try { f.focus({ preventScroll: !!sec }); } catch (e) { /* ignore */ } }
+    }, sec ? 120 : 60);
   }
   function closeDrawer() {
     drawer.classList.remove('open');
     scrim.classList.remove('open');
     $('#settings-btn').setAttribute('aria-expanded', 'false');
     setTimeout(function () { drawer.hidden = true; scrim.hidden = true; }, reduceMotion ? 0 : 280);
-    if (lastFocus && lastFocus.focus) lastFocus.focus();
+    if (lastFocus && lastFocus.focus && document.contains(lastFocus)) lastFocus.focus();
   }
-  $('#settings-btn').addEventListener('click', openDrawer);
+  $('#settings-btn').addEventListener('click', function () { openDrawer(); });
   $('#settings-close').addEventListener('click', closeDrawer);
   $('#settings-cancel').addEventListener('click', closeDrawer);
   scrim.addEventListener('click', closeDrawer);
@@ -1425,29 +2320,38 @@
     if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
     else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   });
+  setForm.addEventListener('input', function (e) { if (e.target && e.target.removeAttribute) e.target.removeAttribute('aria-invalid'); markDirty(); });
+  setForm.addEventListener('change', markDirty);
+  $$('.reveal', setForm).forEach(function (b) {
+    b.innerHTML = EYE;
+    b.title = 'Show or hide what you typed';
+    b.addEventListener('click', function () {
+      var f = document.getElementById(b.getAttribute('aria-controls'));
+      if (!f) return;
+      var show = f.type === 'password';
+      f.type = show ? 'text' : 'password';
+      b.setAttribute('aria-pressed', show ? 'true' : 'false');
+    });
+  });
 
-  function setField(name, value) {
-    var f = drawer.querySelector('[name="' + name + '"]');
-    if (f) f.value = value == null ? '' : String(value);
-  }
   function populateSettings() {
     var st = S.st || {};
-    setField('ASSISTANT_NAME', st.assistant_name || '');
-    setField('USER_NAME', st.user_name || '');
-    setField('USER_ADDRESS_AS', st.address_as || '');
-    setField('HOME_CITY', st.home_city || '');
-    setField('UNITS', st.units === 'metric' ? 'metric' : 'imperial');
-    setField('NEWS_REGION', st.news_region || 'US');
-    setField('ATLAS_SEARCH_MODEL', st.search_model || '');
-    setField('EMAIL_ADDRESS', st.email_address || '');
-    setField('EMAIL_PASSWORD', '');
-    setField('SMTP_HOST', st.smtp_host || '');
-    setField('SMTP_PORT', st.smtp_port || '');
-    setField('IMAP_HOST', st.imap_host || '');
-    setField('IMAP_PORT', st.imap_port || '');
-    setField('OPENROUTER_API_KEY', '');
-    $('#key-hint').textContent = st.key_hint ? 'current ' + st.key_hint : st.has_key ? 'key set' : 'no key set';
-    $('#email-note').textContent = st.email_configured ? 'configured · blank = keep' : 'not configured';
+    settingsFields().forEach(function (f) {
+      if (isSecretField(f)) {
+        f.value = '';
+        f.type = 'password';
+        f.removeAttribute('aria-invalid');
+        return;
+      }
+      var v = settingValue(st, f.name);
+      if (!v && SELECT_DEFAULT[f.name]) v = SELECT_DEFAULT[f.name];
+      setField(f, v);
+      f.removeAttribute('aria-invalid');
+    });
+    $$('.reveal', setForm).forEach(function (b) { b.setAttribute('aria-pressed', 'false'); });
+    var wl = setForm.querySelector('[name="MARKET_WATCHLIST"]');
+    if (wl && Array.isArray(st.watchlist) && st.watchlist.length) wl.placeholder = st.watchlist.slice(0, 12).join(',');
+    paintBadges(st);
     $('#rate-input').value = String(S.voice.rate || 1);
     $('#pitch-input').value = String(S.voice.pitch || 1);
     $('#rate-out').textContent = Number(S.voice.rate || 1).toFixed(2);
@@ -1460,6 +2364,7 @@
     if (!listener.supported) sup.push('Speech recognition is not available here — use Chrome or Edge for voice input and the wake word.');
     $('#voice-support').textContent = sup.join(' ');
     $('#voice-support').hidden = !sup.length;
+    markDirty();
     fillVoices();
     loadModels();
     loadMemory();
@@ -1489,6 +2394,7 @@
     var note = $('#model-note');
     var cur = (S.st && S.st.model) || '';
     note.textContent = 'loading…';
+    var chosen = sel.value; // keep a choice made while the list was loading
     api('/api/models').then(function (d) {
       var models = d && Array.isArray(d.models) ? d.models : [];
       var html = '<option value="">Automatic (recommended)' + (d && d.current && !cur ? ' — ' + esc(d.current) : '') + '</option>';
@@ -1500,13 +2406,15 @@
         html += '<option value="' + esc(m.id) + '">' + esc(m.name || m.id) + price + (m.vision ? ' · vision' : '') + '</option>';
       });
       if (cur && !seen) html += '<option value="' + esc(cur) + '">' + esc(cur) + '</option>';
+      var pick = sel.value !== chosen ? sel.value : chosen;
       sel.innerHTML = html;
-      sel.value = cur;
+      sel.value = pick;
+      if (sel.value !== pick) sel.value = cur;
       $('#model-list').innerHTML = models.map(function (m) { return m && m.id ? '<option value="' + esc(m.id) + '">' : ''; }).join('');
       note.textContent = d && d.error ? 'offline — ' + clip(d.error, 60) : models.length + ' tool-capable · $ in / out per M tokens';
     }).catch(function (e) {
       note.textContent = 'unavailable — ' + clip(errText(e), 60);
-      if (cur) { sel.innerHTML = '<option value="">Automatic (recommended)</option><option value="' + esc(cur) + '">' + esc(cur) + '</option>'; sel.value = cur; }
+      if (cur && !$$('option', sel).some(function (o) { return o.value === cur; })) { sel.innerHTML = '<option value="">Automatic (recommended)</option><option value="' + esc(cur) + '">' + esc(cur) + '</option>'; sel.value = cur; }
     });
   }
 
@@ -1514,6 +2422,7 @@
     var ul = $('#memory-list');
     api('/api/memory').then(function (d) {
       var mems = d && Array.isArray(d.memories) ? d.memories : [];
+      sectionBadge('memory', mems.length ? mems.length + (mems.length === 1 ? ' fact' : ' facts') : 'Empty', mems.length > 0);
       if (!mems.length) { ul.innerHTML = '<li class="muted">Nothing remembered yet. Say “remember that…” to add facts.</li>'; return; }
       ul.innerHTML = '';
       mems.slice().reverse().forEach(function (m) {
@@ -1561,30 +2470,41 @@
     clearConversation();
   });
 
-  $('#settings-form').addEventListener('submit', function (e) {
+  setForm.addEventListener('submit', function (e) {
     e.preventDefault();
     var values = {};
-    $$('[name]', drawer).forEach(function (f) {
-      if (!f.name || f.closest('.setup')) return;
-      var v = String(f.value || '').trim();
-      if ((f.name === 'OPENROUTER_API_KEY' || f.name === 'EMAIL_PASSWORD') && !v) return;
-      if (f.name === 'NEWS_REGION') v = v.toUpperCase();
+    var bad = null;
+    settingsFields().forEach(function (f) {
+      if (!fieldChanged(f)) return; // unchanged fields and blank secrets are never sent
+      var v = fieldValue(f);
+      var rule = FIELD_RULES[f.name];
+      if (!bad && v && rule && !rule[0].test(v)) bad = { f: f, msg: rule[1] };
       values[f.name] = v;
     });
-    var bad = ['SMTP_PORT', 'IMAP_PORT'].filter(function (k) { return values[k] && !/^\d{1,5}$/.test(values[k]); });
-    if (bad.length) { toast('Ports must be numbers (' + bad.join(', ') + ').', { tone: 'warn' }); return; }
+    if (bad) {
+      var sec = bad.f.closest('.set-sec');
+      if (sec) sec.open = true;
+      bad.f.setAttribute('aria-invalid', 'true');
+      try { bad.f.focus(); } catch (x) { /* ignore */ }
+      toast(bad.msg, { tone: 'warn' });
+      return;
+    }
+    if (!Object.keys(values).length) { toast('No changes to save.', { tone: 'info' }); closeDrawer(); return; }
     var btn = $('#settings-save');
     btn.disabled = true;
     btn.textContent = 'Saving…';
     api('/api/setup', { method: 'POST', body: { values: values } }).then(function () {
       return api('/api/state');
     }).then(function (st) {
+      $$('[data-secret]', setForm).forEach(function (f) { f.value = ''; f.type = 'password'; });
       S.model = '';
       applyState(st);
-      setModel(st.model || '');
-      toast('Configuration saved.', { tone: 'ok' });
+      setModel((st && st.model) || '');
+      updateVoiceReadouts();
+      var n = Object.keys(values).length;
+      toast('Configuration saved (' + n + (n === 1 ? ' setting' : ' settings') + ').', { tone: 'ok' });
       closeDrawer();
-      loadWeather(); S.newsCache = {}; loadNews(); loadMarkets();
+      loadWeather(); S.newsCache = {}; loadNews(); loadMarkets(); loadAgenda();
     }).catch(function (err) {
       toast('Couldn’t save settings: ' + errText(err));
     }).then(function () {
@@ -1746,45 +2666,56 @@
   setInert(true);
 
   function every(ms, fn, skipHidden) {
-    return setInterval(function () { if (skipHidden && document.hidden) return; if (!S.expired) fn(); }, ms);
+    return setInterval(function () { if (skipHidden && document.hidden) return; if (!S.expired) safely(fn.name || 'poll', fn); }, ms);
   }
 
-  restoreTranscript();
-  updateVoiceReadouts();
-  renderUsage();
-  tickClock();
-  setInterval(tickClock, 1000);
-  refreshState();
+  // Each boot step is isolated: a failure in one (bad stored data, a missing API) never stops
+  // the clock, the panels or the polling loops from starting.
+  function safely(label, fn) {
+    try { return fn(); } catch (e) { if (window.console) console.warn('ATLAS boot step failed: ' + label, e); return null; }
+  }
+  safely('transcript', restoreTranscript);
+  safely('voice readouts', updateVoiceReadouts);
+  safely('usage', renderUsage);
+  safely('clock', tickClock);
+  setInterval(function () { if (!document.hidden) safely('clock', tickClock); }, 1000);
+  safely('state', refreshState);
 
-  loadState().then(function () {
-    loadNews();
+  safely('load', function () {
+    loadState().then(function () { loadNews(); });
+    loadWeather();
+    loadSystem();
+    loadAgenda();
+    loadReminders();
+    loadMarkets();
   });
-  loadWeather();
-  loadSystem();
-  loadReminders();
-  loadMarkets();
 
   every(5000, loadSystem, true);
   every(10 * 60000, loadWeather, false);
   every(60000, loadReminders, false);
-  every(30000, function () { if (reminders.length) renderReminders(); }, true);
+  every(5 * 60000, loadAgenda, false);
+  every(30000, function () { if (AG.tried) renderAgenda(); }, true); // relative times, events that just ended
   every(10000, pollDue, false);
   every(5 * 60000, function () { S.newsCache = {}; loadNews(); }, true);
   every(60000, loadMarkets, true);
 
   document.addEventListener('visibilitychange', function () {
-    if (!document.hidden && S.engaged) { loadSystem(); }
+    if (!document.hidden) {
+      tickClock();
+      if (S.engaged) loadSystem();
+      if (AG.tried && Date.now() - AG.at > 5 * 60000) loadAgenda();
+    }
   });
   var resizeT = 0;
   window.addEventListener('resize', function () {
     clearTimeout(resizeT);
     resizeT = setTimeout(function () {
-      if ($('#ticker').dataset.status === 'live') loadMarkets();
+      if ($('#ticker').dataset.status === 'live' && tickerState.quotes) renderTicker(tickerState.quotes, true);
     }, 400);
   });
 
   setTimeout(function () { var b = $('#engage-btn'); if (b && !S.engaged) b.focus({ preventScroll: true }); }, 50);
 
   // Expose a tiny debug hook (no secrets).
-  window.ATLAS_UI = { state: S, send: sendMessage, setView: setView, parseSSE: drainSSE };
+  window.ATLAS_UI = { state: S, send: sendMessage, setView: setView, parseSSE: drainSSE, refresh: { markets: loadMarkets, news: loadNews, weather: loadWeather, system: loadSystem, reminders: loadReminders, agenda: loadAgenda }, openSettings: openDrawer };
 })();

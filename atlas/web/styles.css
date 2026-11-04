@@ -82,7 +82,9 @@ body {
   letter-spacing: 0.005em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: --accent 0.8s var(--ease);
+  /* --accent is inherited by the whole page, so every interpolated value restyles every element.
+     Stepping it (8 values over 0.8 s) is barely visible and costs ~1/5 of the style work. */
+  transition: --accent 0.8s steps(8, jump-none);
   text-rendering: optimizeLegibility;
 }
 
@@ -120,7 +122,7 @@ kbd {
 }
 .skip-link:focus { top: 12px; }
 
-:focus-visible { outline: 1.5px solid var(--cyan); outline-offset: 3px; }
+:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
 :focus:not(:focus-visible) { outline: none; }
 
 ::selection { background: rgba(95, 225, 255, 0.28); color: var(--ink-bright); }
@@ -208,12 +210,13 @@ button svg, .chip svg, .wx-ico, .offline svg, .empty-state svg, .news-link svg, 
   transition: opacity 0.25s;
 }
 
-/* Cut-corner controls: focus glow follows the frame instead of a rectangle. */
+/* Cut-corner controls: a solid 2px ring (visible in every theme and in forced colours) plus a
+   brightened frame. */
 .btn:focus-visible, .chip:focus-visible, .cmd-btn:focus-visible, .icon-btn:focus-visible,
 .engage-btn:focus-visible, .jump-latest:focus-visible {
-  outline: none;
+  outline: 2px solid var(--cyan-ink);
+  outline-offset: 2px;
   --ring: #d2f8ff;
-  filter: drop-shadow(0 0 1px rgba(210, 248, 255, 0.9)) drop-shadow(0 0 7px rgba(95, 225, 255, 0.65));
 }
 
 /* ------------------------------------------------------------------ top bar */
@@ -565,7 +568,7 @@ body.has-convo .core-wrap { height: var(--core-h-convo); }
   -webkit-tap-highlight-color: transparent;
 }
 .core canvas { display: block; width: 100%; height: 100%; }
-.core:focus-visible { outline: none; }
+.core:focus-visible { outline: 2px solid var(--cyan); outline-offset: -2px; }
 .core:focus-visible .core-label::before { opacity: 1; }
 .core-label {
   position: absolute; left: 50%; top: 50%;
@@ -823,6 +826,10 @@ body.has-convo .core-wrap { height: var(--core-h-convo); }
   border: 1.5px solid var(--red); border-radius: 50%;
 }
 .tool[data-state="err"] .tool-sum { color: var(--red-ink); }
+/* Failed tools show the whole error on its own line instead of a clipped tooltip. */
+.tool[data-state="err"] { flex-wrap: wrap; row-gap: 4px; height: auto; min-height: 27px; padding-top: 6px; padding-bottom: 6px; line-height: 1.35; }
+.tool[data-state="err"] .tool-sum { flex: 1 1 100%; max-width: none; padding-left: 19px; white-space: normal; overflow-wrap: anywhere; }
+.md-cut { color: var(--ink-3); font-size: 12px; }
 
 /* ------------------------------------------------------------------ approval card */
 .confirm {
@@ -855,7 +862,16 @@ body.has-convo .core-wrap { height: var(--core-h-convo); }
 }
 .confirm-body.code { font: 400 13px/1.55 var(--font-mono); color: var(--amber-ink); }
 .confirm-body.code::before { content: "$ "; color: var(--amber); }
+.confirm-timer { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font: 500 10px/1 var(--font-mono); letter-spacing: 0.12em; color: var(--amber-ink); font-variant-numeric: tabular-nums; }
+.ct-track { position: relative; flex: 1 1 auto; height: 3px; overflow: hidden; background: rgba(255, 181, 71, 0.16); }
+.ct-bar { position: absolute; inset: 0; background: var(--amber); transform-origin: left center; transition: transform 1s linear; }
+.confirm.urgent .ct-bar { background: var(--red); }
+.confirm.urgent .ct-left { color: var(--red-ink); }
+.confirm:not([data-state="pending"]) .confirm-timer { display: none; }
 .confirm-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.confirm-actions .btn kbd { min-width: 1.6em; margin-left: 2px; padding: 0 4px; font-size: 9.5px; color: inherit; border-color: currentColor; background: transparent; opacity: 0.75; }
+.confirm-flag:focus { outline: none; }
+.confirm-flag:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
 .confirm-actions .btn svg { width: 15px; height: 15px; stroke-width: 2; }
 .confirm-hint { font: 400 10.5px/1.2 var(--font-mono); color: var(--ink-3); letter-spacing: 0.04em; margin-left: 4px; }
 .confirm-stamp {
@@ -937,6 +953,7 @@ body.is-streaming .chip { opacity: 0.55; }
 }
 .cmdbar:focus-within { --ring: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 45%, transparent) 50%, var(--accent)); }
 .cmdbar:focus-within .cmd-hint { opacity: 1; }
+.cmdbar:has(.cmd-input:focus-visible) { outline: 2px solid var(--cyan); outline-offset: 3px; }
 .cmd-prompt { font: 500 18px/1 var(--font-mono); color: var(--accent); padding-left: 2px; }
 .cmd-input {
   flex: 1 1 auto; min-width: 0;
@@ -947,6 +964,7 @@ body.is-streaming .chip { opacity: 0.55; }
   letter-spacing: 0.01em;
   color: var(--ink-bright);
 }
+.cmd-input:focus-visible { outline: 2px solid transparent; box-shadow: inset 0 -2px 0 var(--cyan); }
 .cmd-input::placeholder { color: var(--ink-3); opacity: 1; }
 .cmd-input.interim { color: var(--cyan-ink); font-style: italic; }
 .cmd-hint { opacity: 0.55; transition: opacity 0.2s; }
@@ -1126,7 +1144,7 @@ body.is-streaming .chip { opacity: 0.55; }
 .toggle i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 12px; height: 12px; background: var(--ink-3); transition: transform 0.25s var(--ease), background 0.2s; }
 .toggle input:checked + i { background: rgba(95, 225, 255, 0.16); border-color: var(--cyan); }
 .toggle input:checked + i::after { transform: translateX(18px); background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
-.toggle input:focus-visible + i { outline: 1.5px solid var(--cyan); outline-offset: 3px; }
+.toggle input:focus-visible + i { outline: 2px solid var(--cyan); outline-offset: 2px; }
 .toggle input:disabled + i, .toggle input:disabled ~ span { opacity: 0.45; }
 .memory-list { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow-y: auto; border-top: 1px solid var(--line); }
 .memory-list li { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); transition: opacity 0.2s, transform 0.2s; }
@@ -1292,7 +1310,7 @@ body.is-streaming .chip { opacity: 0.55; }
     --gutter: 10px;
     --core-h: clamp(170px, 30vh, 250px);
     --core-h-convo: clamp(130px, 19vh, 170px);
-    --dock-h: calc(58px + 62px + env(safe-area-inset-bottom, 0px));
+    --dock-h: calc(64px + 62px + env(safe-area-inset-bottom, 0px));
   }
   body { grid-template-rows: var(--topbar-h) var(--ticker-h) minmax(0, 1fr); grid-template-areas: "top" "ticker" "main"; }
   .topbar { gap: 10px; padding: 0 12px; }
@@ -1305,7 +1323,7 @@ body.is-streaming .chip { opacity: 0.55; }
   .status-label { display: none; }
   .status-text { min-width: 0; }
   .clock { display: none; }
-  .icon-btn { width: 36px; height: 36px; }
+  .icon-btn { width: 44px; height: 44px; }
 
   .ticker { border-top: 0; border-bottom: 1px solid var(--line); }
   .ticker-label { display: none; }
@@ -1340,17 +1358,19 @@ body.is-streaming .chip { opacity: 0.55; }
 
   .chips { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; scrollbar-width: none; margin: 0 -12px; padding: 0 12px 2px; }
   .chips::-webkit-scrollbar { display: none; }
-  .chip { flex: none; }
+  .chip { flex: none; height: 44px; padding: 0 15px 0 13px; }
+  .chips { padding-top: 4px; padding-bottom: 4px; }
+  .confirm-actions .btn { height: 44px; }
 
   .cmdbar {
     position: fixed; left: 10px; right: 10px;
     bottom: calc(62px + env(safe-area-inset-bottom, 0px));
-    width: auto; height: 52px;
+    width: auto; height: 60px;
     z-index: 32;
     --fill: linear-gradient(180deg, rgba(8, 21, 33, 0.98), rgba(4, 12, 20, 0.98));
   }
   .cmd-hint { display: none; }
-  .cmd-btn { width: 40px; height: 40px; }
+  .cmd-btn { width: 48px; height: 48px; }
   .cmd-input { font-size: 16px; }
 
   .mobile-tabs {

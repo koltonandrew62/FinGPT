@@ -8,7 +8,6 @@
   'use strict';
 
   var noop = function () {};
-  var toSpeech = (global.AtlasMD && global.AtlasMD.toSpeech) || function (s) { return String(s || ''); };
 
   // ------------------------------------------------------------------ audio context
   var audioCtx = null;
@@ -58,18 +57,94 @@
     } catch (e) { /* ignore */ }
   }
 
+  // ------------------------------------------------------------------ text -> speakable text
+  /* Plain text for speech: no code, URLs or markdown symbols; list markers dropped and line
+   * breaks turned into pauses so "1. Say brief me" reads as "Say brief me." */
+  function cleanForSpeech(s) {
+    if (!s) return '';
+    var t = String(s);
+    t = t.replace(/```[\s\S]*?(```|$)/g, ' ');
+    t = t.replace(/~~~[\s\S]*?(~~~|$)/g, ' ');
+    t = t.replace(/`([^`]*)`/g, '$1');
+    t = t.replace(/!\[[^\]]*\]\([^)]*\)/g, ' ');
+    t = t.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1');
+    t = t.replace(/<https?:\/\/[^>\s]*>/gi, ' ');
+    t = t.replace(/\bhttps?:\/\/\S+/gi, ' ');
+    t = t.replace(/\bwww\.\S+/gi, ' ');
+    t = t.replace(/^\s{0,3}#{1,6}\s*/gm, '');
+    t = t.replace(/^\s*>\s?/gm, '');
+    t = t.replace(/^\s*([-*+•]|\d{1,4}[.)])\s+/gm, '');
+    t = t.replace(/^[ \t]*\|?[ \t]*:?-{3,}[-|: \t]*$/gm, '');
+    t = t.replace(/^[ \t]*\|(.+?)\|?[ \t]*$/gm, function (_, row) {
+      return row.split('|').map(function (c) { return c.trim(); }).filter(Boolean).join(', ');
+    });
+    t = t.replace(/\*\*|~~|\*/g, '');
+    t = t.replace(/(^|[^A-Za-z0-9])_+/g, '$1').replace(/_+(?=[^A-Za-z0-9]|$)/g, '');
+    t = t.replace(/\s*\|\s*/g, ', ');
+    t = t.replace(/[#<>{}\[\]\\^]/g, ' ');
+    t = t.replace(/\s*[—–]\s*/g, ', ');
+    t = t.replace(/([^\s.!?:;,])[ \t]*\n+/g, '$1. '); // a line break (list item, heading) becomes a pause
+    t = t.replace(/\s+/g, ' ').trim();
+    t = t.replace(/^[,.;:\s]+/, '');
+    return /[A-Za-z0-9]/.test(t) ? t : '';
+  }
+
+  // An ordered-list marker ("1.", "12)") at the start of a line is not a sentence end.
+  function isListMarker(s, idx) {
+    var lineStart = s.lastIndexOf('\n', idx) + 1;
+    return /^\s*\d{1,4}$/.test(s.slice(lineStart, idx));
+  }
+
+  // Index just past the last sentence boundary in `s` (0 if none).
+  function lastBoundary(s) {
+    var re = /[.!?…]+["'”’)\]]*(?=\s)|\n/g;
+    var end = 0, m;
+    while ((m = re.exec(s))) {
+      if (m[0] !== '\n' && isListMarker(s, m.index)) continue;
+      end = m.index + m[0].length;
+    }
+    return end;
+  }
+
+  // Split on terminal punctuation followed by whitespace (so "2.5" and "U.S" stay whole) and merge
+  // tiny fragments into their neighbour, so the engine never says "1." on its own.
+  function splitSentences(text) {
+    var parts = [];
+    var re = /[.!?…]+["'”’)\]]*(?=\s|$)/g;
+    var last = 0, m;
+    while ((m = re.exec(text))) {
+      var end = m.index + m[0].length;
+      parts.push(text.slice(last, end));
+      last = end;
+    }
+    if (last < text.length) parts.push(text.slice(last));
+    var out = [];
+    for (var i = 0; i < parts.length; i++) {
+      var p = parts[i].trim();
+      if (!p) continue;
+      var prev = out.length ? out[out.length - 1] : null;
+      if (prev != null && (prev.length < 24 || p.length < 4 || !/[A-Za-z0-9]/.test(p))) out[out.length - 1] = prev + ' ' + p;
+      else out.push(p);
+    }
+    return out.filter(function (x) { return /[A-Za-z0-9]/.test(x); });
+  }
+
   // ------------------------------------------------------------------ speaker
   var PREFERRED = ['UK English Male', 'Ryan', 'Daniel', 'George', 'Arthur', 'Oliver', 'Thomas'];
 
+  /* One utterance at a time: sentences queue up and the next one is handed to the engine only when
+   * the previous one ends (or its watchdog fires, for engines that never report back). Live
+   * utterances are kept in a Set so Chrome can't garbage-collect them and drop their events. */
   function Speaker() {
     this.supported = !!(global.speechSynthesis && typeof global.SpeechSynthesisUtterance === 'function');
     this.enabled = true;
     this.voiceURI = '';
     this.rate = 1;
     this.pitch = 1;
-    this.buffer = '';
+    this.q = [];
+    this.cur = null;
+    this.buf = '';
     this.inFence = false;
-    this.active = 0;
     this.speaking = false;
     this.gen = 0;
     this.live = new Set();
@@ -77,10 +152,11 @@
     this.onboundary = noop;
     this.onvoices = noop;
     this._idleTimer = 0;
+    this._watch = 0;
     var self = this;
     if (this.supported) {
       try {
-        var fire = function () { self.onvoices(self.voices()); };
+        var fire = function () { try { self.onvoices(self.voices()); } catch (e) { /* ignore */ } };
         if (global.speechSynthesis.addEventListener) global.speechSynthesis.addEventListener('voiceschanged', fire);
         else global.speechSynthesis.onvoiceschanged = fire;
       } catch (e) { /* ignore */ }
@@ -120,118 +196,166 @@
     var self = this;
     clearTimeout(this._idleTimer);
     if (on) {
-      if (!this.speaking) { this.speaking = true; this.onstate(true); }
-    } else {
-      // debounce the gap between queued sentences
+      if (!this.speaking) { this.speaking = true; try { this.onstate(true); } catch (e) { /* ignore */ } }
+    } else if (this.speaking) {
+      // debounce the gap between streamed sentences
       this._idleTimer = setTimeout(function () {
-        if (self.active === 0 && self.speaking) { self.speaking = false; self.onstate(false); }
-      }, 180);
+        if (!self.cur && !self.q.length && self.speaking) { self.speaking = false; try { self.onstate(false); } catch (e) { /* ignore */ } }
+      }, 260);
     }
   };
 
-  Speaker.prototype._utter = function (text) {
-    if (!this.supported || !this.enabled) return;
-    var clean = toSpeech(text);
-    if (!/[A-Za-z0-9]/.test(clean)) return;
+  Speaker.prototype._emit = function (raw) {
+    var clean = cleanForSpeech(raw);
+    if (!clean) return;
+    var parts = splitSentences(clean);
+    for (var i = 0; i < parts.length; i++) this.q.push(parts[i]);
+    this._next();
+  };
+
+  Speaker.prototype._next = function () {
+    if (this.cur || !this.q.length || !this.supported) return;
     var self = this;
-    var gen = this.gen;
+    var text = this.q.shift();
     var u;
-    try { u = new global.SpeechSynthesisUtterance(clean); } catch (e) { return; }
+    try { u = new global.SpeechSynthesisUtterance(text); } catch (e) { this.q = []; this._setSpeaking(false); return; }
     var v = this.currentVoice();
-    if (v) { u.voice = v; u.lang = v.lang; } else { u.lang = 'en-GB'; }
+    if (v) { u.voice = v; u.lang = v.lang || 'en-GB'; } else { u.lang = 'en-GB'; } // voices may still be loading
     u.rate = this.rate; u.pitch = this.pitch;
-    var done = false;
-    var finish = function () {
-      if (done) return;
-      done = true;
-      clearTimeout(watchdog);
+    this.cur = u;
+    this.live.add(u);
+    // Report "speaking" now (not on onstart) so a wake recogniser pauses before the first word.
+    this._setSpeaking(true);
+    var finished = false;
+    var done = function () {
+      if (finished) return;
+      finished = true;
       self.live.delete(u);
-      if (gen !== self.gen) return;
-      self.active = Math.max(0, self.active - 1);
-      if (self.active === 0) self._setSpeaking(false);
+      if (self.cur !== u) return;
+      clearTimeout(self._watch);
+      self.cur = null;
+      if (self.q.length) self._next(); else self._setSpeaking(false);
     };
-    // Some engines never fire end/error (e.g. headless); don't let state stick.
-    var watchdog = setTimeout(finish, 4000 + clean.length * 110 / Math.max(0.5, this.rate));
-    u.onstart = function () { if (gen === self.gen) self._setSpeaking(true); };
-    u.onend = finish;
-    u.onerror = finish;
-    u.onboundary = function (e) { if (gen === self.gen) { try { self.onboundary(e); } catch (x) { /* ignore */ } } };
-    this.live.add(u); // keep a reference: Chrome can GC utterances and drop their events
-    this.active++;
+    u.onend = done;
+    u.onerror = done;
+    u.onboundary = function (e) { if (self.cur === u) { try { self.onboundary(e); } catch (x) { /* ignore */ } } };
+    // Some engines never fire end/error (headless, missing voices): don't let the queue stall.
+    clearTimeout(this._watch);
+    this._watch = setTimeout(done, 4000 + text.length * 110 / Math.max(0.5, this.rate));
     try {
       if (global.speechSynthesis.paused) global.speechSynthesis.resume();
       global.speechSynthesis.speak(u);
-    } catch (e) { finish(); }
+    } catch (e) { done(); }
   };
 
-  /** Stream assistant text in; whole sentences are spoken as they complete. */
+  /** Stream assistant text in; whole sentences are queued as they complete. Fenced code is skipped. */
   Speaker.prototype.feed = function (delta) {
-    if (!this.supported || !this.enabled) return;
-    this.buffer += delta;
+    if (!this.supported || !this.enabled || !delta) return;
+    this.buf += delta;
+    if (this.buf.length > 20000) this.buf = this.buf.slice(-20000);
     this._drain(false);
   };
 
-  /** Speak whatever is left in the buffer. */
+  /** Speak whatever is left in the stream buffer. */
   Speaker.prototype.flush = function () {
     if (!this.supported) return;
-    this._drain(true);
+    if (this.enabled) this._drain(true);
+    this.buf = '';
     this.inFence = false;
-    this.buffer = '';
   };
 
   Speaker.prototype._drain = function (final) {
-    var guard = 0;
-    while (this.buffer && guard++ < 200) {
+    for (var guard = 0; guard < 200 && this.buf; guard++) {
       if (this.inFence) {
-        var close = this.buffer.indexOf('```');
-        if (close === -1) {
-          if (final) { this.buffer = ''; } else { this.buffer = this.buffer.slice(-2); }
+        var end = this.buf.indexOf('```');
+        if (end === -1) {
+          // keep a short tail so a closing fence split across tokens is still found
+          this.buf = final ? '' : this.buf.slice(-2);
+          if (final) this.inFence = false;
           return;
         }
-        this.buffer = this.buffer.slice(close + 3).replace(/^[^\n]*\n?/, '');
+        var nl = this.buf.indexOf('\n', end + 3);
+        this.buf = nl === -1 ? this.buf.slice(end + 3) : this.buf.slice(nl + 1);
         this.inFence = false;
         continue;
       }
-      var fence = this.buffer.indexOf('```');
-      var scope = fence === -1 ? this.buffer : this.buffer.slice(0, fence);
-      var m = scope.match(/[.!?…](?:["'”’)\]]*)(?=\s)|\n/);
-      if (m) {
-        var end = m.index + m[0].length;
-        var sentence = scope.slice(0, end);
-        this.buffer = this.buffer.slice(end);
-        this._utter(sentence);
-        continue;
-      }
+      var fence = this.buf.indexOf('```');
+      var seg = fence === -1 ? this.buf : this.buf.slice(0, fence);
       if (fence !== -1) {
-        if (scope.trim()) this._utter(scope);
-        this.buffer = this.buffer.slice(fence + 3);
+        this._emit(seg);
+        this.buf = this.buf.slice(fence + 3);
         this.inFence = true;
         continue;
       }
-      if (final) { this._utter(this.buffer); this.buffer = ''; }
-      // Hold back a trailing partial backtick run so a fence isn't missed.
+      // hold back a trailing partial fence marker
+      var holdM = !final && /`{1,2}$/.exec(seg);
+      var hold = holdM ? holdM[0].length : 0;
+      var usable = hold ? seg.slice(0, -hold) : seg;
+      var cut = final ? usable.length : lastBoundary(usable);
+      if (cut > 0) {
+        this._emit(usable.slice(0, cut));
+        this.buf = this.buf.slice(cut);
+        if (final && !hold) this.buf = '';
+        continue;
+      }
       return;
     }
   };
 
-  /** Speak a complete phrase (optionally interrupting). */
+  /** Speak a complete phrase (optionally interrupting what is playing). */
   Speaker.prototype.say = function (text, interrupt) {
     if (!this.supported || !this.enabled) return false;
     if (interrupt) this.stop();
-    this._utter(text);
+    this._emit(text);
     return true;
   };
 
+  /** True while something is playing or queued. */
+  Speaker.prototype.busy = function () { return !!this.cur || this.q.length > 0; };
+
   Speaker.prototype.stop = function () {
     this.gen++;
-    this.buffer = '';
+    this.q = [];
+    this.buf = '';
     this.inFence = false;
-    this.active = 0;
+    clearTimeout(this._watch);
+    this.cur = null;
     this.live.clear();
     if (this.supported) { try { global.speechSynthesis.cancel(); } catch (e) { /* ignore */ } }
     clearTimeout(this._idleTimer);
-    if (this.speaking) { this.speaking = false; this.onstate(false); }
+    if (this.speaking) { this.speaking = false; try { this.onstate(false); } catch (e) { /* ignore */ } }
   };
+
+  // ------------------------------------------------------------------ wake word
+  /* The assistant's name as a whole word, tolerant of how recognisers spell it out:
+   * "Atlas", "A.T.L.A.S.", "a t l a s", "J-9". Built from the name's letters with optional
+   * separators, bounded so "atlassian" or "matlas" never trigger it. */
+  var wakeCache = { name: null, re: null };
+  function escapeRe(c) { return c.replace(/[.*+?^${}()|[\]\\\/-]/g, '\\$&'); }
+  function wakeRegex(name) {
+    if (wakeCache.name === name) return wakeCache.re;
+    var re = null;
+    var chars = Array.from(String(name || '').normalize ? String(name).normalize('NFC') : String(name || ''));
+    try {
+      var letters = chars.filter(function (c) { return /[\p{L}\p{N}]/u.test(c); });
+      if (letters.length) {
+        var body = letters.map(escapeRe).join('[.\\s\\-_]{0,2}');
+        re = new RegExp('(?<![\\p{L}\\p{N}])' + body + '\\.?(?![\\p{L}\\p{N}])[\\s,.:;!?\\-]*', 'iu');
+      }
+    } catch (e) {
+      // engines without lookbehind / \p{}: ASCII word boundaries
+      var ascii = chars.filter(function (c) { return /[A-Za-z0-9]/.test(c); });
+      re = ascii.length ? new RegExp('\\b' + ascii.map(escapeRe).join('[.\\s\\-_]{0,2}') + '\\.?\\b[\\s,.:;!?\\-]*', 'i') : null;
+    }
+    wakeCache = { name: name, re: re };
+    return re;
+  }
+  function wakeMatch(name, text) {
+    var re = wakeRegex(name);
+    if (!re) return null;
+    var m = re.exec(String(text || ''));
+    return m ? { index: m.index, end: m.index + m[0].length } : null;
+  }
 
   // ------------------------------------------------------------------ listener
   function Listener() {
@@ -314,14 +438,9 @@
       return;
     }
     if (!name) return;
-    // "A.T.L.A.S." or "Atlas" in settings should both match the spoken word.
-    var letters = name.replace(/[^A-Za-z0-9]/g, '');
-    if (!letters) return;
-    var pattern = letters.split('').join('[.\\s-]?');
-    var re = new RegExp('(^|\\b)' + pattern + '\\.?\\b[\\s,.:!?-]*', 'i');
-    var m = text.match(re);
+    var m = wakeMatch(name, text);
     if (!m) return;
-    var rest = text.slice(m.index + m[0].length).trim();
+    var rest = text.slice(m.end).trim();
     var before = text.slice(0, m.index).replace(/\b(hey|ok|okay|hi|yo)\b/gi, '').trim();
     var command = (rest || before).replace(/^[,.\s]+|[,.\s]+$/g, '');
     if (command.split(/\s+/).filter(Boolean).length >= 1 && /[a-z0-9]/i.test(command)) {
@@ -397,6 +516,7 @@
     this.source = null;
     this.data = null;
     this.on = false;
+    this.want = false;
     this._pending = null;
   }
 
@@ -406,13 +526,19 @@
 
   MicMeter.prototype.start = function () {
     var self = this;
-    if (this.on || this._pending) return this._pending || Promise.resolve(true);
+    this.want = true; // re-checked when getUserMedia resolves: stop() while pending must win
+    if (this.on) return Promise.resolve(true);
+    if (this._pending) return this._pending;
     if (!this.supported()) return Promise.resolve(false);
-    this._pending = navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
-      .then(function (stream) {
-        self._pending = null;
-        var ac = unlockAudio();
-        if (!ac) { stream.getTracks().forEach(function (t) { t.stop(); }); return false; }
+    var p;
+    try {
+      p = navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    } catch (e) { return Promise.resolve(false); }
+    this._pending = Promise.resolve(p).then(function (stream) {
+      self._pending = null;
+      var ac = self.want ? unlockAudio() : null;
+      if (!self.want || !ac) { stopTracks(stream); return false; }
+      try {
         self.stream = stream;
         self.source = ac.createMediaStreamSource(stream);
         self.analyser = ac.createAnalyser();
@@ -422,8 +548,8 @@
         self.data = new Uint8Array(self.analyser.frequencyBinCount);
         self.on = true;
         return true;
-      })
-      .catch(function () { self._pending = null; return false; });
+      } catch (e) { self.stop(); return false; }
+    }, function () { self._pending = null; return false; });
     return this._pending;
   };
 
@@ -448,17 +574,26 @@
   };
 
   MicMeter.prototype.stop = function () {
+    this.want = false;
     this.on = false;
     try { if (this.source) this.source.disconnect(); } catch (e) { /* ignore */ }
-    try { if (this.stream) this.stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) { /* ignore */ }
+    stopTracks(this.stream);
     this.stream = null; this.source = null; this.analyser = null;
   };
+
+  function stopTracks(stream) {
+    try { if (stream && stream.getTracks) stream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) { /* ignore */ } }); } catch (e) { /* ignore */ }
+  }
 
   global.AtlasVoice = {
     Speaker: Speaker,
     Listener: Listener,
     MicMeter: MicMeter,
     chime: chime,
-    unlockAudio: unlockAudio
+    unlockAudio: unlockAudio,
+    cleanForSpeech: cleanForSpeech,
+    splitSentences: splitSentences,
+    lastBoundary: lastBoundary,
+    wakeMatch: wakeMatch
   };
 })(window);
