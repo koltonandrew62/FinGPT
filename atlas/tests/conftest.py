@@ -44,7 +44,10 @@ def isolated(tmp_path, monkeypatch):
     data_dir = tmp_path / "data"
     monkeypatch.setattr(config, "ENV_PATH", env_path)
     monkeypatch.setattr(config, "DATA_DIR", data_dir)
-    monkeypatch.setattr(memory, "DATA_DIR", data_dir)
+    # Tool modules bind DATA_DIR at import (`from ..config import DATA_DIR`): redirect each one.
+    for name, mod in list(sys.modules.items()):
+        if name.startswith("app.") and hasattr(mod, "DATA_DIR"):
+            monkeypatch.setattr(mod, "DATA_DIR", data_dir)
     for key in SETTINGS_ENV_KEYS:
         monkeypatch.delenv(key, raising=False)
     news._CACHE.clear()
