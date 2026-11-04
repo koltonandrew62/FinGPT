@@ -197,6 +197,158 @@ def test_fetch_url_too_many_redirects():
     assert out["error"] == "Too many redirects."
 
 
+@pytest.mark.parametrize(
+    "answer",
+    [
+        ["127.0.0.1"],
+        ["10.1.2.3"],
+        ["169.254.169.254"],
+        ["93.184.215.14", "192.168.1.20"],  # any private address in the answer is enough
+        ["::1"],
+        ["fe80::1%eth0"],
+        ["::ffff:127.0.0.1"],
+        ["100.64.0.7"],
+    ],
+)
+def test_fetch_url_rejects_names_that_resolve_privately(fake_dns, answer):
+    fake_dns["127.0.0.1.nip.io"] = answer
+    out = fetch("http://127.0.0.1.nip.io:8765/api/state", lambda r: pytest.fail("must not send a request"))
+    assert out["error"] == "That address points to this computer or a private network, so it can't be fetched."
+
+
+def test_fetch_url_resolves_the_host_the_client_will_connect_to(monkeypatch):
+    import app.util as util
+
+    asked, seen = [], []
+    monkeypatch.setattr(util, "_getaddrinfo", lambda host, port: asked.append((host, port)) or ["93.184.215.14"])
+
+    def handler(r):
+        seen.append(r.url.raw_host)
+        return httpx.Response(200, text="ok", headers={"content-type": "text/plain"})
+
+    out = fetch("https://bücher.de/x", handler)
+    assert out["content"] == "ok"
+    assert asked == [("xn--bcher-kva.de", 443)] and seen == [b"xn--bcher-kva.de"]
+
+
+@pytest.mark.parametrize("url", ["http://127。0。0。1:8765/api/state", "http://①②⑦.0.0.1/", "http://ｌｏｃａｌｈｏｓｔ/"])
+def test_fetch_url_rejects_unicode_spellings_of_local_hosts(url):
+    out = fetch(url, lambda r: pytest.fail("must not send a request"))
+    assert out["error"] == "Only public http(s) URLs can be fetched."
+
+
+def test_fetch_url_unknown_host(fake_dns):
+    import socket
+
+    fake_dns["no-such-site.example"] = socket.gaierror(-2, "Name or service not known")
+    out = fetch("https://no-such-site.example/", lambda r: pytest.fail("must not send a request"))
+    assert out["error"].startswith("Couldn't find the site no-such-site.example")
+
+
+def test_fetch_url_blocks_redirect_to_name_resolving_privately(fake_dns):
+    fake_dns["internal.attacker.example"] = ["10.0.0.8"]
+    hits = []
+
+    def handler(r):
+        hits.append(str(r.url))
+        if r.url.host == "evil.example":
+            return httpx.Response(302, headers={"location": "http://internal.attacker.example/admin"})
+        return httpx.Response(200, text="SECRET")
+
+    out = fetch("https://evil.example/x", handler)
+    assert out["error"] == "That page redirects to a private or non-web address, so it can't be fetched."
+    assert hits == ["https://evil.example/x"]
+
+
+def test_fetch_url_revalidates_every_hop(fake_dns):
+    fake_dns["c.example"] = ["127.0.0.1"]
+    hits = []
+
+    def handler(r):
+        hits.append(r.url.host)
+        nxt = {"a.example": "https://b.example/2", "b.example": "//c.example/3"}.get(r.url.host)
+        return httpx.Response(307, headers={"location": nxt}) if nxt else httpx.Response(200, text="SECRET")
+
+    out = fetch("https://a.example/1", handler)
+    assert "redirects to a private" in out["error"]
+    assert hits == ["a.example", "b.example"]
+
+
+def test_fetch_url_never_auto_follows_on_a_redirect_following_client():
+    hits = []
+
+    def handler(r):
+        hits.append(str(r.url))
+        if r.url.path == "/old":
+            return httpx.Response(302, headers={"location": "http://127.0.0.1:8765/api/state"})
+        return httpx.Response(200, text="SECRET")
+
+    out = fetch("https://example.com/old", handler)  # fetch() builds the client with follow_redirects=True
+    assert "redirects to a private" in out["error"] and hits == ["https://example.com/old"]
+
+
+def test_fetch_url_follows_five_redirects_but_not_six():
+    def handler(limit):
+        def h(r):
+            n = int(r.url.path.strip("/") or 0)
+            if n < limit:
+                return httpx.Response(302, headers={"location": f"/{n + 1}"})
+            return httpx.Response(200, text=f"arrived {n}", headers={"content-type": "text/plain"})
+
+        return h
+
+    assert fetch("https://hops.example/0", handler(5))["content"] == "arrived 5"
+    assert fetch("https://hops.example/0", handler(6))["error"] == "Too many redirects."
+
+
+def test_fetch_url_stops_downloading_after_the_size_cap():
+    sent = []
+
+    async def body():
+        yield b"<html><body><p>Short visible text.</p>"
+        for _ in range(200):  # 200 x 64 KB = 12.8 MB of markup if it were read to the end
+            sent.append(1)
+            yield b"<!--" + b"x" * (64 * 1024 - 7) + b"-->"
+
+    out = fetch("https://huge.example/", lambda r: httpx.Response(200, headers={"content-type": "text/html"}, content=body()))
+    assert out["content"].startswith("Short visible text.")
+    assert out["note"] == "Only the first 2 MB of this page was read."
+    assert len(sent) <= 32  # stopped at ~2 MB instead of downloading 12.8 MB
+
+
+def test_fetch_url_small_page_has_no_truncation_note():
+    out = fetch("https://example.com/", lambda r: httpx.Response(200, text=ARTICLE, headers={"content-type": "text/html"}))
+    assert "note" not in out
+
+
+def test_fetch_public_caps_bytes_exactly():
+    from app.tools.web import fetch_public
+
+    async def go():
+        async def body():
+            for _ in range(10):
+                yield b"x" * 1000
+
+        transport = httpx.MockTransport(lambda r: httpx.Response(200, content=body()))
+        async with httpx.AsyncClient(transport=transport) as http:
+            r, raw, truncated = await fetch_public(http, "https://example.com/", max_bytes=2500)
+            return raw, truncated
+
+    raw, truncated = run(go())
+    assert raw == b"x" * 2500 and truncated is True
+
+
+def test_fetch_url_decodes_declared_charset():
+    page = "<html><head><title>Café</title></head><body><p>Crème brûlée</p></body></html>".encode("latin-1")
+    out = fetch("https://example.fr/", lambda r: httpx.Response(200, content=page, headers={"content-type": "text/html; charset=ISO-8859-1"}))
+    assert out["title"] == "Café" and "Crème brûlée" in out["content"]
+
+
+def test_fetch_url_unknown_charset_falls_back_to_utf8():
+    out = fetch("https://example.com/", lambda r: httpx.Response(200, content="héllo".encode(), headers={"content-type": "text/plain; charset=x-bogus"}))
+    assert out["content"] == "héllo"
+
+
 def test_fetch_url_google_news_redirect():
     out = fetch("https://news.google.com/rss/articles/abc", lambda r: httpx.Response(200, text="<html>js redirect</html>"))
     assert "Google News redirect links" in out["error"]

@@ -252,7 +252,8 @@ def test_hacker_news():
 
 
 def test_get_news_tool_shape():
-    router = Router({"news.google.com/rss/search": rss(["Federal Reserve news"])})
+    # Stamp the item now, not at import: the module-level NOW is minutes old on a slow full run.
+    router = Router({"news.google.com/rss/search": rss(["Federal Reserve news"], base=datetime.now(timezone.utc))})
 
     async def go():
         async with mock_http(router) as http:

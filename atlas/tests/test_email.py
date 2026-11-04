@@ -203,12 +203,18 @@ class FakeIMAP:
 
     def logout(self):
         self.logged_out = True
+        if FakeIMAP.logout_error:
+            raise FakeIMAP.logout_error
+
+    def shutdown(self):
+        self.shut_down = True
 
 
 @pytest.fixture
 def fake_imap(monkeypatch):
     FakeIMAP.instances = []
     FakeIMAP.login_error = None
+    FakeIMAP.logout_error = None
     monkeypatch.setattr(email_tools.imaplib, "IMAP4_SSL", FakeIMAP)
     return FakeIMAP
 
@@ -257,9 +263,78 @@ def test_list_emails_errors(fake_imap):
     assert fake_imap.instances[-1].logged_out
     fake_imap.login_error = email_tools.imaplib.IMAP4.error("AUTHENTICATIONFAILED")
     assert "rejected the login" in list_emails(ctx)["error"]
+    assert fake_imap.instances[-1].logged_out  # the connection is closed, not leaked
     fake_imap.login_error = OSError("unreachable")
     assert "Couldn't reach the mail server (imap.gmail.com)" in list_emails(ctx)["error"]
+    assert fake_imap.instances[-1].logged_out
+    fake_imap.login_error = UnicodeEncodeError("ascii", "pässword", 1, 2, "ordinal not in range(128)")
+    assert "UnicodeEncodeError" in list_emails(ctx)["error"]
+    assert fake_imap.instances[-1].logged_out
     assert list_emails(make_ctx())["error"] == SETUP_HINT
+
+
+def test_imap_connect_failure_is_friendly(monkeypatch):
+    def refuse(*a, **k):
+        raise ConnectionRefusedError(111, "Connection refused")
+
+    monkeypatch.setattr(email_tools.imaplib, "IMAP4_SSL", refuse)
+    out = list_emails(make_ctx(email_address="me@gmail.com", email_password="pw"))
+    assert out["error"].startswith("Couldn't reach the mail server (imap.gmail.com)")
+
+
+def test_failed_logout_still_closes_the_socket(fake_imap):
+    fake_imap.logout_error = OSError("connection reset")
+    ctx = make_ctx(email_address="me@gmail.com", email_password="pw")
+    assert list_emails(ctx)["messages"]
+    assert getattr(fake_imap.instances[-1], "shut_down", False)
+    fake_imap.login_error = email_tools.imaplib.IMAP4.error("AUTHENTICATIONFAILED")
+    assert "rejected the login" in list_emails(ctx)["error"]
+    assert getattr(fake_imap.instances[-1], "shut_down", False)
+
+
+def test_rejected_login_closes_a_real_socket(monkeypatch):
+    """End to end over loopback: a server that refuses LOGIN; the client socket must end up closed."""
+    import socket
+    import threading
+
+    srv = socket.create_server(("127.0.0.1", 0))
+    port = srv.getsockname()[1]
+    seen = []
+
+    def serve():
+        conn, _ = srv.accept()
+        with conn, conn.makefile("rb") as rf:
+            conn.sendall(b"* OK [CAPABILITY IMAP4rev1 AUTH=PLAIN] ready\r\n")
+            for line in rf:
+                tag, _, rest = line.decode().strip().partition(" ")
+                seen.append(rest.split(" ", 1)[0].upper())
+                if rest.upper().startswith("LOGIN"):
+                    conn.sendall(f"{tag} NO [AUTHENTICATIONFAILED] Invalid credentials\r\n".encode())
+                elif rest.upper().startswith("LOGOUT"):
+                    conn.sendall(f"* BYE\r\n{tag} OK LOGOUT completed\r\n".encode())
+                    break
+                else:
+                    conn.sendall(f"{tag} OK\r\n".encode())
+
+    thread = threading.Thread(target=serve, daemon=True)
+    thread.start()
+    made = []
+
+    class PlainIMAP(email_tools.imaplib.IMAP4):  # same protocol without TLS
+        def __init__(self, host, port, ssl_context=None, timeout=None):
+            super().__init__(host, port, timeout=timeout)
+            made.append(self)
+
+    monkeypatch.setattr(email_tools.imaplib, "IMAP4_SSL", PlainIMAP)
+    settings = Settings(email_address="me@example.com", email_password="wrong", imap_host="127.0.0.1", imap_port=port)
+    try:
+        with pytest.raises(ToolError, match="rejected the login"):
+            email_tools._imap(settings)
+        thread.join(5)
+    finally:
+        srv.close()
+    assert made and made[0].sock.fileno() == -1  # closed
+    assert "LOGIN" in seen and seen[-1] == "LOGOUT"
 
 
 def test_read_email(fake_imap):

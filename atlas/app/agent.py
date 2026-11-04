@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import secrets
 import uuid
 from datetime import datetime
 from typing import AsyncIterator
@@ -11,7 +12,7 @@ from .config import Settings
 from .llm import LLMError, OpenRouter
 from .tools import TOOLS, ToolContext, call_tool, schemas
 from .tools.memory import memories, pending_reminders
-from .util import clip
+from .util import clip, clip_middle
 
 MAX_STEPS = 30  # a restaurant booking in the browser can take 10-20 sequential actions
 MAX_HISTORY = 40
@@ -44,7 +45,7 @@ class ConfirmationBroker:
         self.pending: dict[str, asyncio.Future] = {}
 
     def create(self) -> tuple[str, asyncio.Future]:
-        cid = uuid.uuid4().hex[:12]
+        cid = secrets.token_urlsafe(16)  # 128 random bits: an id is the only thing that approves an action
         fut = asyncio.get_running_loop().create_future()
         self.pending[cid] = fut
         return cid, fut
@@ -109,7 +110,7 @@ KNOWLEDGE & ACCURACY
 
 TOOLS & ACTIONS
 - You can act on the computer: open apps and sites, play media, control volume, read system status, find/open/read/write files, use the clipboard, type and press keys, run shell commands, lock or power-manage the PC, read and send email, send texts and start calls, control smart-home devices, operate your own web browser (bookings, reservations, forms, orders), manage the calendar and to-do list, get directions, order rides and food, track packages, and keep notes, contacts, reminders and long-term memory. Behave like a capable human assistant: if a task needs several tools, chain them without being told how.
-- Actions with side effects (send_email, send_text_message, make_phone_call, run_command, read_file, write_file, close_application, power_action, type_text, press_keys, final website clicks such as Book/Pay/Submit, and security-relevant smart-home actions) show the user an Approve/Deny card automatically. Just call the tool with complete arguments — don't ask "shall I?" first. Only ask first when key details are missing or ambiguous (e.g. unknown recipient address).
+- Actions with side effects (send_email, send_text_message, make_phone_call, run_command, read_file, write_file, close_application, power_action, type_text, press_keys, final website clicks such as Book/Pay/Submit, security-relevant smart-home actions, and opening programs, scripts or apps ATLAS doesn't know) show the user an Approve/Deny card automatically. Just call the tool with complete arguments — don't ask "shall I?" first. Only ask first when key details are missing or ambiguous (e.g. unknown recipient address).
 - If the user denies an action, acknowledge briefly and ask what to change.
 - Emails: write complete, polished messages in the user's voice, signed with their name ({settings.user_name or 'ask if unknown'}). When replying to an email, read it first.
 - Use several tools in one step when they're independent (e.g. weather + news + markets for a briefing).
@@ -216,6 +217,67 @@ def prepare_history(history: list[dict]) -> list[dict]:
     return out
 
 
+_CARD_RESERVED = {"type", "id", "call_id", "name"}  # set by the agent; a card can't override them
+# The HUD shows at most 40 fields, 4000 characters of a field value and 20000 of the body, and cuts the rest
+# silently (it also drops any value that isn't text). The agent cuts first, visibly, so a card can never hide part of
+# what will run (the tail of a command, a recipient, keys to type).
+CARD_MAX_FIELDS = 40
+CARD_FIELD_LIMIT = 3500
+CARD_BODY_LIMIT = 16000
+
+
+def _shown(value) -> str:
+    """A card value as the user reads it: text as-is, anything else as JSON."""
+    if isinstance(value, str):
+        return value
+    if value is None:
+        return ""
+    try:
+        return json.dumps(value, ensure_ascii=False, default=str)
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _card_event(t, card: dict) -> dict:
+    """The displayable part of a confirm event, built from a preview / gate card."""
+    out = {"title": t.label, "fields": [], "body": "", **{k: v for k, v in card.items() if k not in _CARD_RESERVED}}
+    out["title"] = clip(_shown(out["title"]), 300) or t.label
+    raw = out["fields"]
+    if isinstance(raw, dict):
+        raw = list(raw.items())
+    elif not isinstance(raw, (list, tuple)):
+        raw = [] if raw in (None, "") else [["Details", raw]]
+    fields = []
+    for f in raw:
+        if isinstance(f, (list, tuple)) and len(f) >= 2:
+            fields.append([clip(_shown(f[0]), 150), clip_middle(_shown(f[1]), CARD_FIELD_LIMIT)])
+        else:
+            fields.append(["", clip_middle(_shown(f), CARD_FIELD_LIMIT)])
+    body = _shown(out["body"])
+    if len(fields) > CARD_MAX_FIELDS:  # the rest go into the body rather than off the card
+        extra = fields[CARD_MAX_FIELDS - 1:]
+        fields = fields[: CARD_MAX_FIELDS - 1] + [["More", f"{len(extra)} more fields, listed below"]]
+        body = "\n".join(f"{k}: {v}" for k, v in extra) + (f"\n\n{body}" if body else "")
+    out["fields"] = fields
+    out["body"] = clip_middle(body, CARD_BODY_LIMIT)
+    return out
+
+
+def _generic_card(t, args: dict, body: str = "") -> dict:
+    return {"title": t.label, "fields": [[k, clip_middle(_shown(v), 2000)] for k, v in args.items()], "body": body}
+
+
+def _unique_ids(calls: list[dict]) -> None:
+    """Every call in a step needs its own id: results are matched to calls by it."""
+    seen: set[str] = set()
+    for c in calls:
+        cid = str(c.get("id") or "")
+        if not cid or cid in seen:
+            cid = f"{cid or 'call'}_{uuid.uuid4().hex[:8]}"
+        c["id"] = cid
+        seen.add(cid)
+
+
 def _summarize(result: str) -> tuple[str, bool]:
     try:
         data = json.loads(result)
@@ -289,6 +351,7 @@ async def run_turn(
             yield {"type": "done", "messages": new_messages}
             return
 
+        _unique_ids(calls)
         assistant_msg = {
             "role": "assistant",
             "content": text or None,
@@ -313,14 +376,25 @@ async def run_turn(
                 parsed.append((c, None, f"Invalid JSON arguments: {exc}"))
 
         results: dict[str, str] = {}
+
+        def finished(c: dict, raw: str) -> list[dict]:
+            """Record a call's result; the UI events for it go out as soon as it's known."""
+            results[c["id"]] = raw
+            summary, ok = _summarize(raw)  # the full result: a clipped one is no longer valid JSON
+            evs = [{"type": "tool", "state": "done" if ok else "error", "id": c["id"], "name": c["name"], "summary": summary}]
+            if c["name"] in REFRESH_PANELS and ok:  # only after a successful change
+                evs.append({"type": "refresh", "panel": REFRESH_PANELS[c["name"]]})
+            return evs
+
         parallel: list[tuple[dict, dict]] = []
         ordered: list[tuple[dict, dict]] = []
+        invalid: list[tuple[dict, str]] = []
         for c, args, err in parsed:
             t = TOOLS.get(c["name"])
             label = t.label if t else c["name"]
             yield {"type": "tool", "state": "start", "id": c["id"], "name": c["name"], "label": label, "args": args or {}}
             if err:
-                results[c["id"]] = json.dumps({"error": err})
+                invalid.append((c, err))
             elif t and (
                 settings.needs_confirmation(c["name"])
                 or (t.gate and c["name"] not in settings.auto_approve)
@@ -329,6 +403,9 @@ async def run_turn(
                 ordered.append((c, args))
             else:
                 parallel.append((c, args))
+        for c, err in invalid:
+            for ev in finished(c, json.dumps({"error": err})):
+                yield ev
 
         async def run_one(c, args):
             t = TOOLS.get(c["name"])
@@ -341,7 +418,8 @@ async def run_turn(
         if parallel:
             outs = await asyncio.gather(*(run_one(c, a) for c, a in parallel))
             for (c, _), out in zip(parallel, outs):
-                results[c["id"]] = out
+                for ev in finished(c, out):
+                    yield ev
 
         # Ordered calls: approval-gated tools and browser actions, one at a time, so each gate inspects
         # the state left by the previous action (e.g. the page after a time slot was clicked).
@@ -350,42 +428,44 @@ async def run_turn(
             card = None
             if settings.needs_confirmation(c["name"]):
                 try:
-                    card = t.preview(args) if t.preview else {"title": t.label, "fields": [[k, clip(str(v), 300)] for k, v in args.items()], "body": ""}
+                    card = t.preview(args) if t.preview else None
                 except Exception:
-                    card = {"title": t.label, "fields": [[k, clip(str(v), 300)] for k, v in args.items()], "body": ""}
+                    card = None
+                if not isinstance(card, dict) or not card:  # a statically gated tool always asks
+                    card = _generic_card(t, args)
             elif t.gate and c["name"] not in settings.auto_approve:
                 try:
                     card = await asyncio.wait_for(t.gate(ctx, args), timeout=GATE_TIMEOUT)
-                except Exception:  # fail closed: if we can't inspect the action, ask
-                    card = {
-                        "title": t.label,
-                        "fields": [[k, clip(str(v), 300)] for k, v in args.items()],
-                        "body": "ATLAS couldn't inspect this action, so it needs your approval.",
-                    }
+                    if card and not isinstance(card, dict):
+                        raise TypeError(f"gate answered {type(card).__name__}, not a card")
+                except Exception:  # error, timeout or odd answer — fail closed: if we can't inspect the action, ask
+                    card = _generic_card(t, args, "ATLAS couldn't inspect this action, so it needs your approval.")
             if not card:
-                results[c["id"]] = await run_one(c, args)
+                for ev in finished(c, await run_one(c, args)):
+                    yield ev
                 continue
             cid, fut = broker.create()
-            yield {"type": "confirm", "id": cid, "call_id": c["id"], "name": c["name"], **card}
-            try:
-                approved = await asyncio.wait_for(fut, timeout=CONFIRM_TIMEOUT)
-            except asyncio.TimeoutError:
-                approved = False
+            try:  # covers the yield too: a consumer that stops reading here must not leave the card pending
+                yield {"type": "confirm", "id": cid, "call_id": c["id"], "name": c["name"], **_card_event(t, card)}
+                try:
+                    approved = await asyncio.wait_for(fut, timeout=CONFIRM_TIMEOUT)
+                except asyncio.TimeoutError:
+                    approved = False
             finally:  # on cancellation (client went away) the error propagates and nothing runs
                 broker.discard(cid)
             yield {"type": "confirm_result", "id": cid, "approved": approved}
             if approved:
-                results[c["id"]] = await run_one(c, args)
+                out = await run_one(c, args)
             else:
-                results[c["id"]] = json.dumps({"error": "The user declined this action. Do not retry it unless they ask."})
+                out = json.dumps({"error": "The user declined this action. Do not retry it unless they ask."})
+            for ev in finished(c, out):
+                yield ev
 
-        for c, _args, _err in parsed:
-            out = clip(results.get(c["id"], json.dumps({"error": "not executed"})), TOOL_RESULT_LIMIT)
-            summary, ok = _summarize(out)
-            yield {"type": "tool", "state": "done" if ok else "error", "id": c["id"], "name": c["name"], "summary": summary}
-            if c["name"] in REFRESH_PANELS and ok:
-                yield {"type": "refresh", "panel": REFRESH_PANELS[c["name"]]}
-            tool_msg = {"role": "tool", "tool_call_id": c["id"], "content": out}
+        for c, _args, _err in parsed:  # results go back to the model in call order
+            if c["id"] not in results:
+                for ev in finished(c, json.dumps({"error": "not executed"})):
+                    yield ev
+            tool_msg = {"role": "tool", "tool_call_id": c["id"], "content": clip(results[c["id"]], TOOL_RESULT_LIMIT)}
             messages.append(tool_msg)
             new_messages.append(tool_msg)
 

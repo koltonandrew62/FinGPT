@@ -11,7 +11,7 @@ from app import config
 from app.config import load_env_file
 from app.llm import LLMError, OpenRouter
 from app.tools import TOOLS, memory
-from conftest import REAL_ENV_PATH, file_stamp, no_network
+from conftest import REAL_ENV_PATH, file_stamp, no_network, run
 from test_agent import FakeLLM, text, tool_calls
 
 STATE_KEYS = {
@@ -372,3 +372,72 @@ def test_panels_degrade_gracefully_offline(srv):
     assert set(w) == {"error"}
     sysinfo = client.get("/api/system").json()
     assert {"os", "cpu_percent", "memory", "disk", "battery", "uptime_hours"} <= set(sysinfo) or "error" in sysinfo
+
+
+# ------------------------------------------------------------------ startup banner
+@pytest.mark.parametrize(
+    "name, url",
+    [
+        ("ATLAS", "http://127.0.0.1:8765/"),
+        ("ATLAS", "http://127.0.0.1:65535/"),
+        ("Jarvis-Assistant-Prime", "http://127.0.0.1:8770/"),
+        ("アトラス", "http://127.0.0.1:8765/"),  # double-width characters
+        ("", "http://127.0.0.1:8765/"),
+    ],
+)
+def test_banner_right_border_lines_up(name, url):
+    from app.server import _cell_width, banner
+
+    lines = [line for line in banner(name, url).splitlines() if line]
+    assert len(lines) == 4
+    widths = {_cell_width(line) for line in lines}
+    assert len(widths) == 1, lines  # every row, borders included, is the same width
+    assert lines[0].strip()[0] == "┌" and lines[-1].strip()[-1] == "┘"
+    assert all(line.rstrip().endswith("│") for line in lines[1:-1])
+    assert url in lines[1] and "Press Ctrl+C to shut down." in lines[2]
+
+
+def test_print_banner_falls_back_to_ascii(monkeypatch):
+    from app import server
+
+    out = []
+
+    def strict_print(text):
+        text.encode("ascii")  # a legacy console encoding raises UnicodeEncodeError for box characters
+        out.append(text)
+
+    monkeypatch.setattr("builtins.print", strict_print)
+    server._print_banner(server.banner("ATLAS", "http://127.0.0.1:8765/"))
+    assert out and "+------" in out[0] and "| ATLAS" not in out[0] and "|  ATLAS      online  >  http://127.0.0.1:8765/  |" in out[0]
+
+
+# ------------------------------------------------------------------ SSE stream cleanup
+def test_chat_stream_closes_the_turn_when_the_client_goes_away(monkeypatch):
+    from app import server
+
+    state = {"closed": False, "resumed": False}
+
+    async def fake_turn(history, settings, llm, broker, ctx):
+        try:
+            yield {"type": "confirm", "id": "abc"}
+            state["resumed"] = True
+            yield {"type": "done", "messages": []}
+        finally:
+            state["closed"] = True  # e.g. run_turn withdrawing its pending approval card
+
+    class GoneRequest:
+        async def is_disconnected(self):
+            return True
+
+    monkeypatch.setattr(server, "run_turn", fake_turn)
+    monkeypatch.setattr(server.S, "http", None, raising=False)
+    monkeypatch.setattr(server.S, "llm", None, raising=False)
+
+    async def go():
+        resp = await server.chat(server.ChatBody(messages=[]), GoneRequest())
+        chunks = [chunk async for chunk in resp.body_iterator]
+        return chunks, dict(state)  # checked at once, not after asyncio.run() finalizes stray generators
+
+    chunks, seen = run(go())
+    assert chunks == ['data: {"type": "confirm", "id": "abc"}\n\n']
+    assert seen == {"closed": True, "resumed": False}

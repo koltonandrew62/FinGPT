@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import secrets
 import socket
 import threading
+import unicodedata
 import webbrowser
 from contextlib import asynccontextmanager
 
@@ -89,9 +91,18 @@ async def guard(request: Request, call_next):
         host = raw_host.rsplit(":", 1)[0] if raw_host.count(":") == 1 else raw_host
     if host not in {"127.0.0.1", "localhost", "::1"}:
         return JSONResponse({"error": "forbidden host"}, status_code=403)
-    # Every API call must carry the per-launch token embedded in the page.
+    # Refuse anything another site sent the browser to (its link, redirect, form or script). ATLAS's own browser
+    # agent can be steered to any address by the pages it visits; if it loaded the HUD here, it would hold the token
+    # and could press Approve on its own cards. Typed addresses and bookmarks send "none", the HUD "same-origin".
+    if request.headers.get("sec-fetch-site", "").strip().lower() in {"cross-site", "same-site"}:
+        return JSONResponse(
+            {"error": "cross-site request: open ATLAS by typing its address, not through a link on another site"},
+            status_code=403,
+        )
+    # Every API call must carry the per-launch token embedded in the page. Compared as bytes: compare_digest
+    # raises on non-ASCII text, which a stray header byte would otherwise turn into a 500.
     if request.url.path.startswith("/api/") and not secrets.compare_digest(
-        request.headers.get("x-atlas-token", ""), S.token
+        request.headers.get("x-atlas-token", "").encode("latin-1", "replace"), S.token.encode()
     ):
         return JSONResponse({"error": "bad token"}, status_code=401)
     response = await call_next(request)
@@ -158,8 +169,25 @@ _STATE_KEYS = {
 }
 
 
+# A password written into an address (https://user:pass@ha.example.com) is a secret too: shown masked, and a saved
+# value that still carries the mask keeps the stored password.
+_URL_PASSWORD = re.compile(r"^([a-z][a-z0-9+.-]*://[^/?#@:]*):([^/?#]*)@", re.I)  # to the last @, as URL parsers do
+_MASK = "••••"
+
+
+def _mask_password(value: str) -> str:
+    return _URL_PASSWORD.sub(lambda m: f"{m.group(1)}:{_MASK}@", value, count=1)
+
+
+def _keep_password(value: str, current: str) -> str:
+    new, old = _URL_PASSWORD.match(value), _URL_PASSWORD.match(current or "")
+    if not new or new.group(2) != _MASK:
+        return value
+    return value[: new.start(2)] + (old.group(2) if old else "") + value[new.end(2):]
+
+
 def _extra_settings() -> dict:
-    return {k: _raw_setting(k) for k in sorted(_STATE_KEYS - SECRET_KEYS)}
+    return {k: _mask_password(_raw_setting(k)) for k in sorted(_STATE_KEYS - SECRET_KEYS)}
 
 
 class SetupBody(BaseModel):
@@ -176,7 +204,7 @@ async def setup(body: SetupBody):
         # Blank secret fields mean "keep the current value".
         if key in SECRET_KEYS and not value:
             continue
-        updates[key] = value
+        updates[key] = _keep_password(value, _raw_setting(key))
     if updates:
         update_env_file(updates)
     S.reload()
@@ -203,8 +231,9 @@ class ChatBody(BaseModel):
 @app.post("/api/chat")
 async def chat(body: ChatBody, request: Request):
     async def events():
+        turn = run_turn(body.messages, S.settings, S.llm, S.broker, S.ctx())
         try:
-            async for ev in run_turn(body.messages, S.settings, S.llm, S.broker, S.ctx()):
+            async for ev in turn:
                 yield f"data: {json.dumps(ev, ensure_ascii=False, default=str)}\n\n"
                 if await request.is_disconnected():
                     break
@@ -212,6 +241,10 @@ async def chat(body: ChatBody, request: Request):
             raise
         except Exception as exc:
             yield f"data: {json.dumps({'type': 'error', 'text': f'Internal error: {exc}'})}\n\n"
+        finally:
+            # Stopping early (client gone) must still run the turn's cleanup now, e.g. withdraw a pending
+            # approval card, instead of whenever the abandoned generator happens to be collected.
+            await turn.aclose()
 
     return StreamingResponse(
         events(),
@@ -298,6 +331,34 @@ def _free_port(host: str, start: int) -> int:
     raise SystemExit(f"No free port found from {start} to {start + 19}.")
 
 
+def _cell_width(text: str) -> int:
+    """Terminal columns a string takes: wide (CJK/emoji) characters count 2, combining marks 0."""
+    width = 0
+    for ch in text:
+        if unicodedata.combining(ch) or unicodedata.category(ch) in ("Mn", "Me", "Cf"):
+            continue
+        width += 2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
+    return width
+
+
+def banner(name: str, url: str) -> str:
+    """The startup box, sized to its longest line so the right border always lines up."""
+    pad = max(0, 10 - _cell_width(name))
+    rows = [f"{name}{' ' * pad} online  →  {url}", "Press Ctrl+C to shut down."]
+    inner = max(42, *(_cell_width(r) for r in rows))
+    rule = "─" * (inner + 4)
+    lines = [f"┌{rule}┐", *(f"│  {r}{' ' * (inner - _cell_width(r))}  │" for r in rows), f"└{rule}┘"]
+    return "\n" + "\n".join("  " + line for line in lines) + "\n"
+
+
+def _print_banner(text: str) -> None:
+    try:
+        print(text)
+    except UnicodeEncodeError:  # e.g. a Windows console on a legacy code page with output redirected
+        table = str.maketrans({"┌": "+", "┐": "+", "└": "+", "┘": "+", "─": "-", "│": "|", "→": ">"})
+        print(text.translate(table).encode("ascii", "replace").decode("ascii"))
+
+
 def main() -> None:
     import uvicorn
 
@@ -305,12 +366,7 @@ def main() -> None:
     port = _free_port(host, S.settings.port)
     S.port = S.settings.port = port
     url = f"http://127.0.0.1:{port}/"
-    print(
-        "\n  ┌──────────────────────────────────────────────┐\n"
-        f"  │  {S.settings.assistant_name:<10} online  →  {url:<27}│\n"
-        "  │  Press Ctrl+C to shut down.                  │\n"
-        "  └──────────────────────────────────────────────┘\n"
-    )
+    _print_banner(banner(S.settings.assistant_name, url))
     if not S.settings.api_key:
         print("  No OpenRouter key yet — the page will ask for it.\n")
     if S.settings.open_browser:

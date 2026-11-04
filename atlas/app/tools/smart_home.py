@@ -548,7 +548,8 @@ async def _gate_card(ctx, args: dict) -> dict | None:
         reason = approval_reason(domain, service, ids, payload)
         if not reason and any(e.split(".", 1)[0] in NAME_CHECK_DOMAINS for e in _reach(domain, service, ids, payload, {})):
             try:
-                states = await _live_states(ctx, domain, service, ids, payload)
+                # Bounded below the agent's gate timeout, so a slow hub gets this device-specific card.
+                states = await asyncio.wait_for(_live_states(ctx, domain, service, ids, payload), LOOKUP_DEADLINE)
             except Exception as exc:  # unreachable, timeout, odd reply: ask rather than guess
                 detail = str(exc) if isinstance(exc, ToolError) else exc.__class__.__name__
                 reason = f"ATLAS couldn't check what this device is connected to ({detail})"
@@ -562,6 +563,7 @@ async def _gate_card(ctx, args: dict) -> dict | None:
 # Calls the gate has been consulted for. The agent runs a tool only after its gate (and the user's approval when
 # the gate returns a card), so a call missing from here means the gate was bypassed or never wired.
 GATE_TTL = 900.0
+LOOKUP_DEADLINE = 20.0  # seconds the gate may spend reading device states (the agent allows a gate 30)
 _GATE_SEEN: dict[str, float] = {}
 
 
@@ -586,13 +588,16 @@ def _gate_seen(key: str) -> bool:
 
 async def control_gate(ctx, args: dict) -> dict | None:
     """Approval gate for smart_home_control: a preview card for security-relevant calls, None otherwise."""
-    card = await _gate_card(ctx, args)
     try:
-        a = args if isinstance(args, dict) else {}
-        _note_gate(_call_key(*parse_call(a.get("entity_id"), a.get("service"), a.get("data"))))
-    except Exception:
-        pass  # invalid call: the tool rejects it anyway
-    return card
+        return await _gate_card(ctx, args)
+    finally:
+        # Noted even when the agent gives up on this gate (its timeout): it then shows its own fail-closed
+        # card, and once the user approves that, the tool must run rather than refuse as "never gated".
+        try:
+            a = args if isinstance(args, dict) else {}
+            _note_gate(_call_key(*parse_call(a.get("entity_id"), a.get("service"), a.get("data"))))
+        except Exception:
+            pass  # invalid call: the tool rejects it anyway
 
 
 @tool(

@@ -11,6 +11,7 @@ import fnmatch
 import io
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -62,6 +63,39 @@ ALIASES = {
     "control panel": "settings", "microsoft word": "word", "microsoft excel": "excel", "textedit": "notepad",
     "text editor": "notepad", "microsoft teams": "teams",
 }
+
+
+# A plain application name ("Spotify", "VS Code", "Notepad++", "zoom.us"). Anything else (a path, a URL or protocol
+# link, a tab or newline that would split into a command line, shell characters) can start any program on this
+# computer with any arguments, so open_application refuses it.
+_APP_NAME = re.compile(r"[^\W_][\w .&+'()-]{0,79}")
+
+
+def _check_app_name(name) -> str:
+    text = name.strip() if isinstance(name, str) else ""
+    if not _APP_NAME.fullmatch(text):
+        raise ToolError(
+            "Give the application's plain name, like 'Spotify' or 'VS Code'. To open a file or folder use open_path; "
+            "for a web page use open_website."
+        )
+    return text
+
+
+async def _open_app_gate(ctx, args: dict) -> dict | None:
+    """Known apps open at once. Any other name is looked up on the computer and can be any program there, e.g.
+    'logoff' or 'reboot', which act the moment they start, so the user approves those first."""
+    try:
+        name = _check_app_name((args or {}).get("name"))
+    except ToolError:
+        return None  # the tool refuses it without starting anything
+    if _resolve_app(name)[1] is not None:
+        return None
+    return {
+        "title": "Open application",
+        "fields": [["App", name]],
+        "body": "ATLAS doesn't know an app by this name, so it will start whatever program on this computer has it. "
+        "Some programs act as soon as they start (for example ones that log you off or restart).",
+    }
 
 
 def _resolve_app(name: str):
@@ -155,14 +189,16 @@ def _open_app_sync(name: str) -> str:
 
 @tool(
     "open_application",
-    "Open (launch) an application on the user's computer by name, e.g. 'Spotify', 'Chrome', 'VS Code', "
-    "'Calculator', 'File Explorer', 'Discord', 'Settings', 'Word'.",
+    "Open (launch) an application on the user's computer by its plain name, e.g. 'Spotify', 'Chrome', 'VS Code', "
+    "'Calculator', 'File Explorer', 'Discord', 'Settings', 'Word'. Not paths, links or command lines. Apps ATLAS doesn't "
+    "know by name show the user an approval card first.",
     {"name": {"type": "string"}},
     ["name"],
     label="Launching application",
+    gate=_open_app_gate,
 )
 async def open_application(ctx, name: str):
-    return {"status": await asyncio.to_thread(_open_app_sync, name)}
+    return {"status": await asyncio.to_thread(_open_app_sync, _check_app_name(name))}
 
 
 def _close_preview(args):
@@ -492,6 +528,23 @@ def _expand(path: str) -> Path:
     return p if p.is_absolute() else Path.home() / p
 
 
+def _is_network_path(text: str) -> bool:
+    """\\\\server\\share, //server/share, \\\\?\\UNC\\...: touching one (even to check that it exists) makes Windows
+    connect to that server and offer the user's sign-in hash to it."""
+    return bool(re.match(r"^[\\/]{2}", text))
+
+
+async def _find_files_gate(ctx, args: dict) -> dict | None:
+    folder = (args or {}).get("folder")
+    if not isinstance(folder, str) or not _is_network_path(str(_expand(folder))):
+        return None
+    return {
+        "title": "Search a network folder",
+        "fields": [["Folder", str(_expand(folder))]],
+        "body": "This folder is on another computer. Searching it connects to that computer with your sign-in.",
+    }
+
+
 @tool(
     "find_files",
     "Search the user's files by name (substring or wildcard like '*.pdf'). Searches the home folder by default.",
@@ -501,6 +554,7 @@ def _expand(path: str) -> Path:
     },
     ["name"],
     label="Searching files",
+    gate=_find_files_gate,
 )
 async def find_files(ctx, name: str, folder: str = "~"):
     root = _expand(folder or "~")
@@ -537,12 +591,57 @@ async def find_files(ctx, name: str, folder: str = "~"):
     return await asyncio.to_thread(work)
 
 
+# Opening these with their default app shows them; opening anything else may run it (.exe, .bat, .ps1, .js, .lnk, .url,
+# .desktop, .app, .command, macro-enabled Office files, ...), so open_path asks first.
+SAFE_OPEN_SUFFIXES = {
+    ".pdf", ".txt", ".md", ".rtf", ".csv", ".tsv", ".log", ".doc", ".docx", ".odt", ".xls", ".xlsx", ".ods", ".ppt",
+    ".pptx", ".odp", ".pages", ".numbers", ".key", ".epub", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tif",
+    ".tiff", ".heic", ".heif", ".avif", ".ico", ".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg", ".opus", ".wma",
+    ".mp4", ".m4v", ".mov", ".mkv", ".avi", ".webm", ".wmv", ".zip", ".7z", ".rar", ".tar", ".gz", ".tgz",
+}
+_BUNDLE_SUFFIXES = {".app", ".pkg", ".mpkg", ".bundle", ".prefpane", ".workflow", ".action", ".saver", ".plugin"}
+
+
+def _open_risk(path: str) -> str | None:
+    """Why opening this path needs the user's approval, or None. Never touches a network path."""
+    if _is_network_path(str(_expand(path))):
+        return "it is on another computer on the network"
+    p = _expand(path)
+    try:
+        if not p.exists():
+            return None  # open_path reports "Not found" and opens nothing
+        target = p.resolve()
+        if target.is_dir():
+            if {p.suffix.lower(), target.suffix.lower()} & _BUNDLE_SUFFIXES:
+                return "it is an app or installer package, so opening it runs a program"
+            return None
+        if not {p.suffix.lower(), target.suffix.lower()} <= SAFE_OPEN_SUFFIXES:
+            return "opening a file of this type can run a program, script or shortcut"
+        if not IS_WIN and os.access(target, os.X_OK):
+            return "the file is marked as executable, so opening it may run it"
+    except OSError:
+        return "ATLAS couldn't check what kind of file it is"
+    return None
+
+
+async def _open_path_gate(ctx, args: dict) -> dict | None:
+    path = (args or {}).get("path")
+    if not isinstance(path, str):
+        return None  # the tool fails on it before opening anything
+    reason = await asyncio.to_thread(_open_risk, path)
+    if not reason:
+        return None
+    return {"title": "Open file", "fields": [["Path", str(_expand(path))]], "body": f"This needs your approval because {reason}."}
+
+
 @tool(
     "open_path",
-    "Open a file or folder with its default app (e.g. open a PDF, a photo, or the Downloads folder).",
+    "Open a file or folder with its default app (e.g. open a PDF, a photo, or the Downloads folder). Programs, scripts, "
+    "shortcuts and network locations show the user an approval card first.",
     {"path": {"type": "string"}},
     ["path"],
     label="Opening file",
+    gate=_open_path_gate,
 )
 async def open_path(ctx, path: str):
     p = _expand(path)
@@ -593,7 +692,7 @@ def _write_preview(args):
     return {
         "title": "Append to file" if mode == "append" else "Write file",
         "fields": [["Path", str(_expand(args.get("path", "")))], ["Mode", mode]],
-        "body": clip(args.get("content", ""), 3000),
+        "body": args.get("content", ""),  # all of it: the agent shortens long cards visibly, keeping the end
     }
 
 
@@ -669,15 +768,30 @@ def _pyautogui():
         raise ToolError(f"Keyboard control needs pyautogui (pip install pyautogui): {exc}")
 
 
+def _type_preview(args: dict) -> dict:
+    text = args.get("text", "")
+    fields = []
+    if isinstance(text, str):
+        breaks = text.count("\n") + text.count("\r")  # pyautogui presses Enter for each (twice for \r\n)
+        if breaks:  # invisible at the end of the card, but each one presses Enter (runs a command in a terminal)
+            fields.append(["Presses Enter", f"{breaks} time{'s' if breaks != 1 else ''} (at each line break)"])
+        tabs = text.count("\t")
+        if tabs:
+            fields.append(["Presses Tab", f"{tabs} time{'s' if tabs != 1 else ''}"])
+    return {"title": "Type into the focused window", "fields": fields, "body": text}
+
+
 @tool(
     "type_text",
     "Type text into whatever window currently has focus, as if on the keyboard.",
     {"text": {"type": "string"}},
     ["text"],
     label="Typing",
-    preview=lambda a: {"title": "Type into the focused window", "fields": [], "body": clip(a.get("text", ""), 2000)},
+    preview=_type_preview,
 )
 async def type_text(ctx, text: str):
+    if not isinstance(text, str):  # pyautogui would press each list item as a key name ("win", "enter", ...)
+        raise ToolError("text must be plain text. Use press_keys for keys and shortcuts.")
     pg = _pyautogui()
     await asyncio.to_thread(pg.write, text, 0.01)
     return {"typed_chars": len(text)}

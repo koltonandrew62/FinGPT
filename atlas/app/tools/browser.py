@@ -44,7 +44,7 @@ from urllib.parse import urlencode, urlparse
 
 from ..config import DATA_DIR, load_env_file
 from ..llm import LLMError
-from ..util import clip, is_public_http_url
+from ..util import NonPublicAddress, clip, is_public_http_url, resolves_public
 from . import ToolError, tool
 
 # Tests flip this to drive a local fake site; in normal use only public http(s) sites may be opened.
@@ -390,6 +390,28 @@ def _launch() -> None:
         + " (or set BROWSER_CHANNEL / BROWSER_EXECUTABLE in Settings). Tried: "
         + "; ".join(errors[-4:])
     )
+
+
+def _private(url: str) -> bool:
+    return not ALLOW_PRIVATE and str(url or "").startswith(("http:", "https:")) and not is_public_http_url(url)
+
+
+class _PrivatePage(_Gone):
+    """The tab is on a local / private-network address (ATLAS itself, a router, a NAS) that some page steered it to."""
+
+
+def _leave_private(page) -> None:
+    """browser_open only accepts public sites, but a link, redirect or script on one can take the tab anywhere.
+    Never read or act on a local page: blank the tab and refuse, so its refs are never handed out."""
+    if _private(page.url):
+        try:
+            page.goto("about:blank", timeout=5000)
+        except Exception:
+            pass
+        raise _PrivatePage(
+            "The page went to a local or private network address, which ATLAS's browser doesn't open, so ATLAS left "
+            "it. Treat the site that sent it there as untrusted."
+        )
 
 
 def _alive(page) -> bool:
@@ -880,7 +902,7 @@ def _visible_frames(page) -> list[tuple[object, dict, bool]]:
         if len(out) >= MAX_FRAMES:
             break
         try:
-            if fr.is_detached():
+            if fr.is_detached() or _private(fr.url):  # a public page framing a local one: never shown or tagged
                 continue
             bb = fr.frame_element().bounding_box()
         except Exception:
@@ -930,6 +952,7 @@ def _scroll_label(s: dict) -> str:
 def _snapshot(page=None, status: str | None = None, budget: int = SNAPSHOT_BUDGET, boxes: bool = False,
               full_text: bool = False) -> dict:
     page = page or _page(launch=False)
+    _leave_private(page)
     main = _collect(page.main_frame, "e", FULL_TEXT_LIMIT if full_text else TEXT_LIMIT, boxes, full_text)
     elements = list(main["elements"])
     total = main["total"]
@@ -1013,7 +1036,7 @@ def _snapshot(page=None, status: str | None = None, budget: int = SNAPSHOT_BUDGE
 _INTENT = re.compile(
     r"""\b(?:
         book | reserve | rsvp | register | confirm | pay | purchase | buy | check\s?out | submit | send | sign\s?up
-      | subscribe | delete | transfer | donate | publish | post | finali[sz]e | order\s+now
+      | subscribe | delete | transfer | donate | publish | post | finali[sz]e | order\s+now | approve | authori[sz]e
       | complete\s+(?:my\s+|your\s+|the\s+)?(?:reservation|booking|order|purchase|payment|checkout|registration)
       | finish\s+(?:my\s+|your\s+|the\s+)?(?:reservation|booking|order|purchase|payment|checkout|registration)
       | place\s+(?:my\s+|your\s+|the\s+|an?\s+)?order
@@ -1236,6 +1259,7 @@ def _inspect(page, loc, page_text: bool) -> dict:
 
 def _focused_sync(page_text: bool = True) -> tuple[object, dict | None]:
     page = _page(launch=False)
+    _leave_private(page)  # browser_press acts on whatever has focus, even on a page that was never snapshotted
     frame = page.main_frame
     for _ in range(4):  # descend into the focused (possibly nested, cross-origin) iframe
         if frame.evaluate(_FOCUS_KIND_JS) != "frame":
@@ -1251,6 +1275,8 @@ def _focused_sync(page_text: bool = True) -> tuple[object, dict | None]:
         if nxt is None:
             break
         frame = nxt
+    if _private(frame.url):
+        raise _PrivatePage("The focused element is inside an embedded local-network page, which ATLAS doesn't act on.")
     info = frame.evaluate(_INSPECT_FOCUS_JS, _inspect_opts(page_text))
     if info:
         info["top_url"] = page.url
@@ -1363,6 +1389,9 @@ async def _press_gate(ctx, args: dict) -> dict | None:
 
 
 # ----------------------------------------------------------------------------- actions (worker thread)
+PRIVATE_ONLY = "For safety ATLAS's browser only opens public websites, not local or private network addresses."
+
+
 def _check_url(url: str) -> str:
     u = (url or "").strip()
     if not u:
@@ -1379,7 +1408,7 @@ def _check_url(url: str) -> str:
     if p.scheme.lower() not in ("http", "https") or not host:
         raise ToolError("ATLAS's browser only opens http(s) web pages.")
     if not ALLOW_PRIVATE and not is_public_http_url(u):
-        raise ToolError("For safety ATLAS's browser only opens public websites, not local or private network addresses.")
+        raise ToolError(PRIVATE_ONLY)
     return u
 
 
@@ -1760,7 +1789,15 @@ async def shutdown() -> None:
     timeout=90,
 )
 async def browser_open(ctx, url: str):
-    return await _call(_open_sync, _check_url(url), timeout=85)
+    url = _check_url(url)
+    if not ALLOW_PRIVATE:  # a name can point into the local network too ("192.168.1.1.nip.io", a rebinding host)
+        try:
+            await resolves_public(url)
+        except NonPublicAddress:
+            raise ToolError(PRIVATE_ONLY) from None
+        except OSError:
+            pass  # doesn't resolve from here: the browser reports that itself
+    return await _call(_open_sync, url, timeout=85)
 
 
 @tool(

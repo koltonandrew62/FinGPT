@@ -3,12 +3,15 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from urllib.parse import parse_qs, quote, urljoin, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
-from ..util import BROWSER_UA, clip, html_to_text, is_public_http_url
+import httpx
+
+from ..util import BROWSER_UA, NonPublicAddress, clip, html_to_text, is_public_http_url, resolves_public
 from . import ToolError, tool
 
 MAX_REDIRECTS = 5
+MAX_PAGE_BYTES = 2_000_000  # stop downloading a page after this much (decoded) content
 
 
 async def _openrouter_search(ctx, query: str, max_results: int) -> dict:
@@ -130,24 +133,12 @@ async def web_search(ctx, query: str, max_results: int = 6):
 async def fetch_url(ctx, url: str):
     if not is_public_http_url(url):
         raise ToolError("Only public http(s) URLs can be fetched.")
-    # Follow redirects by hand so a public page can't bounce the request to localhost or the LAN.
-    for _ in range(MAX_REDIRECTS + 1):
-        r = await ctx.http.get(
-            url,
-            headers={"User-Agent": BROWSER_UA, "Accept": "text/html,application/xhtml+xml,*/*"},
-            timeout=20,
-            follow_redirects=False,
-        )
-        if not r.is_redirect:
-            break
-        url = urljoin(str(r.url), r.headers["location"])
-        if not is_public_http_url(url):
-            raise ToolError("That page redirects to a private or non-web address, so it can't be fetched.")
-    else:
-        raise ToolError("Too many redirects.")
-    r.raise_for_status()
+    r, raw, truncated = await fetch_public(ctx.http, url)
+    try:
+        body = raw.decode(r.charset_encoding or "utf-8", errors="replace")
+    except LookupError:  # a charset Python doesn't know
+        body = raw.decode("utf-8", errors="replace")
     ctype = r.headers.get("content-type", "")
-    body = r.text[:2_000_000]
     if "html" in ctype or body.lstrip().startswith("<"):
         title_m = re.search(r"<title[^>]*>(.*?)</title>", body, re.S | re.I)
         main = re.search(r"<(article|main)\b[^>]*>(.*?)</\1>", body, re.S | re.I)
@@ -157,7 +148,55 @@ async def fetch_url(ctx, url: str):
         text, title = body, ""
     if "news.google.com" in str(r.url):
         raise ToolError("Google News redirect links can't be read directly; use web_search on the headline instead.")
-    return {"url": str(r.url), "title": title, "content": clip(text, 9000)}
+    out = {"url": str(r.url), "title": title, "content": clip(text, 9000)}
+    if truncated:
+        out["note"] = f"Only the first {MAX_PAGE_BYTES // 1_000_000} MB of this page was read."
+    return out
+
+
+async def fetch_public(http, url: str, headers: dict | None = None, timeout: float = 20,
+                       max_bytes: int = MAX_PAGE_BYTES) -> tuple[httpx.Response, bytes, bool]:
+    """GET a model-supplied URL without letting it reach this PC or the LAN.
+
+    Every hop (the first request and each redirect, followed by hand up to MAX_REDIRECTS) must be http(s)
+    with a host that is public and whose DNS addresses are all public. The body is streamed and cut off
+    at max_bytes. Returns (response, body bytes, truncated); raises ToolError with a friendly message.
+    """
+    headers = headers or {"User-Agent": BROWSER_UA, "Accept": "text/html,application/xhtml+xml,*/*"}
+    for hop in range(MAX_REDIRECTS + 1):
+        await _vet(url, redirected=hop > 0)
+        async with http.stream("GET", url, headers=headers, timeout=timeout, follow_redirects=False) as r:
+            if r.is_redirect:
+                try:
+                    url = str(r.url.join(r.headers["location"]))
+                except (httpx.InvalidURL, ValueError, UnicodeError):
+                    raise ToolError("That page redirects to an invalid address, so it can't be fetched.") from None
+                continue
+            r.raise_for_status()
+            chunks, size, truncated = [], 0, False
+            async for chunk in r.aiter_bytes():
+                if size + len(chunk) > max_bytes:
+                    chunks.append(chunk[: max_bytes - size])
+                    truncated = True
+                    break
+                chunks.append(chunk)
+                size += len(chunk)
+            return r, b"".join(chunks), truncated
+    raise ToolError("Too many redirects.")
+
+
+async def _vet(url: str, redirected: bool) -> None:
+    try:
+        await resolves_public(url)
+    except NonPublicAddress:
+        if redirected:
+            raise ToolError("That page redirects to a private or non-web address, so it can't be fetched.") from None
+        raise ToolError(
+            "That address points to this computer or a private network, so it can't be fetched."
+        ) from None
+    except OSError:  # socket.gaierror: the name doesn't exist (or there's no connection)
+        host = urlparse(url).hostname or url
+        raise ToolError(f"Couldn't find the site {host} — check the address (or the internet connection).") from None
 
 
 @tool(

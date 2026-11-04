@@ -2,7 +2,13 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from app.util import clip, html_to_text, is_public_http_url, relative_time
+import socket
+
+from app import util
+from app.util import NonPublicAddress, clip, html_to_text, is_public_http_url, is_public_ip, relative_time, resolves_public
+from conftest import run
+
+REAL_GETADDRINFO = util._getaddrinfo
 
 
 @pytest.mark.parametrize(
@@ -39,6 +45,12 @@ from app.util import clip, html_to_text, is_public_http_url, relative_time
         "not a url",
         "",
         "http://[::1/",
+        "http://127。0。0。1/",  # ideographic full stops: IDNA/browsers turn this into 127.0.0.1
+        "http://127．0．0．1/",
+        "http://１２７.0.0.1/",
+        "http://ｌｏｃａｌｈｏｓｔ/",
+        "http://[64:ff9b::7f00:1]/",  # NAT64 of 127.0.0.1
+        "http://[2002:c0a8:101::]/",  # 6to4 of 192.168.1.1
     ],
 )
 def test_blocks_local_private_and_non_http(url):
@@ -58,6 +70,68 @@ def test_blocks_local_private_and_non_http(url):
 )
 def test_allows_public_http(url):
     assert is_public_http_url(url) is True
+
+
+@pytest.mark.parametrize(
+    "addr, public",
+    [
+        ("8.8.8.8", True),
+        ("2606:4700:4700::1111", True),
+        ("::ffff:8.8.8.8", True),
+        ("127.0.0.1", False),
+        ("10.0.0.1", False),
+        ("100.64.0.1", False),
+        ("169.254.169.254", False),
+        ("0.0.0.0", False),
+        ("::", False),
+        ("::1", False),
+        ("fe80::1%eth0", False),
+        ("fd12::1", False),
+        ("::ffff:10.0.0.1", False),
+        ("2001:0:4136:e378:8000:63bf:80ff:fffe", False),  # Teredo with a 127.0.0.1 client
+        ("not an ip", False),
+    ],
+)
+def test_is_public_ip(addr, public):
+    assert is_public_ip(addr) is public
+
+
+def test_resolves_public_checks_every_address(fake_dns):
+    fake_dns["ok.example"] = ["93.184.215.14", "2606:2800:220:1::"]
+    fake_dns["mixed.example"] = ["93.184.215.14", "127.0.0.1"]
+    fake_dns["empty.example"] = []
+    assert run(resolves_public("https://ok.example/a")) == "ok.example"
+    for host in ("mixed.example", "empty.example"):
+        with pytest.raises(NonPublicAddress):
+            run(resolves_public(f"https://{host}/"))
+
+
+def test_resolves_public_rejects_literals_and_non_http_without_lookup(monkeypatch):
+    monkeypatch.setattr(util, "_getaddrinfo", lambda host, port: pytest.fail(f"looked up {host}"))
+    for url in ("http://127.0.0.1/", "http://[::1]:80/", "file:///etc/passwd", "http://localhost/", "http://127。0。0。1/"):
+        with pytest.raises(NonPublicAddress):
+            run(resolves_public(url))
+    assert run(resolves_public("https://8.8.8.8/")) == "8.8.8.8"
+
+
+def test_resolves_public_lookup_failure_propagates(fake_dns):
+    fake_dns["nx.example"] = socket.gaierror(-2, "Name or service not known")
+    with pytest.raises(OSError):
+        run(resolves_public("https://nx.example/"))
+
+
+def test_resolves_public_passes_the_default_port(monkeypatch):
+    asked = []
+    monkeypatch.setattr(util, "_getaddrinfo", lambda host, port: asked.append((host, port)) or ["93.184.215.14"])
+    run(resolves_public("http://a.example/"))
+    run(resolves_public("https://a.example/"))
+    run(resolves_public("https://a.example:8443/"))
+    assert asked == [("a.example", 80), ("a.example", 443), ("a.example", 8443)]
+
+
+def test_real_getaddrinfo_helper_on_a_numeric_host():
+    # Captured at import, before the autouse fake_dns fixture patches it; a numeric host needs no network.
+    assert REAL_GETADDRINFO("127.0.0.1", 80) == ["127.0.0.1"]
 
 
 def test_html_to_text_strips_noise_and_decodes():

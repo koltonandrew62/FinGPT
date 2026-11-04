@@ -2,10 +2,14 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
+import socket
 import sys
 import tempfile
+import threading
+import time
 from pathlib import Path
 
 import httpx
@@ -28,7 +32,10 @@ from app import tools as tool_registry  # noqa: E402
 
 tool_registry.load_all()
 
+from app import util  # noqa: E402
 from app.tools import ToolContext, memory, news, markets, weather  # noqa: E402
+
+FAKE_PUBLIC_IP = "93.184.215.14"  # what every host name "resolves" to in tests unless a test says otherwise
 
 # Every variable Settings.load() looks at; cleared per test so the developer's shell can't leak in.
 SETTINGS_ENV_KEYS = sorted(
@@ -59,6 +66,21 @@ def isolated(tmp_path, monkeypatch):
     markets._CACHE.clear()
     weather._GEO_CACHE.clear()
     weather._WX_CACHE.clear()
+
+
+@pytest.fixture(autouse=True)
+def fake_dns(monkeypatch):
+    """No real DNS lookups in tests. Map a name to a list of addresses (or an exception) to change it."""
+    table: dict[str, object] = {}
+
+    def resolve(host: str, port: int) -> list[str]:
+        answer = table.get(host, [FAKE_PUBLIC_IP])
+        if isinstance(answer, BaseException):
+            raise answer
+        return list(answer)
+
+    monkeypatch.setattr(util, "_getaddrinfo", resolve)
+    return table
 
 
 def run(coro):
@@ -117,3 +139,27 @@ def settings():
 
 def file_stamp(p: Path):
     return p.stat().st_mtime_ns if p.exists() else None
+
+
+@contextlib.contextmanager
+def serve_app(app):
+    """Run an ASGI app under a real uvicorn server on a free loopback port (lifespan off). Yields its base URL."""
+    import uvicorn
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    server = uvicorn.Server(uvicorn.Config(app, lifespan="off", log_level="error"))
+    thread = threading.Thread(target=server.run, kwargs={"sockets": [sock]}, daemon=True)
+    thread.start()
+    try:
+        deadline = time.monotonic() + 10
+        while not server.started:
+            if not thread.is_alive() or time.monotonic() > deadline:
+                raise RuntimeError("uvicorn didn't start")
+            time.sleep(0.02)
+        yield f"http://127.0.0.1:{port}"
+    finally:
+        server.should_exit = True
+        thread.join(10)
+        sock.close()

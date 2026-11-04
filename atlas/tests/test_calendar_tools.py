@@ -6,6 +6,7 @@ import json
 import os
 import time
 from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import httpx
@@ -450,7 +451,7 @@ def test_add_event_ics_file_is_valid(monkeypatch, calendar_env):
     path = r["file"]
     assert calendar_env["files"] and str(calendar_env["files"][0]) == path
     assert path.startswith(str(ct.DATA_DIR / "exports")) and path.endswith(".ics")
-    raw = open(path, "rb").read()
+    raw = Path(path).read_bytes()
     assert all(len(line) <= 75 for line in raw.split(b"\r\n"))  # RFC 5545 line folding
     cal = icalendar.Calendar.from_ical(raw)
     assert str(cal["VERSION"]) == "2.0" and "ATLAS" in str(cal["PRODID"])
@@ -466,7 +467,7 @@ def test_add_event_ics_file_is_valid(monkeypatch, calendar_env):
     assert "click Save" in r["status"]
 
     allday = call("add_calendar_event", title="Holiday", start="2030-12-25")
-    ev2 = icalendar.Calendar.from_ical(open(allday["file"], "rb").read()).walk("VEVENT")[0]
+    ev2 = icalendar.Calendar.from_ical(Path(allday["file"]).read_bytes()).walk("VEVENT")[0]
     assert ev2.decoded("DTSTART") == date(2030, 12, 25) and ev2.decoded("DTEND") == date(2030, 12, 26)
 
 
@@ -825,7 +826,7 @@ def test_injected_text_cannot_add_link_parameters_or_ics_lines(monkeypatch, cale
     monkeypatch.setenv("CALENDAR_PROVIDER", "ics")
     path = call("add_calendar_event", title=evil, start="2030-11-06T12:00", description=evil)["file"]
     assert os.path.dirname(path) == str(ct.DATA_DIR / "exports") and "/" not in os.path.basename(path)
-    raw = open(path, "rb").read()
+    raw = Path(path).read_bytes()
     cal = icalendar.Calendar.from_ical(raw)
     assert len(cal.walk("VEVENT")) == 1 and b"\r\nATTENDEE" not in raw
     assert "ATTENDEE" not in cal.walk("VEVENT")[0]
@@ -841,10 +842,10 @@ def test_readd_merges_and_ics_keeps_the_same_uid(monkeypatch, calendar_env):
     assert len(stored) == 1
     assert (stored[0]["location"], stored[0]["description"]) == ("Luigi's", "Conf #XY12")
     assert stored[0]["end"] == "2030-11-05T21:00-08:00"
-    uid = [str(icalendar.Calendar.from_ical(open(x["file"], "rb").read()).walk("VEVENT")[0]["UID"])
+    uid = [str(icalendar.Calendar.from_ical(Path(x["file"]).read_bytes()).walk("VEVENT")[0]["UID"])
            for x in (first, second)]
     assert uid[0] == uid[1]  # calendar apps update the event instead of adding a second copy
-    ev = icalendar.Calendar.from_ical(open(second["file"], "rb").read()).walk("VEVENT")[0]
+    ev = icalendar.Calendar.from_ical(Path(second["file"]).read_bytes()).walk("VEVENT")[0]
     assert str(ev["LOCATION"]) == "Luigi's" and "Conf #XY12" in str(ev["DESCRIPTION"])
 
 

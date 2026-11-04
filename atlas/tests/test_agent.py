@@ -691,6 +691,185 @@ def test_gate_sees_state_left_by_previous_browser_action(monkeypatch):
     assert card["body"] == "details" and ran == ["Complete"]
 
 
+def test_gate_timeout_fails_closed_then_runs_on_approval(monkeypatch):
+    monkeypatch.setattr(agent, "GATE_TIMEOUT", 0.05)
+
+    async def slow_gate(ctx, args):
+        await asyncio.sleep(5)
+
+    ran = _gated_click(monkeypatch, slow_gate)
+    llm = FakeLLM([tool_calls(("c1", "browser_click_t", '{"target": "Pay"}'))], [text("ok")])
+    events = collect(llm, on_event=answer(True))
+    (card,) = of(events, "confirm")
+    assert "couldn't inspect" in card["body"] and card["fields"] == [["target", "Pay"]]
+    assert ran == ["Pay"]
+
+
+def test_cancelled_while_awaiting_a_gate_runs_nothing(monkeypatch):
+    state = {}
+
+    async def stuck_gate(ctx, args):
+        state["entered"].set()
+        try:
+            await asyncio.sleep(30)
+        except asyncio.CancelledError:
+            state["gate_cancelled"] = True
+            raise
+
+    ran = _gated_click(monkeypatch, stuck_gate)
+    llm = FakeLLM([tool_calls(("c1", "browser_click_t", '{"target": "Pay"}'))], [text("ok")])
+    broker = ConfirmationBroker()
+    seen = []
+
+    async def go():
+        state["entered"] = asyncio.Event()
+
+        async def consume():
+            async for ev in run_turn([{"role": "user", "content": "x"}], config.Settings(), llm, broker, make_ctx()):
+                seen.append(ev)
+
+        task = asyncio.create_task(consume())
+        await asyncio.wait_for(state["entered"].wait(), 2)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    run(go())
+    assert state.get("gate_cancelled") is True
+    assert ran == [] and broker.pending == {} and of(seen, "confirm") == []
+    assert len(llm.requests) == 1
+
+
+def test_consumer_that_stops_at_a_card_withdraws_it(temp_tool):
+    ran, llm = gated_setup(temp_tool)
+    broker = ConfirmationBroker()
+
+    async def go():
+        turn = run_turn([{"role": "user", "content": "x"}], config.Settings(), llm, broker, make_ctx())
+        async for ev in turn:
+            if ev["type"] == "confirm":
+                cid = ev["id"]
+                break  # e.g. the SSE client disconnected right after the card went out
+        assert cid in broker.pending
+        await turn.aclose()
+        return cid
+
+    cid = run(go())
+    assert broker.pending == {} and broker.resolve(cid, True) is False and ran == []
+
+
+def test_sensitive_tool_whose_preview_returns_nothing_still_asks(temp_tool):
+    for empty in (None, {}, "", ["not", "a", "card"]):
+        ran, llm = gated_setup(temp_tool, preview=lambda a, empty=empty: empty)
+        events = collect(llm, on_event=answer(False))
+        (card,) = of(events, "confirm")
+        assert card["title"] == "Label t_danger" and card["fields"] == [["target", "files"]]
+        assert ran == [], empty
+
+
+def test_gate_answering_a_non_card_fails_closed(monkeypatch):
+    async def odd_gate(ctx, args):
+        return "approve me"  # truthy but not a card: must not crash the turn or wave the action through
+
+    ran = _gated_click(monkeypatch, odd_gate)
+    llm = FakeLLM([tool_calls(("c1", "browser_click_t", '{"target": "Pay"}'))], [text("ok")])
+    events = collect(llm, on_event=answer(False))
+    (card,) = of(events, "confirm")
+    assert "couldn't inspect" in card["body"] and ran == []
+    assert events[-1]["type"] == "done"
+
+
+def test_card_keys_cannot_override_the_event(monkeypatch):
+    async def gate(ctx, args):
+        return {"type": "token", "id": "spoof", "call_id": "other", "name": "x", "title": "Pay", "fields": [["Total", "$80"]]}
+
+    ran = _gated_click(monkeypatch, gate)
+    llm = FakeLLM([tool_calls(("c1", "browser_click_t", '{"target": "Pay"}'))], [text("ok")])
+    broker = ConfirmationBroker()
+    events = collect(llm, broker=broker, on_event=answer(True))
+    (card,) = of(events, "confirm")
+    assert card["id"] != "spoof" and card["call_id"] == "c1" and card["name"] == "browser_click_t"
+    assert card["title"] == "Pay" and card["fields"] == [["Total", "$80"]] and card["body"] == ""
+    assert ran == ["Pay"] and of(events, "confirm_result")[0]["id"] == card["id"]
+
+
+def test_no_refresh_when_the_change_failed_or_was_declined(temp_tool, monkeypatch):
+    async def fails(ctx):
+        raise ToolError("Reminder store is locked.")
+
+    async def works(ctx):
+        return {"status": "saved"}
+
+    temp_tool("t_fail_change", fails)
+    temp_tool("t_ok_change", works)
+    temp_tool("t_gated_change", works, sensitive=True)
+    for name in ("t_fail_change", "t_ok_change", "t_gated_change"):
+        monkeypatch.setitem(agent.REFRESH_PANELS, name, "reminders")
+    llm = FakeLLM([tool_calls(("a", "t_fail_change"), ("b", "t_ok_change"), ("c", "t_gated_change"))], [text("ok")])
+    events = collect(llm, on_event=answer(False))
+    refreshes = [i for i, e in enumerate(events) if e["type"] == "refresh"]
+    assert len(refreshes) == 1
+    before = events[refreshes[0] - 1]
+    assert before["type"] == "tool" and before["id"] == "b" and before["state"] == "done"
+
+
+def test_finished_calls_report_before_a_later_approval_card(temp_tool, monkeypatch):
+    async def quick(ctx):
+        return {"status": "quick done"}
+
+    temp_tool("t_quick", quick)
+    page = {}
+
+    async def pick(ctx, target=""):
+        page["picked"] = True
+        return {"status": "slot picked"}
+
+    ran = _gated_click(monkeypatch, _final_click_gate())
+    _add_tool(monkeypatch, "browser_slot_t", pick)
+    llm = FakeLLM(
+        [tool_calls(("q", "t_quick"), ("s", "browser_slot_t"), ("k", "browser_click_t", '{"target": "Complete reservation"}'))],
+        [text("ok")],
+    )
+    events = collect(llm, on_event=answer(True))
+    kinds = [(e["type"], e.get("id") if e["type"] == "tool" else None, e.get("state")) for e in events if e["type"] in ("tool", "confirm")]
+    confirm_at = kinds.index(("confirm", None, None))
+    assert ("tool", "q", "done") in kinds[:confirm_at] and ("tool", "s", "done") in kinds[:confirm_at]
+    assert kinds[confirm_at + 1:] == [("tool", "k", "done")]
+    msgs = events[-1]["messages"]
+    assert [m.get("tool_call_id") for m in msgs[1:4]] == ["q", "s", "k"]  # results keep the call order
+    assert ran == ["Complete reservation"]
+
+
+def test_duplicate_call_ids_in_one_step_are_made_unique(temp_tool):
+    async def echo(ctx, tag=""):
+        return {"status": f"got {tag}"}
+
+    temp_tool("t_echo", echo, properties={"tag": {"type": "string"}})
+    llm = FakeLLM([tool_calls(("dup", "t_echo", '{"tag": "A"}'), ("dup", "t_echo", '{"tag": "B"}'), ("", "t_echo", '{"tag": "C"}'))], [text("ok")])
+    events = collect(llm)
+    msgs = events[-1]["messages"]
+    ids = [tc["id"] for tc in msgs[0]["tool_calls"]]
+    assert ids[0] == "dup" and len(set(ids)) == 3 and all(ids)
+    assert [m["tool_call_id"] for m in msgs[1:4]] == ids
+    assert [json.loads(m["content"])["status"] for m in msgs[1:4]] == ["got A", "got B", "got C"]
+    dones = [e for e in of(events, "tool") if e["state"] == "done"]
+    assert [d["id"] for d in dones] == ids
+    assert_valid_api_history([{"role": "user", "content": "hello"}] + msgs)
+    # and the next request to the model carries them consistently
+    assert [m.get("tool_call_id") for m in llm.requests[1]["messages"][3:6]] == ids
+
+
+def test_summary_comes_from_the_full_result_even_when_clipped(temp_tool):
+    async def big(ctx):
+        return {"status": "Opened opentable.com", "snapshot": "x" * 50000}
+
+    temp_tool("t_big_json", big)
+    events = collect(FakeLLM([tool_calls(("b", "t_big_json"))], [text("ok")]))
+    done = [e for e in of(events, "tool") if e["state"] != "start"][0]
+    assert done["state"] == "done" and done["summary"] == "Opened opentable.com"
+    assert len(events[-1]["messages"][1]["content"]) == agent.TOOL_RESULT_LIMIT
+
+
 def test_new_capability_tools_registered_with_expected_gating():
     from app.tools import load_all
 

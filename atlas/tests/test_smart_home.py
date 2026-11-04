@@ -505,3 +505,62 @@ def test_token_and_url_hygiene(monkeypatch):
 def test_devices_tolerates_odd_argument_types():
     out = tool("smart_home_devices", ctx_for(FakeHA()), query=["kitchen"], domain=None)
     assert "error" not in out
+
+
+# ------------------------------------------------------------------ slow hubs vs. the agent's gate timeout
+class SlowStatesHA(FakeHA):
+    """Answers service calls at once but takes `delay` seconds to report a device's state."""
+
+    def __init__(self, delay, **kw):
+        super().__init__(**kw)
+        self.delay = delay
+
+    async def __call__(self, request):
+        import asyncio
+
+        if request.method == "GET":
+            await asyncio.sleep(self.delay)
+        return FakeHA.__call__(self, request)
+
+
+def test_gate_lookup_has_its_own_deadline(monkeypatch):
+    monkeypatch.setattr(sh, "LOOKUP_DEADLINE", 0.05)
+    p = live_gate(SlowStatesHA(5, states=LIVE), entity_id="switch.sonoff_1000ab", service="turn_on")
+    assert p and "couldn't check" in p["body"] and "TimeoutError" in p["body"]
+
+
+def test_lookup_deadline_is_below_the_agents_gate_timeout():
+    from app import agent
+
+    assert sh.LOOKUP_DEADLINE < agent.GATE_TIMEOUT
+
+
+def test_approval_after_the_agent_timed_out_the_gate_runs_the_call(monkeypatch):
+    """The agent's gate timeout fires first: it shows its own card; once approved, the call goes through."""
+    import asyncio
+
+    from app import agent, config
+    from app.agent import ConfirmationBroker, run_turn
+    from test_agent import FakeLLM, text, tool_calls
+
+    monkeypatch.setattr(agent, "GATE_TIMEOUT", 0.05)
+    ha = SlowStatesHA(1, states=LIVE)
+    ctx = ctx_for(ha)
+    # Its live name ("Garage Door Opener") is security-relevant: the tool's own re-check would ask again.
+    llm = FakeLLM([tool_calls(("c1", "smart_home_control", '{"entity_id": "switch.shelly1_a1b2c3", "service": "turn_on"}'))], [text("ok")])
+    broker = ConfirmationBroker()
+
+    async def go():
+        events = []
+        async for ev in run_turn([{"role": "user", "content": "coffee"}], config.Settings(), llm, broker, ctx):
+            events.append(ev)
+            if ev["type"] == "confirm":
+                asyncio.get_running_loop().call_soon(broker.resolve, ev["id"], True)
+        return events
+
+    events = run(go())
+    (card,) = [e for e in events if e["type"] == "confirm"]
+    assert "couldn't inspect" in card["body"]
+    result = json.loads(events[-1]["messages"][1]["content"])
+    assert result.get("status") == "Called switch.turn_on on switch.shelly1_a1b2c3", result
+    assert [r.url.path for r in ha.requests if r.method == "POST"] == ["/api/services/switch/turn_on"]

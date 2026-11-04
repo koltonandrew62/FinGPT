@@ -148,14 +148,31 @@ async def send_email(ctx, to, subject: str, body: str, cc=None):
 # --------------------------------------------------------------------- reading
 def _imap(settings):
     _, _, host, port = _servers(settings)
-    try:
+    try:  # the constructor closes its own socket if the greeting fails
         conn = imaplib.IMAP4_SSL(host, port, ssl_context=ssl.create_default_context(), timeout=30)
+    except (OSError, imaplib.IMAP4.error) as exc:
+        raise ToolError(f"Couldn't reach the mail server ({host}): {exc}")
+    try:
         conn.login(settings.email_address, settings.email_password)
         return conn
-    except imaplib.IMAP4.error:
-        raise ToolError("The mail server rejected the login. Check the email address and app password in Settings.")
-    except OSError as exc:
-        raise ToolError(f"Couldn't reach the mail server ({host}): {exc}")
+    except BaseException as exc:
+        _close(conn)  # a refused login must not leave the TLS socket open
+        if isinstance(exc, imaplib.IMAP4.error):
+            raise ToolError("The mail server rejected the login. Check the email address and app password in Settings.") from None
+        if isinstance(exc, OSError):
+            raise ToolError(f"Couldn't reach the mail server ({host}): {exc}") from None
+        raise
+
+
+def _close(conn) -> None:
+    """Log out, and make sure the socket is closed even if LOGOUT itself fails."""
+    try:
+        conn.logout()
+    except Exception:
+        try:
+            conn.shutdown()
+        except Exception:
+            pass
 
 
 def _quote_imap(text: str) -> str:
@@ -216,10 +233,7 @@ def _list_sync(settings, folder, unread_only, query, limit):
             messages.sort(key=lambda m: order.get(m["id"], 0))
         return {"folder": folder, "unread_in_folder": unread_total, "messages": messages}
     finally:
-        try:
-            conn.logout()
-        except Exception:
-            pass
+        _close(conn)
 
 
 def _read_sync(settings, uid, folder):
@@ -250,10 +264,7 @@ def _read_sync(settings, uid, folder):
             "reply_to_addresses": [a for _, a in getaddresses([str(msg["Reply-To"] or msg["From"] or "")]) if a],
         }
     finally:
-        try:
-            conn.logout()
-        except Exception:
-            pass
+        _close(conn)
 
 
 @tool(

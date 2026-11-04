@@ -171,6 +171,17 @@ class FakeSite(BaseHTTPRequestHandler):
               <div role="dialog" aria-modal="true"><h2>Complete your booking</h2>
                 <p>Carbone · Fri, Nov 6 · 8:30 PM · 4 guests</p><button>Reserve Now</button></div>"""
             return self._send(_page("Carbone", body))
+        if path == "/steer":  # a public page whose script sends the browser somewhere else
+            target = json.dumps(q.get("to", "/"))
+            return self._send(_page("Deals", f"<p>Loading deals…</p><script>location.href = {target};</script>"))
+        if path == "/links":
+            return self._send(_page("Links", '<p><a href="/private-admin">Router settings</a> <a href="/">Home page</a></p>'))
+        if path == "/private-admin":
+            return self._send(_page("Router admin", '<button onclick="document.title = \'reset\'">Factory reset</button>'))
+        if path == "/framing":
+            return self._send(_page("Framing", '<p>Public page</p><iframe src="/private-frame" width="500" height="200"></iframe>'))
+        if path == "/private-frame":
+            return self._send(_page("Garage", '<p>Garage controller</p><button>Open garage</button>'))
         if path == "/go-home":
             self.send_response(302)
             self.send_header("Location", f"http://127.0.0.1:{self.port}/")
@@ -204,6 +215,7 @@ def site():
     thread.start()
     yield f"http://127.0.0.1:{FakeSite.port}"
     server.shutdown()
+    server.server_close()  # shutdown() only stops the loop; this closes the listening socket
 
 
 class FakeLLM:
@@ -832,6 +844,7 @@ def test_formless_fields_widgets_and_card_numbers(live, ctx):
 def test_redirect_into_private_network_is_blocked(live, ctx, monkeypatch):
     monkeypatch.setattr(browser, "ALLOW_PRIVATE", False)
     monkeypatch.setattr(browser, "_check_url", lambda url: url)  # pretend the start address is public
+    monkeypatch.setattr(browser, "resolves_public", lambda url: asyncio.sleep(0, "example.com"))  # ...and resolves so
     with pytest.raises(ToolError) as err:
         run(browser.browser_open(ctx, url=live + "/go-home"))
     assert "private" in str(err.value)
@@ -909,3 +922,81 @@ def test_approval_card_shows_the_booking_dialog_not_the_header(live, ctx):
     card = run(browser._click_gate(ctx, {"ref": ref_of(snap, "Reserve Now")}))
     assert card and "8:30 PM · 4 guests" in card["body"]
     assert "Neighbourhood guide" not in card["body"]
+
+
+# ----------------------------------------------------------------------------- steering into local addresses
+def test_approve_and_authorize_buttons_are_final():
+    for label in ("Approve", "Approve payment", "Authorize", "Authorise app"):
+        assert browser._click_intent({"tag": "button", "type": "", "label": label, "text": label}), label
+
+
+def test_browser_open_refuses_a_name_that_points_into_the_local_network(fake_dns, ctx, monkeypatch):
+    monkeypatch.setattr(browser, "ALLOW_PRIVATE", False)
+    fake_dns["192.168.1.1.nip.io"] = ["192.168.1.1"]
+    fake_dns["rebind.example"] = ["93.184.215.14", "127.0.0.1"]
+    for url in ("http://192.168.1.1.nip.io/", "https://rebind.example/login", "http://%31%32%37.0.0.1:8765/"):
+        with pytest.raises(ToolError) as err:
+            run(browser.browser_open(ctx, url=url))
+        assert "public websites" in str(err.value), url
+    assert browser._S.context is None or "nip.io" not in run(browser._call(lambda: browser._S.page.url))
+
+
+def test_a_site_cannot_steer_atlas_browser_into_the_atlas_hud(live, ctx, monkeypatch):
+    """A public page's script sends ATLAS's browser to the ATLAS HUD (same machine, guessable port). Loaded there, the
+    page would hold the API token and its Approve buttons / Y key would approve the agent's own cards."""
+    from app import server
+    from conftest import serve_app
+
+    with serve_app(server.app) as base:
+        run(browser.browser_open(ctx, url=f"{live}/steer?to={base}/"))
+        deadline = time.time() + 10
+        while time.time() < deadline and not run(browser._call(lambda: browser._S.page.url)).startswith(base):
+            time.sleep(0.05)
+        landed = run(browser._call(lambda: (browser._S.page.url, browser._S.page.content())))
+        assert landed[0].startswith(base)
+        assert server.S.token not in landed[1] and "cross-site request" in landed[1]
+        # Typed into the address bar (what the user does), the HUD still opens.
+        opened = run(browser._call(lambda: (browser._S.page.goto(base + "/"), browser._S.page.content())[1]))
+        assert server.S.token in opened
+        run(browser._call(lambda: browser._S.page.goto("about:blank")))
+
+
+@pytest.fixture
+def public_except_private_paths(live, monkeypatch):
+    """Treat the fake site as a public website, except its /private-* pages, which stand for a router or NAS."""
+    monkeypatch.setattr(browser, "ALLOW_PRIVATE", False)
+    monkeypatch.setattr(browser, "is_public_http_url", lambda url: "/private" not in url)
+
+    async def public(url):
+        return "example.com"
+
+    monkeypatch.setattr(browser, "resolves_public", public)
+    return live
+
+
+def test_a_link_into_the_local_network_is_left_and_never_snapshotted(public_except_private_paths, ctx):
+    live = public_except_private_paths
+    snap = run(browser.browser_open(ctx, url=live + "/links"))
+    with pytest.raises(ToolError) as err:
+        run(browser.browser_click(ctx, ref=ref_of(snap, "Router settings")))
+    assert "local or private network" in str(err.value)
+    assert run(browser._call(lambda: browser._S.page.url)) == "about:blank"
+
+
+def test_a_page_that_moved_to_a_local_address_is_not_acted_on(public_except_private_paths, ctx):
+    live = public_except_private_paths
+    run(browser.browser_open(ctx, url=live + "/links"))
+    run(browser._call(lambda: browser._S.page.goto(live + "/private-admin")))  # e.g. a script redirect after the snapshot
+    run(browser._call(lambda: browser._S.page.focus("button")))
+    with pytest.raises(ToolError) as err:
+        run(browser.browser_press(ctx, key="Enter"))
+    assert "local or private network" in str(err.value)
+    assert run(browser._call(lambda: browser._S.page.url)) == "about:blank"
+
+
+def test_an_embedded_local_page_is_never_shown_or_tagged(public_except_private_paths, ctx):
+    live = public_except_private_paths
+    snap = run(browser.browser_open(ctx, url=live + "/framing"))
+    dumped = json.dumps(snap)
+    assert "Public page" in dumped and "Garage" not in dumped and "Open garage" not in dumped
+    assert not any(el["ref"].startswith("f") for el in snap["elements"])
