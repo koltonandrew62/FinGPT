@@ -1,0 +1,5 @@
+# Your secrets and personal data never leave your computer.
+.env
+data/
+__pycache__/
+.venv/

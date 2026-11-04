@@ -1,0 +1,2 @@
+# Optional: lets ATLAS type text and press keyboard shortcuts for you.
+pyautogui>=0.9.54
