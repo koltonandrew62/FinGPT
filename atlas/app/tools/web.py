@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from urllib.parse import parse_qs, quote, unquote, urlparse
+from urllib.parse import parse_qs, quote, urljoin, urlparse
 
 from ..util import BROWSER_UA, clip, html_to_text, is_public_http_url
 from . import ToolError, tool
+
+MAX_REDIRECTS = 5
 
 
 async def _openrouter_search(ctx, query: str, max_results: int) -> dict:
@@ -44,9 +46,10 @@ def _ddg_link(href: str) -> str:
     if href.startswith("//"):
         href = "https:" + href
     parsed = urlparse(href)
-    if "duckduckgo.com" in parsed.netloc and parsed.path.startswith("/l/"):
+    if (not parsed.netloc or "duckduckgo.com" in parsed.netloc) and parsed.path.startswith("/l/"):
+        # parse_qs already percent-decodes; decoding again would corrupt targets containing %XX.
         target = parse_qs(parsed.query).get("uddg", [""])[0]
-        return unquote(target) or href
+        return target or href
     return href
 
 
@@ -57,7 +60,7 @@ def parse_ddg(html_text: str, limit: int) -> list[dict]:
         a = re.search(r'<a[^>]+class="[^"]*result__a[^"]*"[^>]+href="([^"]+)"[^>]*>(.*?)</a>', block, re.S)
         if not a:
             continue
-        snippet = re.search(r'class="[^"]*result__snippet[^"]*"[^>]*>(.*?)</a>', block, re.S)
+        snippet = re.search(r'<(a|div|td)\b[^>]*class="[^"]*result__snippet[^"]*"[^>]*>(.*?)</\1>', block, re.S)
         url = _ddg_link(a.group(1).replace("&amp;", "&"))
         if "duckduckgo.com/y.js" in url:  # ads
             continue
@@ -65,7 +68,7 @@ def parse_ddg(html_text: str, limit: int) -> list[dict]:
             {
                 "title": html_to_text(a.group(2)),
                 "url": url,
-                "snippet": html_to_text(snippet.group(1)) if snippet else "",
+                "snippet": html_to_text(snippet.group(2)) if snippet else "",
             }
         )
         if len(results) >= limit:
@@ -127,7 +130,21 @@ async def web_search(ctx, query: str, max_results: int = 6):
 async def fetch_url(ctx, url: str):
     if not is_public_http_url(url):
         raise ToolError("Only public http(s) URLs can be fetched.")
-    r = await ctx.http.get(url, headers={"User-Agent": BROWSER_UA, "Accept": "text/html,application/xhtml+xml,*/*"}, timeout=20)
+    # Follow redirects by hand so a public page can't bounce the request to localhost or the LAN.
+    for _ in range(MAX_REDIRECTS + 1):
+        r = await ctx.http.get(
+            url,
+            headers={"User-Agent": BROWSER_UA, "Accept": "text/html,application/xhtml+xml,*/*"},
+            timeout=20,
+            follow_redirects=False,
+        )
+        if not r.is_redirect:
+            break
+        url = urljoin(str(r.url), r.headers["location"])
+        if not is_public_http_url(url):
+            raise ToolError("That page redirects to a private or non-web address, so it can't be fetched.")
+    else:
+        raise ToolError("Too many redirects.")
     r.raise_for_status()
     ctype = r.headers.get("content-type", "")
     body = r.text[:2_000_000]

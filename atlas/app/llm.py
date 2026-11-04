@@ -153,6 +153,8 @@ class OpenRouter:
                     chunk = json.loads(data)
                 except ValueError:
                     continue
+                if not isinstance(chunk, dict):
+                    continue
                 if "error" in chunk:
                     err = chunk["error"]
                     msg = err.get("message") if isinstance(err, dict) else str(err)
@@ -165,12 +167,19 @@ class OpenRouter:
                     if text:
                         yield {"type": "text", "text": text}
                     for tc in delta.get("tool_calls") or []:
-                        idx = tc.get("index", 0)
+                        idx = tc.get("index")
+                        if idx is None:
+                            # Some providers omit the index: a new id starts a new call, otherwise
+                            # the delta continues the latest one.
+                            idx = max(calls) if calls else 0
+                            if tc.get("id") and calls.get(idx, {}).get("id") not in (None, "", tc["id"]):
+                                idx += 1
                         slot = calls.setdefault(idx, {"id": "", "name": "", "arguments": ""})
                         if tc.get("id"):
                             slot["id"] = tc["id"]
                         fn = tc.get("function") or {}
-                        if fn.get("name"):
+                        # Most providers send the name once; some repeat it in every delta.
+                        if fn.get("name") and fn["name"] != slot["name"]:
                             slot["name"] += fn["name"]
                         if fn.get("arguments"):
                             slot["arguments"] += fn["arguments"]

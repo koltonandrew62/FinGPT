@@ -54,6 +54,8 @@ def memories() -> list[dict]:
 )
 async def remember(ctx, fact: str):
     fact = fact.strip()
+    if not fact:
+        raise ToolError("Nothing to remember.")
     with _LOCK:
         items = memories()
         if any(m["fact"].lower() == fact.lower() for m in items):
@@ -71,6 +73,9 @@ async def remember(ctx, fact: str):
     label="Erasing memory",
 )
 async def forget(ctx, match: str):
+    match = match.strip()
+    if not match:  # "" is a substring of every fact and would wipe the whole memory
+        raise ToolError("Say which fact to forget.")
     with _LOCK:
         items = memories()
         keep = [m for m in items if match.lower() not in m["fact"].lower()]
@@ -94,10 +99,16 @@ def contacts() -> list[dict]:
 def find_contact(name: str) -> dict | None:
     name = name.strip().lower()
     items = contacts()
+    if not name:
+        return None
     for c in items:
         if c["name"].lower() == name:
             return c
-    matches = [c for c in items if name in c["name"].lower() or name in [a.lower() for a in c.get("aliases", [])]]
+    # An exact alias ("mom") beats a partial name match ("Tom Mom...").
+    by_alias = [c for c in items if name in [a.lower() for a in c.get("aliases") or []]]
+    if len(by_alias) == 1:
+        return by_alias[0]
+    matches = [c for c in items if name in c["name"].lower() or c in by_alias]
     return matches[0] if len(matches) == 1 else None
 
 
@@ -116,6 +127,8 @@ def find_contact(name: str) -> dict | None:
 async def save_contact(ctx, name: str, email: str, aliases=None, phone: str | None = None):
     if "@" not in email:
         raise ToolError("That doesn't look like an email address.")
+    if isinstance(aliases, str):  # models sometimes send "mom, mother" instead of a list
+        aliases = [a.strip() for a in aliases.split(",") if a.strip()]
     with _LOCK:
         items = [c for c in contacts() if c["name"].lower() != name.lower()]
         items.append({"name": name, "email": email, "aliases": aliases or [], "phone": phone or ""})
@@ -194,7 +207,8 @@ def _parse_when(minutes: float | None, at: str | None) -> datetime:
         except ValueError:
             raise ToolError("Use ISO format for 'at', e.g. 2026-11-05T09:30.")
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=now.tzinfo)
+            # Interpret as local wall-clock time on *that* date (DST-aware), not today's UTC offset.
+            dt = dt.astimezone()
         return dt
     raise ToolError("Give either minutes_from_now or at.")
 
@@ -223,8 +237,21 @@ async def set_reminder(ctx, message: str, minutes_from_now: float | None = None,
     return {"status": "scheduled", "reminder": r, "due_human": due.strftime("%a %b %d, %I:%M %p")}
 
 
+def _parse_due(value) -> datetime | None:
+    try:
+        dt = datetime.fromisoformat(str(value))
+    except ValueError:
+        return None
+    return dt.astimezone() if dt.tzinfo is None else dt
+
+
 def pending_reminders() -> list[dict]:
-    return sorted([r for r in load("reminders", []) if not r.get("fired")], key=lambda r: r["due"])
+    # Sort by the actual instant: ISO strings with different UTC offsets don't sort as text.
+    def key(r):
+        due = _parse_due(r.get("due"))
+        return due.timestamp() if due else float("inf")
+
+    return sorted([r for r in load("reminders", []) if not r.get("fired")], key=key)
 
 
 @tool(
@@ -260,9 +287,8 @@ def pop_due_reminders() -> list[dict]:
         for r in items:
             if r.get("fired"):
                 continue
-            try:
-                when = datetime.fromisoformat(r["due"])
-            except ValueError:
+            when = _parse_due(r.get("due"))
+            if when is None:
                 continue
             if when <= now:
                 r["fired"] = True
@@ -270,6 +296,6 @@ def pop_due_reminders() -> list[dict]:
         if due:
             # keep the file small: drop reminders fired more than a day ago
             cutoff = now - timedelta(days=1)
-            items = [r for r in items if not r.get("fired") or datetime.fromisoformat(r["due"]) > cutoff]
+            items = [r for r in items if not r.get("fired") or (_parse_due(r.get("due")) or now) > cutoff]
             save("reminders", items)
     return due

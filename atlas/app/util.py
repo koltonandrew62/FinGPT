@@ -4,6 +4,7 @@ from __future__ import annotations
 import html
 import ipaddress
 import re
+import socket
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
@@ -62,15 +63,23 @@ def is_public_http_url(url: str) -> bool:
     """Reject non-http(s) schemes and obvious local/private targets."""
     try:
         parsed = urlparse(url)
+        hostname = parsed.hostname
     except ValueError:
         return False
-    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+    if parsed.scheme not in {"http", "https"} or not hostname:
         return False
-    host = parsed.hostname.lower()
-    if host in {"localhost"} or host.endswith(".local") or host.endswith(".localhost"):
+    host = hostname.lower().rstrip(".")  # "localhost." resolves like "localhost"
+    if not host or host == "localhost" or host.endswith(".local") or host.endswith(".localhost"):
         return False
     try:
         ip = ipaddress.ip_address(host)
     except ValueError:
-        return True
-    return not (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast)
+        # The OS resolver also accepts legacy IPv4 spellings such as "127.1", "2130706433" or
+        # "0x7f000001"; treat anything inet_aton() can parse as that address.
+        try:
+            ip = ipaddress.IPv4Address(socket.inet_aton(host))
+        except (OSError, ValueError):
+            return True
+    return ip.is_global and not (
+        ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast
+    )

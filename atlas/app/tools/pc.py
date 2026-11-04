@@ -696,6 +696,8 @@ async def press_keys(ctx, keys: str):
     combo = [k.strip().lower() for k in keys.replace(" ", "").split("+") if k.strip()]
     mapping = {"win": "winleft", "windows": "winleft", "cmd": "command", "control": "ctrl", "return": "enter", "escape": "esc"}
     combo = [mapping.get(k, k) for k in combo]
+    if not combo:
+        raise ToolError("No keys given.")
     await asyncio.to_thread(pg.hotkey, *combo) if len(combo) > 1 else await asyncio.to_thread(pg.press, combo[0])
     return {"pressed": "+".join(combo)}
 
@@ -732,11 +734,13 @@ async def run_command(ctx, command: str, working_directory: str | None = None, t
     if not ctx.settings.allow_shell:
         raise ToolError("Shell commands are disabled (ALLOW_SHELL=false).")
     cwd = str(_expand(working_directory)) if working_directory else str(Path.home())
+    if not Path(cwd).is_dir():
+        raise ToolError(f"Folder not found: {cwd}")
     timeout = max(5, min(int(timeout_seconds or 60), 300))
 
     def work():
         try:
-            res = _run(_shell_args(command), timeout=timeout) if not working_directory else subprocess.run(
+            res = subprocess.run(
                 _shell_args(command), capture_output=True, text=True, timeout=timeout, cwd=cwd,
                 **({"creationflags": CREATE_NO_WINDOW} if IS_WIN else {}),
             )

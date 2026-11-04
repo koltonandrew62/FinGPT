@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import platform
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -64,54 +65,89 @@ EDITABLE_KEYS = {
 
 def _unquote(value: str) -> str:
     value = value.strip()
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
-        return value[1:-1]
+    if value[:1] in ("'", '"'):
+        q = value[0]
+        i = 1
+        while i < len(value):
+            if q == '"' and value[i] == "\\" and value[i + 1 : i + 2] == '"':
+                i += 2  # escaped quote inside a double-quoted value
+                continue
+            if value[i] == q:
+                break
+            i += 1
+        rest = value[i + 1 :].strip()
+        if i < len(value) and (not rest or rest.startswith("#")):
+            inner = value[1:i]
+            return inner.replace('\\"', '"') if q == '"' else inner
+        if len(value) >= 2 and value[-1] == q:
+            return value[1:-1]
     # strip trailing inline comments on unquoted values
     if " #" in value:
         value = value.split(" #", 1)[0].rstrip()
     return value
 
 
+# Every character str.splitlines() treats as a line break. A value containing one would otherwise
+# smuggle extra KEY=value lines into .env (e.g. AUTO_APPROVE, which the settings screen can't set).
+_LINE_BREAKS = re.compile("[\r\n\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029]+")
+
+
 def _quote(value: str) -> str:
-    value = str(value).replace("\n", " ").strip()
+    value = _LINE_BREAKS.sub(" ", str(value)).strip()
     if value == "" or any(ch in value for ch in " #'\"=\t"):
-        return '"' + value.replace('"', "'") + '"'
+        if '"' not in value:
+            return f'"{value}"'
+        if "'" not in value:
+            return f"'{value}'"
+        return '"' + value.replace('"', '\\"') + '"'
     return value
 
 
-def load_env_file(path: Path = ENV_PATH) -> dict[str, str]:
+def _env_key(line: str) -> tuple[str, str] | None:
+    """Return (key, prefix) for a KEY=value line, or None for blanks/comments."""
+    stripped = line.strip()
+    if not stripped or stripped.startswith("#") or "=" not in stripped:
+        return None
+    key = stripped.partition("=")[0].strip()
+    prefix = ""
+    if key.startswith("export "):
+        key, prefix = key[len("export "):].strip(), "export "
+    return key, prefix
+
+
+def load_env_file(path: Path | None = None) -> dict[str, str]:
+    # Resolved at call time (not as a default argument) so ENV_PATH can be redirected, e.g. in tests.
+    path = ENV_PATH if path is None else path
     values: dict[str, str] = {}
     if not path.exists():
         return values
     for raw in path.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
+        parsed = _env_key(raw)
+        if parsed is None:
             continue
-        key, _, val = line.partition("=")
-        key = key.strip()
-        if key.startswith("export "):
-            key = key[len("export "):].strip()
-        values[key] = _unquote(val)
+        values[parsed[0]] = _unquote(raw.strip().partition("=")[2])
     return values
 
 
-def update_env_file(updates: dict[str, str], path: Path = ENV_PATH) -> None:
+def update_env_file(updates: dict[str, str], path: Path | None = None) -> None:
     """Set keys in .env, keeping comments, ordering and unrelated keys."""
+    path = ENV_PATH if path is None else path
     lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
-    remaining = dict(updates)
+    written: set[str] = set()
     out: list[str] = []
     for raw in lines:
-        stripped = raw.strip()
-        if stripped and not stripped.startswith("#") and "=" in stripped:
-            key = stripped.partition("=")[0].strip()
-            if key.startswith("export "):
-                key = key[len("export "):].strip()
-            if key in remaining:
-                out.append(f"{key}={_quote(remaining.pop(key))}")
-                continue
+        parsed = _env_key(raw)
+        if parsed and parsed[0] in updates:
+            key, prefix = parsed
+            # Rewrite every occurrence: load_env_file keeps the last one, so skipping a
+            # duplicate would silently undo the change.
+            out.append(f"{prefix}{key}={_quote(updates[key])}")
+            written.add(key)
+            continue
         out.append(raw)
-    for key, val in remaining.items():
-        out.append(f"{key}={_quote(val)}")
+    for key, val in updates.items():
+        if key not in written:
+            out.append(f"{key}={_quote(val)}")
     path.write_text("\n".join(out) + "\n", encoding="utf-8")
     try:
         os.chmod(path, 0o600)

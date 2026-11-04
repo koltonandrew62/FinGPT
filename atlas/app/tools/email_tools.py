@@ -61,12 +61,13 @@ def resolve_recipients(values) -> list[str]:
         v = v.strip()
         if not v:
             continue
-        if EMAIL_RE.match(v):
-            out.append(v)
-            continue
-        m = re.search(r"<([^>]+@[^>]+)>", v)
+        # "Name <addr>" / "<addr>" first: EMAIL_RE would also accept "<addr>" with the brackets.
+        m = re.search(r"<([^<>\s]+@[^<>\s]+)>", v)
         if m:
             out.append(m.group(1))
+            continue
+        if EMAIL_RE.match(v):
+            out.append(v)
             continue
         contact = find_contact(v)
         if contact:
@@ -84,7 +85,7 @@ def _send_sync(settings, to, cc, subject, body):
     msg["To"] = ", ".join(to)
     if cc:
         msg["Cc"] = ", ".join(cc)
-    msg["Subject"] = subject
+    msg["Subject"] = " ".join(str(subject or "").split())  # headers can't contain line breaks
     msg.set_content(body)
     context = ssl.create_default_context()
     try:
@@ -92,8 +93,9 @@ def _send_sync(settings, to, cc, subject, body):
             server = smtplib.SMTP_SSL(smtp_host, smtp_port, context=context, timeout=30)
         else:
             server = smtplib.SMTP(smtp_host, smtp_port, timeout=30)
-            server.starttls(context=context)
-        with server:
+        with server:  # also closes the socket if STARTTLS or login fails
+            if smtp_port != 465:
+                server.starttls(context=context)
             server.login(settings.email_address, settings.email_password)
             server.send_message(msg)
     except smtplib.SMTPAuthenticationError:

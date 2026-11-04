@@ -106,53 +106,73 @@ UPCOMING REMINDERS
 """
 
 
+def _clean_tool_calls(raw) -> list[dict]:
+    calls, seen = [], set()
+    for tc in raw if isinstance(raw, list) else []:
+        fn = tc.get("function") if isinstance(tc, dict) else None
+        if not isinstance(fn, dict) or not tc.get("id") or not fn.get("name") or str(tc["id"]) in seen:
+            continue
+        seen.add(str(tc["id"]))
+        args = fn.get("arguments") or "{}"
+        if not isinstance(args, str):  # the API wants a JSON string, not an object
+            args = json.dumps(args, default=str)
+        calls.append({"id": str(tc["id"]), "type": "function", "function": {"name": str(fn["name"]), "arguments": args}})
+    return calls
+
+
 def prepare_history(history: list[dict]) -> list[dict]:
     """Sanitise client-supplied history, trim it, and shrink old tool output."""
     clean: list[dict] = []
     for m in history or []:
+        if not isinstance(m, dict):
+            continue
         role = m.get("role")
         if role == "user" and isinstance(m.get("content"), str):
             clean.append({"role": "user", "content": m["content"]})
         elif role == "assistant":
-            msg = {"role": "assistant", "content": m.get("content") or None}
-            if m.get("tool_calls"):
-                msg["tool_calls"] = [
-                    {
-                        "id": tc["id"],
-                        "type": "function",
-                        "function": {"name": tc["function"]["name"], "arguments": tc["function"].get("arguments") or "{}"},
-                    }
-                    for tc in m["tool_calls"]
-                    if tc.get("id") and tc.get("function", {}).get("name")
-                ]
-                if not msg["tool_calls"]:
-                    del msg["tool_calls"]
-            if msg.get("content") is None and not msg.get("tool_calls"):
+            content = m.get("content")
+            msg = {"role": "assistant", "content": content if isinstance(content, str) and content else None}
+            calls = _clean_tool_calls(m.get("tool_calls"))
+            if calls:
+                msg["tool_calls"] = calls
+            if msg["content"] is None and not calls:
                 continue
             clean.append(msg)
         elif role == "tool" and m.get("tool_call_id"):
-            clean.append({"role": "tool", "tool_call_id": m["tool_call_id"], "content": str(m.get("content", ""))})
+            content = m.get("content")
+            content = content if isinstance(content, str) else ("" if content is None else json.dumps(content, default=str))
+            clean.append({"role": "tool", "tool_call_id": str(m["tool_call_id"]), "content": content})
 
     clean = clean[-MAX_HISTORY:]
     while clean and clean[0]["role"] != "user":  # never start mid tool-exchange
         clean.pop(0)
 
-    # Drop tool messages whose assistant call is missing, and calls whose results are missing.
-    call_ids = {tc["id"] for m in clean if m["role"] == "assistant" for tc in m.get("tool_calls", [])}
-    result_ids = {m["tool_call_id"] for m in clean if m["role"] == "tool"}
-    out = []
-    for m in clean:
-        if m["role"] == "tool" and m["tool_call_id"] not in call_ids:
+    # The API requires every assistant tool call to be answered by the tool messages that directly
+    # follow it, and every tool message to answer such a call. Pair them positionally (ids can repeat
+    # across turns with some providers), dropping orphan results and unanswered calls.
+    out: list[dict] = []
+    i = 0
+    while i < len(clean):
+        m = clean[i]
+        i += 1
+        if m["role"] == "tool":
+            continue  # not directly after an assistant tool-call message
+        if m["role"] != "assistant" or not m.get("tool_calls"):
+            out.append(m)
             continue
-        if m["role"] == "assistant" and m.get("tool_calls"):
-            calls = [tc for tc in m["tool_calls"] if tc["id"] in result_ids]
-            if not calls:
-                if not m.get("content"):
-                    continue
-                m = {"role": "assistant", "content": m["content"]}
-            else:
-                m = {**m, "tool_calls": calls}
-        out.append(m)
+        wanted = {tc["id"] for tc in m["tool_calls"]}
+        answered: dict[str, dict] = {}
+        while i < len(clean) and clean[i]["role"] == "tool":
+            t = clean[i]
+            i += 1
+            if t["tool_call_id"] in wanted and t["tool_call_id"] not in answered:
+                answered[t["tool_call_id"]] = t
+        calls = [tc for tc in m["tool_calls"] if tc["id"] in answered]
+        if calls:
+            out.append({**m, "tool_calls": calls})
+            out.extend(answered[tc["id"]] for tc in calls)
+        elif m.get("content"):
+            out.append({"role": "assistant", "content": m["content"]})
 
     # Shrink tool output from earlier turns to save tokens.
     last_user = max((i for i, m in enumerate(out) if m["role"] == "user"), default=0)
@@ -295,9 +315,9 @@ async def run_turn(
             yield {"type": "confirm", "id": cid, "call_id": c["id"], "name": c["name"], **preview}
             try:
                 approved = await asyncio.wait_for(fut, timeout=CONFIRM_TIMEOUT)
-            except (asyncio.TimeoutError, asyncio.CancelledError):
+            except asyncio.TimeoutError:
                 approved = False
-            finally:
+            finally:  # on cancellation (client went away) the error propagates and nothing runs
                 broker.discard(cid)
             yield {"type": "confirm_result", "id": cid, "approved": approved}
             if approved:

@@ -27,6 +27,9 @@ class Tool:
     label: str
     preview: Callable[[dict], dict] | None = None
     timeout: float = 60
+    # Optional dynamic approval check: async gate(ctx, args) -> preview dict if the user must approve
+    # this particular call, or None to run it straight away. Used for e.g. "Book now" clicks in the browser.
+    gate: Callable[[Any, dict], Awaitable[dict | None]] | None = None
 
     def schema(self) -> dict:
         return {
@@ -50,6 +53,7 @@ def tool(
     label: str | None = None,
     preview: Callable[[dict], dict] | None = None,
     timeout: float = 60,
+    gate: Callable[[Any, dict], Awaitable[dict | None]] | None = None,
 ):
     def deco(fn):
         TOOLS[name] = Tool(
@@ -60,6 +64,7 @@ def tool(
             label=label or name.replace("_", " ").title(),
             preview=preview,
             timeout=timeout,
+            gate=gate,
         )
         return fn
 
@@ -91,7 +96,10 @@ async def call_tool(name: str, args: dict, ctx: ToolContext) -> str:
         return json.dumps({"error": f"{name} failed: {exc.__class__.__name__}: {exc}"})
     if isinstance(result, str):
         return result
-    return json.dumps(result, ensure_ascii=False, default=str)
+    try:
+        return json.dumps(result, ensure_ascii=False, default=str)
+    except (TypeError, ValueError) as exc:  # e.g. circular data or an int too long to print
+        return json.dumps({"error": f"{name} returned a result that can't be shown: {exc}"})
 
 
 def load_all() -> None:

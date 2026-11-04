@@ -72,7 +72,8 @@ def _text(el, tag: str) -> str:
 def parse_feed(xml_text: str, default_source: str = "") -> list[dict]:
     """Parse RSS 2.0 or Atom into [{title, link, source, published, summary}]."""
     try:
-        root = ET.fromstring(xml_text)
+        # Feeds often start with a BOM or stray whitespace, which expat rejects before <?xml ...?>.
+        root = ET.fromstring((xml_text or "").lstrip("\ufeff \t\r\n"))
     except ET.ParseError:
         return []
     items: list[dict] = []
@@ -103,7 +104,9 @@ def parse_feed(xml_text: str, default_source: str = "") -> list[dict]:
     elif root.tag == f"{_ATOM}feed":
         channel_title = _text(root, f"{_ATOM}title")
         for entry in root.iter(f"{_ATOM}entry"):
-            link_el = entry.find(f"{_ATOM}link")
+            links = entry.findall(f"{_ATOM}link")
+            # Prefer the article itself (rel="alternate", the default) over self/replies/enclosure links.
+            link_el = next((l for l in links if l.get("rel", "alternate") == "alternate"), links[0] if links else None)
             link = link_el.get("href", "") if link_el is not None else ""
             summary = html_to_text(_text(entry, f"{_ATOM}summary") or _text(entry, f"{_ATOM}content"))
             items.append(
@@ -126,12 +129,12 @@ def _clean_channel(title: str) -> str:
 async def _fetch_feed(http, url: str, source: str = "") -> list[dict]:
     cached = _CACHE.get(url)
     if cached and time.time() - cached[0] < _TTL:
-        return cached[1]
+        return list(cached[1])
     r = await http.get(url, headers={"User-Agent": BROWSER_UA, "Accept": "application/rss+xml, application/xml, text/xml, */*"}, timeout=15)
     r.raise_for_status()
     items = parse_feed(r.text, source)
     _CACHE[url] = (time.time(), items)
-    return items
+    return list(items)  # callers extend the result; never hand out the cached list itself
 
 
 def _google_url(settings, category: str | None = None, query: str | None = None) -> str:
@@ -178,7 +181,8 @@ async def _hacker_news(http, limit: int) -> list[dict]:
 def _dedupe(items: list[dict]) -> list[dict]:
     seen, out = set(), []
     for it in items:
-        key = re.sub(r"[^a-z0-9]", "", it["title"].lower())[:60]
+        # \w is Unicode-aware, so non-Latin headlines (ja, ru, ar...) still get distinct keys.
+        key = re.sub(r"[\W_]+", "", it["title"].lower())[:60] or it["title"]
         if key in seen:
             continue
         seen.add(key)

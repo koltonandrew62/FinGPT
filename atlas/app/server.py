@@ -75,7 +75,11 @@ app = FastAPI(title="ATLAS", lifespan=lifespan, docs_url=None, redoc_url=None, o
 @app.middleware("http")
 async def guard(request: Request, call_next):
     # Block DNS-rebinding: only answer to localhost names.
-    host = (request.headers.get("host") or "").rsplit(":", 1)[0].strip("[]").lower()
+    raw_host = (request.headers.get("host") or "").strip().lower()
+    if raw_host.startswith("["):  # [::1] or [::1]:8765
+        host = raw_host[1:].partition("]")[0]
+    else:
+        host = raw_host.rsplit(":", 1)[0] if raw_host.count(":") == 1 else raw_host
     if host not in {"127.0.0.1", "localhost", "::1"}:
         return JSONResponse({"error": "forbidden host"}, status_code=403)
     # Every API call must carry the per-launch token embedded in the page.
