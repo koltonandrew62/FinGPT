@@ -159,13 +159,13 @@
 
       <!-- Numbered quick actions on one row. Narrow centre columns show the short label (.chip-s). -->
       <div class="chips" role="toolbar" aria-label="Quick actions" id="chips">
-        <button class="chip" type="button" data-action="briefing"><span class="chip-i" aria-hidden="true">01</span><span class="chip-l">Daily briefing</span><span class="chip-s">Briefing</span></button>
+        <button class="chip" type="button" data-action="briefing" aria-label="Daily briefing" title="Daily briefing"><span class="chip-i" aria-hidden="true">01</span><span class="chip-l">Daily briefing</span><span class="chip-s">Briefing</span></button>
         <button class="chip" type="button" data-action="myday"><span class="chip-i" aria-hidden="true">02</span><span class="chip-l">My day</span></button>
-        <button class="chip chip-fill" type="button" data-action="table" title="Starts the request in the command bar — finish it and press Enter"><span class="chip-i" aria-hidden="true">03</span><span class="chip-l">Book a table…</span><span class="chip-s">Table…</span></button>
-        <button class="chip" type="button" data-action="headlines"><span class="chip-i" aria-hidden="true">04</span><span class="chip-l">Headlines</span><span class="chip-s">News</span></button>
+        <button class="chip chip-fill" type="button" data-action="table" aria-label="Book a table…" title="Book a table — starts the request in the command bar; finish it and press Enter"><span class="chip-i" aria-hidden="true">03</span><span class="chip-l">Book a table…</span><span class="chip-s">Table…</span></button>
+        <button class="chip" type="button" data-action="headlines" aria-label="News headlines" title="Headlines"><span class="chip-i" aria-hidden="true">04</span><span class="chip-l">Headlines</span><span class="chip-s">News</span></button>
         <button class="chip" type="button" data-action="markets"><span class="chip-i" aria-hidden="true">05</span><span class="chip-l">Markets</span></button>
         <button class="chip" type="button" data-action="inbox"><span class="chip-i" aria-hidden="true">06</span><span class="chip-l">Inbox</span></button>
-        <button class="chip" type="button" data-action="system"><span class="chip-i" aria-hidden="true">07</span><span class="chip-l">System check</span><span class="chip-s">System</span></button>
+        <button class="chip" type="button" data-action="system" aria-label="System check" title="System check"><span class="chip-i" aria-hidden="true">07</span><span class="chip-l">System check</span><span class="chip-s">System</span></button>
       </div>
 
       <form class="cmdbar" id="cmdbar" autocomplete="off">
@@ -340,7 +340,7 @@
                 <option value="outlook">Outlook.com</option>
                 <option value="office365">Microsoft 365 (work)</option>
                 <option value="ics">Calendar app (.ics file)</option>
-                <option value="local">ATLAS only (local)</option>
+                <option value="local">This computer only (local)</option>
               </select>
             </label>
             <label class="field"><span>Your day <em class="field-note">24-hour</em></span><input name="CALENDAR_DAY_HOURS" type="text" maxlength="11" spellcheck="false" inputmode="numeric" aria-describedby="help-day" placeholder="08:00-20:00"></label>

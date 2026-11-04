@@ -868,22 +868,25 @@
   }
   /** A website card's body ("Filled in:\n• …\n\nOn the page:\n…") as titled, readable sections. */
   function pageBodyHtml(body) {
-    var blocks = String(body).split(/\n{2,}/).filter(function (b) { return b.trim(); });
-    var secs = blocks.map(function (b) {
+    // A paragraph whose first line is a short "Label:" starts a section; other paragraphs join the one before.
+    var secs = [];
+    String(body).split(/\n{2,}/).forEach(function (b) {
       var lines = b.replace(/^\n+|\n+$/g, '').split('\n');
-      var head = '';
-      if (lines.length > 1 && /^[^:\n]{1,40}:$/.test(lines[0].trim())) head = lines.shift().trim().slice(0, -1);
-      return '<section class="cp-sec">' + (head ? '<h5 class="cp-h">' + esc(head) + '</h5>' : '') +
-        '<div class="cp-txt">' + esc(lines.join('\n')) + '</div></section>';
-    }).join('');
-    return '<div class="confirm-page" tabindex="0" role="region" aria-label="Page details">' + secs + '</div>';
+      if (!lines.join('').trim()) return;
+      if (lines.length > 1 && /^[^:\n]{1,40}:$/.test(lines[0].trim())) secs.push({ head: lines.shift().trim().slice(0, -1), text: lines.join('\n') });
+      else if (secs.length) secs[secs.length - 1].text += '\n\n' + lines.join('\n');
+      else secs.push({ head: '', text: lines.join('\n') });
+    });
+    return '<div class="confirm-page" tabindex="0" role="region" aria-label="Page details">' + secs.map(function (x) {
+      return '<section class="cp-sec">' + (x.head ? '<h5 class="cp-h">' + esc(x.head) + '</h5>' : '') + '<div class="cp-txt">' + esc(x.text) + '</div></section>';
+    }).join('') + '</div>';
   }
 
   function renderConfirm(p) {
     var card = el('div', 'confirm');
     var kind = confirmKind(p.name);
     var K = CONFIRM_KINDS[kind];
-    if (kind) card.classList.add('confirm-' + kind);
+    if (kind) card.dataset.kind = kind;
     card.dataset.state = p.result === true ? 'approved' : p.result === false ? 'denied' : p.expired ? 'expired' : 'pending';
     card.setAttribute('role', 'group');
     card.setAttribute('aria-label', (K ? K.aria : 'Approval required') + ': ' + String(p.title || 'action'));
@@ -1709,7 +1712,7 @@
     if (h < 24) return 'in ' + h + 'h ' + pad2(m % 60) + 'm';
     return 'in ' + Math.round(h / 24) + 'd';
   }
-  function hm(d) { return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }); }
+  function hm(d) { return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); }
   function dueLabel(d) {
     var now = new Date();
     var tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
@@ -1778,13 +1781,14 @@
   function shortDay(d) { return d.toLocaleDateString(undefined, { weekday: 'short', day: '2-digit', month: 'short' }); }
 
   function eventRow(e, now, isNext) {
-    var live = e.start <= now && now < e.end;
+    var live = !e.allDay && e.start <= now && now < e.end;
     var t1, t2;
     if (e.allDay) { t1 = 'All day'; t2 = ''; }
-    else if (live) { t1 = 'Now'; t2 = e.end > e.start ? 'to ' + hm(e.end) : ''; }
+    else if (live) { t1 = 'Now'; t2 = e.end > e.start ? hm(e.end) : ''; }
     else { t1 = hm(e.start); t2 = e.end > e.start ? hm(e.end) : ''; }
-    var sub = [e.location, e.calendar].filter(Boolean).map(function (x) { return clip(x, 60); }).join(' · ');
-    var tag = live && !e.allDay ? '<em class="ag-tag live">Live</em>'
+    var loc = /^(https?|webcal):\/\//i.test(e.location) ? hostOf(e.location) || e.location : e.location; // a meeting link: its site
+    var sub = [loc, e.calendar].filter(Boolean).map(function (x) { return clip(x, 60); }).join(' · ');
+    var tag = live ? '<em class="ag-tag live">Live</em>'
       : isNext && e.start - now < 3 * 3600000 ? '<em class="ag-tag">' + esc(relTime(e.start)) + '</em>'
       : e.tentative ? '<em class="ag-tag dim">Maybe</em>' : '';
     var html = '<span class="ag-time"><b>' + esc(t1) + '</b>' + (t2 ? '<i>' + esc(t2) + '</i>' : '') + '</span>' +
@@ -1845,13 +1849,15 @@
 
     var total = events.length + tasks.length + rems.length;
     if (!total) {
-      var empty = el('div', 'empty-state ag-empty');
-      var connected = d && d.feeds_connected !== false;
-      empty.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5h16V20H4z"/><path d="M4 10.5h16M8.5 3.5v5M15.5 3.5v5"/><path d="M9 15l2 2 4-4"/></svg>' +
-        '<b>' + (d ? 'Clear schedule' : AG.err ? 'Nothing to show' : 'Clear schedule') + '</b>' +
-        '<span>' + (connected ? 'Nothing on the calendar today or tomorrow, and no open to-dos or reminders.' : 'No open to-dos or reminders.') +
-        ' Try “add a to-do to renew my passport”.</span>';
-      if (d || !AG.err) frag.appendChild(empty);
+      if (frag.childNodes.length) {
+        // a notice already explains the state: one quiet line instead of a second big block
+        if (d) frag.appendChild(el('p', 'ag-none', 'No open to-dos or reminders. Try “add a to-do to renew my passport”.'));
+      } else {
+        var empty = el('div', 'empty-state ag-empty');
+        empty.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5h16V20H4z"/><path d="M4 10.5h16M8.5 3.5v5M15.5 3.5v5"/><path d="M9 15l2 2 4-4"/></svg>' +
+          '<b>Clear schedule</b><span>Nothing on the calendar today or tomorrow, and no open to-dos or reminders. Try “add a to-do to renew my passport”.</span>';
+        frag.appendChild(empty);
+      }
     } else {
       // ---- schedule, grouped by day
       if (d && (events.length || d.feeds_connected !== false)) {
@@ -2249,12 +2255,13 @@
       sec.classList.toggle('dirty', $$('[name]', sec).some(function (f) { return !f.disabled && fieldChanged(f); }));
     });
   }
-  function sectionBadge(key, text, on) {
+  function sectionBadge(key, text, on, warn) {
     var b = setForm.querySelector('[data-badge="' + key + '"]');
     if (!b) return;
     b.textContent = text || '';
     b.hidden = !text;
     b.classList.toggle('on', !!on);
+    b.classList.toggle('warn', !on && !!warn);
   }
   function paintBadges(st) {
     var sc = isObj(st.secrets_configured) ? st.secrets_configured : {};
@@ -2272,11 +2279,11 @@
     sectionBadge('model', st.has_key === false ? 'No key' : shortModel(st.model), st.has_key !== false);
     sectionBadge('email', st.email_configured ? 'Connected' : 'Off', !!st.email_configured);
     sectionBadge('calendar', has('CALENDAR_ICS_URLS') ? 'Connected' : 'Not connected', has('CALENDAR_ICS_URLS'));
-    var twilio = !!(ex.TWILIO_ACCOUNT_SID && has('TWILIO_AUTH_TOKEN') && ex.TWILIO_FROM_NUMBER);
+    var tw = [!!ex.TWILIO_ACCOUNT_SID, has('TWILIO_AUTH_TOKEN'), !!ex.TWILIO_FROM_NUMBER].filter(Boolean).length;
     var mac = /^macos/i.test(String(st.os || ''));
-    sectionBadge('comms', twilio ? 'Twilio' : mac ? 'Messages app' : 'Off', twilio || mac);
-    var ha = !!(ex.HOME_ASSISTANT_URL && has('HOME_ASSISTANT_TOKEN'));
-    sectionBadge('home', ha ? 'Connected' : 'Off', ha);
+    sectionBadge('comms', tw === 3 ? 'Twilio' : mac ? 'Messages app' : tw ? 'Incomplete' : 'Off', tw === 3 || mac, tw > 0 && tw < 3 && !mac);
+    var ha = [!!ex.HOME_ASSISTANT_URL, has('HOME_ASSISTANT_TOKEN')].filter(Boolean).length;
+    sectionBadge('home', ha === 2 ? 'Connected' : ha ? 'Incomplete' : 'Off', ha === 2, ha === 1);
     var ch = { chrome: 'Chrome', msedge: 'Edge', chromium: 'Chromium' }[String(ex.BROWSER_CHANNEL || '').toLowerCase()];
     sectionBadge('browser', truthy(ex.BROWSER_HEADLESS) ? 'Headless' : ex.BROWSER_EXECUTABLE ? 'Custom path' : ch || 'Auto', true);
   }
