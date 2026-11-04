@@ -66,6 +66,32 @@ The live market, economic and sports data needs no setup. See [Live data sources
 - **Chrome or Edge.** Needed for voice (other browsers work for typing), and ATLAS's own browser window uses
   whichever one is installed for bookings and web tasks.
 
+### Easiest: install with a Desktop shortcut
+
+The installer downloads ATLAS, sets everything up, asks what you'd like to call your assistant, adds a
+**Desktop shortcut** (and a Start-menu / Applications entry) with the ATLAS icon, and opens it. ATLAS then runs
+in its own app window — no browser tabs — and shuts down when you close the window. Run the installer again any
+time to update; your settings and data are kept.
+
+**Windows** — open PowerShell (Start menu → type *PowerShell*) and paste:
+
+```powershell
+irm https://raw.githubusercontent.com/koltonandrew62/FinGPT/refs/heads/claude/eloquent-einstein-uqi56u/atlas/installer/install-windows.ps1 | iex
+```
+
+If Python isn't installed, the installer installs it with `winget`. Already downloaded the ZIP? Double-click
+`atlas\installer\Install ATLAS (Windows).bat` instead.
+
+**macOS / Linux** — open Terminal and paste:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/koltonandrew62/FinGPT/refs/heads/claude/eloquent-einstein-uqi56u/atlas/installer/install-mac-linux.sh | bash
+```
+
+Where things go: Windows `%LOCALAPPDATA%\ATLAS`; macOS `~/Applications/ATLAS-files` (app in `~/Applications`);
+Linux `~/.local/share/atlas`. Server logs are in `data/atlas.log` there. To keep ATLAS running after you close
+its window (so reminders still fire), set `ATLAS_KEEP_RUNNING=true` in `.env`.
+
 ### Windows
 
 1. Install Python from [python.org/downloads](https://www.python.org/downloads/). On the installer's first
