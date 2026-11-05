@@ -2262,7 +2262,7 @@
    * while the tab is on screen: another tab, the phone's Core view or a hidden browser tab pauses it. */
   var MK_TAB = 'markets';
   var MK_EVERY = 60000;
-  var MK = { d: null, at: 0, ok: 0, err: null, loading: null, seg: 'gainers' };
+  var MK = { d: null, at: 0, ok: 0, err: null, loading: null, seg: 'gainers', segUser: false };
   var MV_KINDS = [['gainers', 'Gainers', 'up'], ['losers', 'Losers', 'down'], ['most_active', 'Active', '']];
   var MK_STATE = {
     open: ['Market open', 'is-open'], 'pre-market': ['Pre-market', 'is-ext'],
@@ -2280,7 +2280,7 @@
   /** Fetch if the tab is on screen and the data is older than a minute (or always, with force). */
   function pulseKick(force) {
     if (!pulseVisible()) return;
-    if (force || Date.now() - MK.at >= MK_EVERY) loadPulse();
+    if (force || Date.now() - MK.at >= MK_EVERY - 2500) loadPulse(); // the 5 s check lands within ±2.5 s of the minute
   }
   function showMarkets() {
     if (MK.d || MK.err) renderMarkets(true);
@@ -2413,8 +2413,9 @@
     }
     score = score == null ? null : Math.max(0, Math.min(100, Math.round(score)));
     var band = score == null ? null : fgRated(fg.rating, score);
-    var prev = fg && isObj(fg.previous_close) ? num(fg.previous_close.score) : null;
-    var week = fg && isObj(fg.one_week_ago) ? num(fg.one_week_ago.score) : null;
+    function pt(p) { var v = isObj(p) ? num(p.score) : null; return v == null ? null : Math.max(0, Math.min(100, Math.round(v))); }
+    var prev = fg ? pt(fg.previous_close) : null;
+    var week = fg ? pt(fg.one_week_ago) : null;
     var delta = score != null && prev != null ? score - Math.round(prev) : null;
     var dTxt = delta == null ? '' : delta === 0 ? 'Level with prev close (' + Math.round(prev) + ')' :
       '<i aria-hidden="true">' + (delta > 0 ? '▲' : '▼') + '</i>' + (delta > 0 ? '+' : '−') + Math.abs(delta) + ' vs prev close (' + Math.round(prev) + ')';
@@ -2427,7 +2428,7 @@
       '<span class="mk-g">' + gaugeSvg(score, prev) + '<b class="mk-g-n">' + (score == null ? '—' : score) + '</b></span>' +
       '<span class="mk-sent-txt">' +
         '<span class="mk-sent-k">Fear &amp; Greed</span>' +
-        '<span class="mk-sent-r">' + esc(band ? band[2] : 'Unavailable') + '</span>' +
+        (band ? '<span class="mk-sent-r">' + esc(band[2]) + '</span>' : '<span class="mk-sent-r is-na">Not available</span>') +
         (dTxt ? '<span class="mk-sent-d ' + (delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat') + '">' + dTxt + '</span>' : '') + // numbers and fixed text only
         (week != null ? '<span class="mk-sent-w">1 week ago · ' + Math.round(week) + ' ' + esc(fgBand(week)[2].toLowerCase()) + '</span>' : '') +
         (vv != null ? '<span class="mk-vix"><b>VIX</b><span class="mk-vix-v">' + esc(vv.toFixed(2)) + '</span>' +
@@ -2475,7 +2476,11 @@
     if (none) {
       sec.appendChild(anyErr ? mkFault('MOVERS OFFLINE', errs.other[0] || errs.gainers[0] || errs.losers[0] || errs.most_active[0]) : mkEmpty('NO MOVERS', 'Yahoo Finance listed no movers right now.'));
     } else {
-      if (!lists[MK.seg].length) { var avail = MV_KINDS.filter(function (k) { return lists[k[0]].length; })[0]; if (avail && !errs[MK.seg].length) MK.seg = avail[0]; }
+      // Open on a list that has rows, unless the user picked this one (then its fault or empty note shows).
+      if (!lists[MK.seg].length && (!MK.segUser || !errs[MK.seg].length)) {
+        var avail = MV_KINDS.filter(function (k) { return lists[k[0]].length; })[0];
+        if (avail) MK.seg = avail[0];
+      }
       var seg = el('div', 'mk-seg');
       seg.setAttribute('role', 'group');
       seg.setAttribute('aria-label', 'Show movers');
@@ -2486,8 +2491,10 @@
         sb.dataset.mkKey = 'seg:' + k[0];
         sb.setAttribute('aria-pressed', on ? 'true' : 'false');
         sb.setAttribute('aria-controls', 'mk-mv-list');
-        if (!lists[k[0]].length) sb.classList.add('is-empty');
+        if (!lists[k[0]].length) sb.classList.add(errs[k[0]].length ? 'is-err' : 'is-empty');
+        if (errs[k[0]].length && !lists[k[0]].length) sb.title = k[1] + ' unavailable right now';
         sb.addEventListener('click', function () {
+          MK.segUser = true;
           if (MK.seg === k[0]) return;
           MK.seg = k[0];
           safely('markets', function () { renderMarkets(false); });
