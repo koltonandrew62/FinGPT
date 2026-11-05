@@ -226,14 +226,14 @@ def tool_calls(*calls):
     return {"type": "tool_calls", "calls": [{"id": c[0], "name": c[1], "arguments": c[2] if len(c) > 2 else "{}"} for c in calls]}
 
 
-def collect(llm, history=None, settings=None, broker=None, on_event=None):
+def collect(llm, history=None, settings=None, broker=None, on_event=None, ctx=None, **turn_kw):
     settings = settings or config.Settings()
     broker = broker or ConfirmationBroker()
     history = history if history is not None else [{"role": "user", "content": "hello"}]
 
     async def go():
         events = []
-        async for ev in run_turn(history, settings, llm, broker, make_ctx()):
+        async for ev in run_turn(history, settings, llm, broker, ctx or make_ctx(), **turn_kw):
             events.append(ev)
             if on_event:
                 on_event(ev, broker)
@@ -913,3 +913,291 @@ def test_live_data_tools_run_without_approval():
         assert not s.needs_confirmation(name) and t.gate is None and t.preview is None, name
         assert t.label and t.label != name and 0 < t.timeout <= 90, name
         assert not agent._sequential(name)
+
+
+# ---------------------------------------------------------------- channels & allowed tools
+def _names(tool_schemas):
+    return [s["function"]["name"] for s in tool_schemas]
+
+
+def test_default_channel_is_desktop_and_unchanged(temp_tool):
+    async def ok(ctx):
+        return {"status": "ok"}
+
+    temp_tool("t_ok", ok)
+
+    def script():
+        return FakeLLM([text("Checking."), tool_calls(("c1", "t_ok"))], [text("All "), text("good.")])
+
+    default, desktop = collect(script()), collect(script(), channel="desktop")
+    assert default == desktop
+    assert [e["type"] for e in default] == ["model", "token", "segment_end", "tool", "tool", "token", "token", "done"]
+    assert default[-1]["messages"][0]["content"] == "Checking."  # the preamble stays in the desktop history
+
+
+def test_allowed_tools_filters_the_schemas_sent_to_the_model():
+    llm = FakeLLM([text("ok")])
+    collect(llm, allowed_tools={"calculate", "get_news", "no_such_tool"})
+    sent = _names(llm.requests[0]["tools"])
+    assert sorted(sent) == ["calculate", "get_news"]
+    assert sent == [n for n in TOOLS if n in {"calculate", "get_news"}]  # registry order kept
+    assert "Only some of your tools are available" in llm.requests[0]["messages"][0]["content"]
+
+    llm = FakeLLM([text("ok")])
+    collect(llm, allowed_tools=[])  # an empty allow-list offers no tools at all
+    assert llm.requests[0]["tools"] == []
+
+    llm = FakeLLM([text("ok")])
+    collect(llm)  # no allow-list: every tool, and no note in the prompt
+    assert len(llm.requests[0]["tools"]) == len(TOOLS)
+    assert "Only some of your tools" not in llm.requests[0]["messages"][0]["content"]
+
+
+def test_call_to_a_tool_outside_the_allow_list_returns_an_error(temp_tool):
+    ran = []
+
+    async def allowed_fn(ctx):
+        ran.append("allowed")
+        return {"status": "allowed ran"}
+
+    async def other_fn(ctx):
+        ran.append("other")
+        return {"status": "other ran"}
+
+    temp_tool("t_allowed", allowed_fn)
+    temp_tool("t_other", other_fn)
+    llm = FakeLLM([tool_calls(("a", "t_other"), ("b", "t_allowed"), ("c", "run_command", '{"command": "ls"}'))], [text("ok")])
+    broker = ConfirmationBroker()
+    events = collect(llm, broker=broker, allowed_tools={"t_allowed"})
+    assert ran == ["allowed"]
+    assert of(events, "confirm") == [] and broker.pending == {}  # not even a card for a disallowed gated tool
+    dones = {e["id"]: e for e in of(events, "tool") if e["state"] != "start"}
+    assert dones["b"]["state"] == "done"
+    for cid, name in (("a", "t_other"), ("c", "run_command")):
+        assert dones[cid]["state"] == "error" and f"'{name}' isn't available" in dones[cid]["summary"]
+    msgs = events[-1]["messages"]
+    assert [m.get("tool_call_id") for m in msgs[1:4]] == ["a", "b", "c"]  # results keep the call order
+    assert "isn't available" in json.loads(msgs[1]["content"])["error"]
+    assert_valid_api_history([{"role": "user", "content": "hello"}] + msgs)
+
+
+def test_allowed_gated_tool_still_asks_on_desktop(temp_tool):
+    ran, llm = gated_setup(temp_tool)
+    events = collect(llm, on_event=answer(True), allowed_tools={"t_danger"})
+    assert len(of(events, "confirm")) == 1 and ran == ["files"]
+
+
+@pytest.mark.parametrize("channel,how", [("phone", "by phone"), ("sms", "by text message")])
+def test_remote_channels_never_run_statically_gated_tools(temp_tool, channel, how):
+    previews = []
+
+    def preview(args):
+        previews.append(args)
+        return {"title": "Wipe", "fields": [], "body": ""}
+
+    ran, llm = gated_setup(temp_tool, preview=preview)
+    broker = ConfirmationBroker()
+    events = collect(llm, broker=broker, channel=channel, on_event=answer(True))
+    assert ran == [] and previews == []
+    assert of(events, "confirm") == [] and of(events, "confirm_result") == [] and broker.pending == {}
+    err = [e for e in of(events, "tool") if e["state"] == "error"][0]
+    assert err["id"] == "g1" and how in err["summary"]
+    result = json.loads(events[-1]["messages"][1]["content"])["error"]
+    assert how in result and "desktop" in result and "Don't retry" in result
+    assert events[-1]["messages"][-1] == {"role": "assistant", "content": "Done."}
+
+
+def test_remote_channels_ignore_auto_approve(temp_tool):
+    ran, llm = gated_setup(temp_tool)
+    settings = config.Settings(auto_approve={"t_danger"})
+    collect(llm, settings=settings, channel="phone")
+    assert ran == []
+    assert settings.auto_approve == {"t_danger"}  # the caller's settings are left alone
+    ran, llm = gated_setup(temp_tool)
+    collect(llm, settings=settings)  # on the desktop the user's choice still applies
+    assert ran == ["files"]
+
+
+def test_tools_on_remote_channels_see_no_auto_approve(temp_tool):
+    seen = []
+
+    async def peek(ctx):
+        seen.append(set(ctx.settings.auto_approve))
+        return {"status": "ok"}
+
+    temp_tool("t_peek", peek)
+    ctx = make_ctx(auto_approve={"browser_click", "smart_home_control"})
+    collect(FakeLLM([tool_calls(("p", "t_peek"))], [text("ok")]), ctx=ctx, channel="sms")
+    collect(FakeLLM([tool_calls(("p", "t_peek"))], [text("ok")]), ctx=ctx, channel="desktop")
+    assert seen == [set(), {"browser_click", "smart_home_control"}]
+    assert ctx.settings.auto_approve == {"browser_click", "smart_home_control"}
+
+
+@pytest.mark.parametrize("channel", ["phone", "sms"])
+def test_remote_channels_refuse_when_a_dynamic_gate_wants_a_card(monkeypatch, channel):
+    ran = _gated_click(monkeypatch, _final_click_gate())
+    llm = FakeLLM(
+        [tool_calls(("slot", "browser_click_t", '{"target": "7:00 PM"}'), ("book", "browser_click_t", '{"target": "Complete reservation"}'))],
+        [text("ok")],
+    )
+    broker = ConfirmationBroker()
+    events = collect(llm, broker=broker, channel=channel, on_event=answer(True))
+    assert ran == ["7:00 PM"]  # the gate let the ordinary click through and stopped the final one
+    assert of(events, "confirm") == [] and broker.pending == {}
+    dones = {e["id"]: e for e in of(events, "tool") if e["state"] != "start"}
+    assert dones["slot"]["state"] == "done" and dones["book"]["state"] == "error"
+    assert "desktop" in dones["book"]["summary"]
+
+
+def test_remote_channels_consult_the_gate_even_when_auto_approved(monkeypatch):
+    called = []
+
+    async def gate(ctx, args):
+        called.append(args)
+        return {"title": "Pay", "fields": [], "body": ""}
+
+    ran = _gated_click(monkeypatch, gate)
+    llm = FakeLLM([tool_calls(("c1", "browser_click_t", '{"target": "Pay"}'))], [text("ok")])
+    collect(llm, settings=config.Settings(auto_approve={"browser_click_t"}), channel="phone")
+    assert called == [{"target": "Pay"}] and ran == []
+
+
+def test_remote_channels_fail_closed_when_the_gate_breaks(monkeypatch):
+    async def broken_gate(ctx, args):
+        raise RuntimeError("page crashed")
+
+    ran = _gated_click(monkeypatch, broken_gate)
+    llm = FakeLLM([tool_calls(("c1", "browser_click_t", '{"target": "anything"}'))], [text("ok")])
+    events = collect(llm, channel="phone", on_event=answer(True))
+    assert ran == [] and of(events, "confirm") == []
+    assert [e["state"] for e in of(events, "tool")] == ["start", "error"]
+
+
+def test_remote_channels_still_run_ordinary_tools(temp_tool):
+    async def ok(ctx, q=""):
+        return {"status": f"found {q}"}
+
+    temp_tool("t_lookup", ok, properties={"q": {"type": "string"}})
+    events = collect(FakeLLM([tool_calls(("c1", "t_lookup", '{"q": "x"}'))], [text("Found it.")]), channel="phone")
+    assert [e["state"] for e in of(events, "tool")] == ["start", "done"]
+    assert events[-1]["messages"][-1] == {"role": "assistant", "content": "Found it."}
+
+
+@pytest.mark.parametrize("channel", ["voice", "phone", "sms"])
+def test_quiet_channels_hold_back_text_before_tool_calls(temp_tool, channel):
+    async def ok(ctx):
+        return {"status": "42"}
+
+    temp_tool("t_calc", ok)
+    usage = {"type": "usage", "usage": {"prompt_tokens": 5, "completion_tokens": 2, "cost": 0.0}}
+    llm = FakeLLM(
+        [text("Let me check "), text("that for you."), usage, tool_calls(("c1", "t_calc"))],
+        [text("Actually, one more."), tool_calls(("c2", "t_calc"))],
+        [text("It's "), text("42, sir."), usage],
+    )
+    events = collect(llm, channel=channel)
+    assert [e["text"] for e in of(events, "token")] == ["It's ", "42, sir."]  # only the final answer, chunks intact
+    assert of(events, "segment_end") == []
+    types = [e["type"] for e in events]
+    assert types == ["model", "usage", "tool", "tool", "tool", "tool", "token", "token", "usage", "done"]
+    msgs = events[-1]["messages"]
+    assert [m["role"] for m in msgs] == ["assistant", "tool", "assistant", "tool", "assistant"]
+    assert msgs[0]["content"] is None and msgs[2]["content"] is None  # nothing unheard is saved as said
+    assert msgs[-1] == {"role": "assistant", "content": "It's 42, sir."}
+    assert_valid_api_history([{"role": "user", "content": "hello"}] + msgs)
+    # within the turn the model still sees what it wrote
+    assert llm.requests[1]["messages"][2]["content"] == "Let me check that for you."
+
+
+def test_voice_text_only_turn_streams_like_desktop():
+    def script():
+        return FakeLLM([text("Good "), text("evening."), {"type": "usage", "usage": {"prompt_tokens": 1}}])
+
+    assert collect(script(), channel="voice") == collect(script())
+
+
+def test_voice_drops_an_unfinished_step_on_error(temp_tool):
+    events = collect(FakeLLM([text("Let me"), LLMError("Model error: overloaded")]), channel="voice")
+    assert [e["type"] for e in events] == ["model", "error"]
+
+    async def ok(ctx):
+        return {"status": "ok"}
+
+    temp_tool("t_ok", ok)
+    events = collect(FakeLLM([tool_calls(("c1", "t_ok"))], [text("Half an ans"), RuntimeError("socket closed")]), channel="voice")
+    assert of(events, "token") == []
+    assert events[-2]["type"] == "error" and events[-1]["type"] == "done"
+
+
+def test_quiet_channel_step_limit_note_is_plain(temp_tool, monkeypatch):
+    monkeypatch.setattr(agent, "MAX_STEPS", 2)
+
+    async def again(ctx):
+        return {"status": "again"}
+
+    temp_tool("t_again", again)
+    events = collect(FakeLLM(*[[text("Checking."), tool_calls((f"c{i}", "t_again"))] for i in range(5)]), channel="voice")
+    tokens = [e["text"] for e in of(events, "token")]
+    assert tokens == ["I've reached my limit of actions for one request. Tell me to continue if needed."]
+    assert events[-1]["messages"][-1]["content"] == tokens[0]
+
+
+@pytest.mark.parametrize("channel,marker", [("voice", "Channel: voice"), ("phone", "Channel: phone call"), ("sms", "Channel: text message")])
+def test_channel_reaches_the_system_prompt(channel, marker):
+    llm = FakeLLM([text("ok")])
+    collect(llm, channel=channel)
+    assert marker in llm.requests[0]["messages"][0]["content"]
+    llm = FakeLLM([text("ok")])
+    collect(llm)
+    assert "Channel:" not in llm.requests[0]["messages"][0]["content"]
+
+
+def test_unknown_channel_is_refused():
+    llm = FakeLLM([text("ok")])
+    with pytest.raises(ValueError, match="Unknown channel"):
+        collect(llm, channel="fax")
+    assert llm.requests == []
+    collect(llm, channel=" Voice ")  # case and spacing don't matter
+    assert "Channel: voice" in llm.requests[0]["messages"][0]["content"]
+
+
+# ---------------------------------------------------------------- remote channels: adversarial review
+@pytest.mark.parametrize("channel", ["phone", "sms"])
+def test_remote_turns_stop_after_a_few_steps(temp_tool, channel):
+    async def again(ctx):
+        return {"status": "again"}
+
+    temp_tool("t_again", again)
+
+    def looping():
+        return FakeLLM(*[[tool_calls((f"c{i}", "t_again"))] for i in range(agent.MAX_STEPS + 5)])
+
+    remote = looping()
+    events = collect(remote, channel=channel, allowed_tools={"t_again"})
+    assert len(remote.requests) == agent.REMOTE_MAX_STEPS < agent.MAX_STEPS
+    assert "limit of actions" in events[-1]["messages"][-1]["content"]
+    desktop = looping()
+    collect(desktop)
+    assert len(desktop.requests) == agent.MAX_STEPS  # the desktop keeps its longer budget
+
+
+@pytest.mark.parametrize("channel", ["phone", "sms"])
+def test_remote_turns_run_only_exact_allowed_names(temp_tool, channel):
+    ran = []
+
+    async def ok(ctx):
+        ran.append("ok")
+        return {"status": "ok"}
+
+    temp_tool("t_ok", ok)
+    temp_tool("T_OK", ok)  # a registered tool whose name differs only in case is still another tool
+    llm = FakeLLM(
+        [tool_calls(("a", "T_OK"), ("b", "t_ok "), ("c", " t_ok"), ("d", "t_ok​"), ("e", "send_email",
+                    '{"to": "x@example.com", "subject": "notes", "body": "..."}'))],
+        [text("ok")],
+    )
+    broker = ConfirmationBroker()
+    events = collect(llm, broker=broker, channel=channel, allowed_tools={"t_ok"})
+    assert ran == [] and of(events, "confirm") == [] and broker.pending == {}
+    errors = [e for e in of(events, "tool") if e["state"] == "error"]
+    assert len(errors) == 5 and all("isn't available" in e["summary"] for e in errors)

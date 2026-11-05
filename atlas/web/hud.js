@@ -104,6 +104,14 @@
     this.inputSource = typeof fn === 'function' ? fn : null;
   };
 
+  /** A listening window ({id, ms, hold, hearing}) shown as a countdown on the dashed ring; null to clear. */
+  Core.prototype.setWindow = function (w) {
+    if (!w) { this.win = null; return; }
+    if (!this.win || this.win.id !== w.id) this.win = { id: w.id, t0: performance.now(), ms: Math.max(500, w.ms || 8000) };
+    this.win.hold = !!w.hold;
+    this.win.hearing = !!w.hearing;
+  };
+
   /** A speech boundary or other transient: brief swell plus a ripple. */
   Core.prototype.pulse = function (strength) {
     var s = strength == null ? 1 : strength;
@@ -638,6 +646,36 @@
       ctx.beginPath(); ctx.arc(cx, cy, rd, 0, TAU * p5); ctx.stroke();
       ctx.setLineDash([]);
       ctx.globalAlpha = 1;
+
+      // ---- listening window: the dashed ring turns into a countdown from twelve o'clock (full, and
+      //      breathing, while speech is coming in or the talk key is held)
+      var wn = this.win;
+      if (wn) {
+        var full = wn.hold || wn.hearing;
+        var left = full ? 1 : clamp(1 - (performance.now() - wn.t0) / wn.ms, 0, 1);
+        if (left > 0.001) {
+          var wa0 = -Math.PI / 2, wa1 = wa0 + TAU * left;
+          var wlw = Math.max(2.4, R * 0.016);
+          ctx.save();
+          ctx.lineCap = 'round';
+          ctx.globalAlpha = p5 * flicker * (full && !this.reduced ? 0.78 + 0.22 * Math.sin(t * 5.5) : 1);
+          ctx.lineWidth = wlw * 3.4;
+          ctx.strokeStyle = col(0.09 * this.glow);
+          ctx.beginPath(); ctx.arc(cx, cy, rd, wa0, wa1); ctx.stroke();
+          ctx.lineWidth = wlw;
+          ctx.strokeStyle = 'rgba(232,252,255,0.95)';
+          ctx.beginPath(); ctx.arc(cx, cy, rd, wa0, wa1); ctx.stroke();
+          if (!full) { // leading tick
+            ctx.lineWidth = Math.max(1.2, hair * 1.6);
+            ctx.strokeStyle = col(0.9);
+            ctx.beginPath();
+            ctx.moveTo(cx + Math.cos(wa1) * (rd - wlw * 2.2), cy + Math.sin(wa1) * (rd - wlw * 2.2));
+            ctx.lineTo(cx + Math.cos(wa1) * (rd + wlw * 2.2), cy + Math.sin(wa1) * (rd + wlw * 2.2));
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+      }
     }
 
     // ---- inner segmented ring with markers

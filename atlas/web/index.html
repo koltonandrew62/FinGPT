@@ -126,7 +126,8 @@
     <!-- CENTER: core, transcript, command -->
     <section class="col col-center" id="col-center" aria-label="Assistant">
       <div class="core-wrap" id="core-wrap">
-        <button class="core" id="core" type="button" aria-label="Voice core. Click to talk, or to stop speaking.">
+        <button class="core" id="core" type="button" aria-label="Voice core. Tap to talk, or to stop speaking. Hold Space to talk." aria-keyshortcuts="Space">
+          <!-- A listening window (push-to-talk, after the wake word, follow-up) is drawn as a countdown on the dashed ring. -->
           <canvas id="core-canvas" aria-hidden="true"></canvas>
           <span class="core-label" aria-hidden="true">
             <span class="core-name" id="core-name">ATLAS</span>
@@ -147,6 +148,18 @@
           <span class="wa-step" id="wa-step"></span>
         </div>
       </div>
+
+      <!-- Voice-only mode: what to say, the state, and live captions (the last thing you said, the sentence being spoken). -->
+      <div class="voice-hud" id="voice-hud" data-state="standby">
+        <p class="vh-status"><i class="vh-dot" aria-hidden="true"></i><span id="vh-status">Say “<span data-name>ATLAS</span>” or tap the core</span></p>
+        <p class="vh-hint" id="vh-hint" aria-hidden="true"></p>
+        <div class="vh-caps" aria-hidden="true">
+          <p class="cap cap-u" id="cap-u"><b class="cap-k">You</b><span class="cap-t"></span></p>
+          <p class="cap cap-a" id="cap-a"><b class="cap-k" data-name>ATLAS</b><span class="cap-t"></span></p>
+        </div>
+      </div>
+      <!-- Voice-only mode: a waiting approval card is shown here, over the core. -->
+      <div class="voice-card" id="voice-card" role="region" aria-label="Approval required" hidden></div>
 
       <div class="transcript-wrap">
         <div class="transcript" id="transcript" role="log" aria-live="off" aria-label="Conversation" tabindex="0">
@@ -254,26 +267,40 @@
       <p class="set-intro">Saved to the <code>.env</code> file on this computer. Secret fields are never shown again: leave one blank to keep its current value.</p>
 
       <details class="set-sec" id="sec-assistant" open>
-        <summary><span class="idx">01</span><span class="ss-title">Assistant &amp; voice</span><span class="ss-dirty">Edited</span><span class="ss-badge" data-badge="voice"></span><i class="ss-chev" aria-hidden="true"></i></summary>
+        <summary><span class="idx">01</span><span class="ss-title">Assistant &amp; speech</span><span class="ss-dirty">Edited</span><span class="ss-badge" data-badge="voice"></span><i class="ss-chev" aria-hidden="true"></i></summary>
         <div class="set-body">
           <label class="field"><span>Assistant name <em class="field-note">also the wake word</em></span><input name="ASSISTANT_NAME" type="text" maxlength="40" placeholder="ATLAS"></label>
           <label class="field"><span>Voice</span>
             <select id="voice-select" data-local="voiceURI"><option value="">Automatic</option></select>
           </label>
           <div class="field-row">
-            <label class="field range" for="rate-input"><span>Rate <output id="rate-out" for="rate-input">1.00</output></span><input id="rate-input" type="range" min="0.6" max="1.6" step="0.05" value="1" data-local="rate"></label>
-            <label class="field range" for="pitch-input"><span>Pitch <output id="pitch-out" for="pitch-input">1.00</output></span><input id="pitch-input" type="range" min="0.5" max="1.5" step="0.05" value="1" data-local="pitch"></label>
+            <label class="field range" for="rate-input"><span>Rate <output id="rate-out" for="rate-input">0.98</output></span><input id="rate-input" type="range" min="0.6" max="1.6" step="0.02" value="0.98" data-local="rate"></label>
+            <label class="field range" for="pitch-input"><span>Pitch <output id="pitch-out" for="pitch-input">0.95</output></span><input id="pitch-input" type="range" min="0.5" max="1.5" step="0.05" value="0.95" data-local="pitch"></label>
           </div>
           <label class="toggle"><input type="checkbox" id="speak-toggle" data-local="speak" checked><i aria-hidden="true"></i><span>Speak replies aloud</span></label>
-          <label class="toggle"><input type="checkbox" id="wake-toggle" data-local="wake"><i aria-hidden="true"></i><span>Wake word — listen for “<b data-name>ATLAS</b>”</span></label>
           <p class="field-help" id="voice-support"></p>
-          <p class="field-help">Voice choices apply straight away and are kept in this browser.</p>
+          <p class="field-help">Automatic picks the most natural British male voice this computer has (Microsoft Edge on Windows offers “Ryan” and “Thomas” Natural voices). Voice choices apply straight away and are kept in this browser.</p>
           <button class="btn btn-ghost btn-sm" type="button" id="voice-test">Test voice</button>
         </div>
       </details>
 
+      <details class="set-sec" id="sec-voice">
+        <summary><span class="idx">02</span><span class="ss-title">Voice</span><span class="ss-badge" data-badge="convo"></span><i class="ss-chev" aria-hidden="true"></i></summary>
+        <div class="set-body">
+          <label class="toggle"><input type="checkbox" id="wake-toggle" data-local="wake" aria-describedby="help-wake"><i aria-hidden="true"></i><span>Hands-free — listen for “<b data-name>ATLAS</b>”</span></label>
+          <label class="toggle toggle-sub"><input type="checkbox" id="wakereq-toggle" data-local="wakeRequired" aria-describedby="help-wake"><i aria-hidden="true"></i><span>Wake word required</span></label>
+          <p class="field-help" id="help-wake">Say the name to start, e.g. “<span data-name>ATLAS</span>, what’s on today?”. With the wake word not required, anything said near the microphone is taken as a request — best in a quiet room. While a reply is spoken the microphone only listens for “stop”, “cancel”, “never mind” or the name.</p>
+          <label class="toggle"><input type="checkbox" id="follow-toggle" data-local="followUp" aria-describedby="help-follow"><i aria-hidden="true"></i><span>Conversation follow-up</span></label>
+          <p class="field-help" id="help-follow">After a reply, keep listening for about 8 seconds so you can carry on without the wake word. The ring round the core shows the time left.</p>
+          <label class="toggle"><input type="checkbox" id="captions-toggle" data-local="captions"><i aria-hidden="true"></i><span>Captions</span></label>
+          <label class="toggle"><input type="checkbox" id="chat-toggle" data-local="showChat" aria-describedby="help-chat"><i aria-hidden="true"></i><span>Show text chat (troubleshooting)</span></label>
+          <p class="field-help" id="help-chat">Brings back the transcript, quick actions and the command bar.</p>
+          <p class="field-help note">Tap the core or hold <kbd>Space</kbd> to talk; pause when you’re done and the request is sent. <kbd>Esc</kbd> stops listening and speaking.</p>
+        </div>
+      </details>
+
       <details class="set-sec" id="sec-you">
-        <summary><span class="idx">02</span><span class="ss-title">You</span><span class="ss-dirty">Edited</span><span class="ss-badge" data-badge="you"></span><i class="ss-chev" aria-hidden="true"></i></summary>
+        <summary><span class="idx">03</span><span class="ss-title">You</span><span class="ss-dirty">Edited</span><span class="ss-badge" data-badge="you"></span><i class="ss-chev" aria-hidden="true"></i></summary>
         <div class="set-body">
           <div class="field-row">
             <label class="field"><span>Your name</span><input name="USER_NAME" type="text" maxlength="60"></label>
@@ -297,7 +324,7 @@
       </details>
 
       <details class="set-sec" id="sec-model">
-        <summary><span class="idx">03</span><span class="ss-title">AI model</span><span class="ss-dirty">Edited</span><span class="ss-badge" data-badge="model"></span><i class="ss-chev" aria-hidden="true"></i></summary>
+        <summary><span class="idx">04</span><span class="ss-title">AI model</span><span class="ss-dirty">Edited</span><span class="ss-badge" data-badge="model"></span><i class="ss-chev" aria-hidden="true"></i></summary>
         <div class="set-body">
           <label class="field"><span>Model <em class="field-note" id="model-note"></em></span>
             <select name="ATLAS_MODEL" id="model-select"><option value="">Automatic (recommended)</option></select>
@@ -315,7 +342,7 @@
       </details>
 
       <details class="set-sec" id="sec-email">
-        <summary><span class="idx">04</span><span class="ss-title">Email</span><span class="ss-dirty">Edited</span><span class="ss-badge" data-badge="email"></span><i class="ss-chev" aria-hidden="true"></i></summary>
+        <summary><span class="idx">05</span><span class="ss-title">Email</span><span class="ss-dirty">Edited</span><span class="ss-badge" data-badge="email"></span><i class="ss-chev" aria-hidden="true"></i></summary>
         <div class="set-body">
           <label class="field"><span>Email address</span><input name="EMAIL_ADDRESS" type="email" autocomplete="email" placeholder="you@gmail.com"></label>
           <div class="field">
@@ -338,7 +365,7 @@
       </details>
 
       <details class="set-sec" id="sec-calendar">
-        <summary><span class="idx">05</span><span class="ss-title">Calendar</span><span class="ss-dirty">Edited</span><span class="ss-badge" data-badge="calendar"></span><i class="ss-chev" aria-hidden="true"></i></summary>
+        <summary><span class="idx">06</span><span class="ss-title">Calendar</span><span class="ss-dirty">Edited</span><span class="ss-badge" data-badge="calendar"></span><i class="ss-chev" aria-hidden="true"></i></summary>
         <div class="set-body">
           <div class="field">
             <label class="field-lbl" for="f-CALENDAR_ICS_URLS"><span>Secret iCal (ICS) addresses</span><em class="field-note"><b class="cfg" data-cfg="CALENDAR_ICS_URLS"></b></em></label>
@@ -370,7 +397,7 @@
       </details>
 
       <details class="set-sec" id="sec-comms">
-        <summary><span class="idx">06</span><span class="ss-title">Texting &amp; calls</span><span class="ss-dirty">Edited</span><span class="ss-badge" data-badge="comms"></span><i class="ss-chev" aria-hidden="true"></i></summary>
+        <summary><span class="idx">07</span><span class="ss-title">Texting &amp; calls</span><span class="ss-dirty">Edited</span><span class="ss-badge" data-badge="comms"></span><i class="ss-chev" aria-hidden="true"></i></summary>
         <div class="set-body">
           <p class="field-help note">On a Mac, texts can go through the <b>Messages app</b> (iMessage) with no setup — Twilio is optional there. Calls open your computer’s calling app and you press Call.</p>
           <label class="field"><span>Twilio account SID</span><input name="TWILIO_ACCOUNT_SID" type="text" maxlength="64" spellcheck="false" placeholder="AC…"></label>
@@ -386,8 +413,47 @@
         </div>
       </details>
 
+      <details class="set-sec" id="sec-phone">
+        <summary><span class="idx">08</span><span class="ss-title">Phone line</span><span class="ss-dirty">Edited</span><span class="ss-badge" data-badge="phone"></span><i class="ss-chev" aria-hidden="true"></i></summary>
+        <div class="set-body">
+          <p class="field-help note">Give <span data-name>ATLAS</span> its own phone number: call it or text it from your mobile. By phone it can only look things up and set reminders, tasks and notes — anything that needs an Approve card (email, texts, calls, commands, purchases) waits until you’re back at the desktop.</p>
+          <div class="phone-status" id="phone-status" data-status="off" role="status" aria-live="polite" hidden>
+            <i class="ps-dot" aria-hidden="true"></i>
+            <span class="ps-main"><b class="ps-label" id="ps-label">Off</b><span class="ps-num" id="ps-num"></span></span>
+            <span class="ps-url" id="ps-url"></span>
+            <span class="ps-err" id="ps-err"></span>
+          </div>
+          <label class="toggle"><input type="checkbox" name="PHONE_ENABLED" data-bool aria-describedby="help-phone"><i aria-hidden="true"></i><span>Answer calls and texts</span></label>
+          <div class="field-row">
+            <label class="field"><span>Assistant’s number <em class="field-note">Twilio</em></span><input name="PHONE_NUMBER" type="tel" maxlength="24" spellcheck="false" autocomplete="off" placeholder="+15555550123"></label>
+            <label class="field small"><span>Local port</span><input name="PHONE_PORT" type="text" inputmode="numeric" maxlength="5" spellcheck="false" placeholder="8790"></label>
+          </div>
+          <label class="field"><span>Who may call or text <em class="field-note">comma-separated</em></span><input name="PHONE_ALLOWED_NUMBERS" type="text" maxlength="400" spellcheck="false" autocomplete="off" aria-describedby="help-allowed" placeholder="blank = your phone (You → Phone)"></label>
+          <p class="field-help" id="help-allowed">Numbers in international format, e.g. <code>+15555550123</code>. Calls and texts from anyone else are turned away.</p>
+          <div class="field-row">
+            <label class="field"><span>Tunnel</span>
+              <select name="PHONE_TUNNEL" aria-describedby="help-phone">
+                <option value="cloudflared">Cloudflare quick tunnel</option>
+                <option value="none">None — use my public URL</option>
+              </select>
+            </label>
+            <label class="field"><span>Phone voice <em class="field-note">Twilio</em></span><input name="PHONE_VOICE" type="text" maxlength="60" spellcheck="false" placeholder="Polly.Brian-Neural"></label>
+          </div>
+          <label class="field"><span>Public URL <em class="field-note">optional</em></span><input name="PHONE_PUBLIC_URL" type="url" maxlength="300" spellcheck="false" aria-describedby="help-phone" placeholder="https://atlas.example.com (blank = quick tunnel)"></label>
+          <div class="field-help help-list" id="help-phone">
+            <p>What it needs:</p>
+            <ul>
+              <li>A <a href="https://www.twilio.com/try-twilio" target="_blank" rel="noopener noreferrer">Twilio</a> account and a phone number (Console → Phone Numbers → Buy a number). A trial account works, but only with numbers you have verified.</li>
+              <li>Your Twilio account SID and auth token in <b>Texting &amp; calls</b> above.</li>
+              <li><b>cloudflared</b> installed, so calls can reach this computer — on Windows: <code>winget install Cloudflare.cloudflared</code> — or your own public https URL that forwards to the local port.</li>
+            </ul>
+            <p>This computer has to be on with <span data-name>ATLAS</span> running to answer.</p>
+          </div>
+        </div>
+      </details>
+
       <details class="set-sec" id="sec-home">
-        <summary><span class="idx">07</span><span class="ss-title">Smart home</span><span class="ss-dirty">Edited</span><span class="ss-badge" data-badge="home"></span><i class="ss-chev" aria-hidden="true"></i></summary>
+        <summary><span class="idx">09</span><span class="ss-title">Smart home</span><span class="ss-dirty">Edited</span><span class="ss-badge" data-badge="home"></span><i class="ss-chev" aria-hidden="true"></i></summary>
         <div class="set-body">
           <label class="field"><span>Home Assistant URL</span><input name="HOME_ASSISTANT_URL" type="url" maxlength="300" spellcheck="false" placeholder="http://homeassistant.local:8123"></label>
           <div class="field">
@@ -401,7 +467,7 @@
       </details>
 
       <details class="set-sec" id="sec-browser">
-        <summary><span class="idx">08</span><span class="ss-title">Web browser</span><span class="ss-dirty">Edited</span><span class="ss-badge" data-badge="browser"></span><i class="ss-chev" aria-hidden="true"></i></summary>
+        <summary><span class="idx">10</span><span class="ss-title">Web browser</span><span class="ss-dirty">Edited</span><span class="ss-badge" data-badge="browser"></span><i class="ss-chev" aria-hidden="true"></i></summary>
         <div class="set-body">
           <p class="field-help note"><span data-name>ATLAS</span> opens its own Chrome or Edge window to book tables and run web errands. Sign in to OpenTable, Resy and Google there once — it stays signed in, separate from your everyday browser. Final Book / Pay / Submit clicks always wait for your approval.</p>
           <label class="toggle"><input type="checkbox" name="BROWSER_HEADLESS" data-bool aria-describedby="help-headless"><i aria-hidden="true"></i><span>Run without a visible window (headless)</span></label>
@@ -423,7 +489,7 @@
       </details>
 
       <details class="set-sec" id="sec-data">
-        <summary><span class="idx">09</span><span class="ss-title">Data sources</span><span class="ss-dirty">Edited</span><span class="ss-badge" data-badge="data"></span><i class="ss-chev" aria-hidden="true"></i></summary>
+        <summary><span class="idx">11</span><span class="ss-title">Data sources</span><span class="ss-dirty">Edited</span><span class="ss-badge" data-badge="data"></span><i class="ss-chev" aria-hidden="true"></i></summary>
         <div class="set-body">
           <p class="field-help note">Stocks, crypto, economic data and sports scores all work with every field here blank. These only tune the sources or raise their rate limits.</p>
           <label class="field"><span>Market watchlist <em class="field-note">bottom ticker · blank = default</em></span><input name="MARKET_WATCHLIST" type="text" maxlength="400" spellcheck="false" aria-describedby="help-watch" placeholder="^GSPC,^IXIC,AAPL,BTC-USD"></label>
@@ -456,14 +522,14 @@
       </details>
 
       <details class="set-sec" id="sec-memory">
-        <summary><span class="idx">10</span><span class="ss-title">Memory</span><span class="ss-badge" data-badge="memory"></span><i class="ss-chev" aria-hidden="true"></i></summary>
+        <summary><span class="idx">12</span><span class="ss-title">Memory</span><span class="ss-badge" data-badge="memory"></span><i class="ss-chev" aria-hidden="true"></i></summary>
         <div class="set-body">
           <ul class="memory-list" id="memory-list"><li class="muted">Loading…</li></ul>
         </div>
       </details>
 
       <details class="set-sec set-danger" id="sec-danger">
-        <summary><span class="idx">11</span><span class="ss-title">Danger zone</span><i class="ss-chev" aria-hidden="true"></i></summary>
+        <summary><span class="idx">13</span><span class="ss-title">Danger zone</span><i class="ss-chev" aria-hidden="true"></i></summary>
         <div class="set-body">
           <p class="field-help">Clears the transcript and chat history stored in this browser. Settings and long-term memory are kept.</p>
           <button class="btn btn-danger btn-sm" type="button" id="clear-convo">Clear conversation</button>

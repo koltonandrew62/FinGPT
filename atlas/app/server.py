@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
 import secrets
 import socket
@@ -18,6 +19,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from . import phone
 from . import tools as tool_registry
 from .agent import ConfirmationBroker, run_turn
 from .config import EDITABLE_KEYS, SECRET_KEYS, WEB_DIR, Settings, load_env_file, update_env_file
@@ -33,6 +35,7 @@ from .tools.sports import scores_for_panel
 from .tools.weather import get_weather_data
 
 tool_registry.load_all()
+log = logging.getLogger("atlas.server")
 
 
 class State:
@@ -42,6 +45,7 @@ class State:
     broker: ConfirmationBroker
     token: str
     port: int
+    phone_task: asyncio.Task | None = None  # the phone line's latest (re)start, run in the background
 
     def ctx(self) -> ToolContext:
         return ToolContext(settings=self.settings, http=self.http, llm=self.llm)
@@ -71,7 +75,11 @@ async def lifespan(app: FastAPI):
         psutil.cpu_percent(interval=None)  # prime the CPU counter
     except Exception:
         pass
+    S.phone_task = None
+    if _phone_wanted():
+        _restart_phone()  # in the background: opening the tunnel and updating Twilio can take ~35 s
     yield
+    await _stop_phone()  # before the HTTP client closes: the line reaches Twilio through it
     try:
         from .tools import browser
 
@@ -86,6 +94,71 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="ATLAS", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+
+
+# ------------------------------------------------------------------ phone line (app/phone.py)
+# Settings whose change restarts the phone line. USER_PHONE is who may call when PHONE_ALLOWED_NUMBERS is blank, and
+# DEFAULT_COUNTRY_CODE decides how numbers written without a leading + are read.
+PHONE_RESTART_PREFIXES = ("PHONE_", "TWILIO_")
+PHONE_RESTART_KEYS = {"USER_PHONE", "DEFAULT_COUNTRY_CODE"}
+PHONE_STOP_TIMEOUT = 15.0
+
+
+def _phone_wanted() -> bool:
+    try:
+        return bool(phone.load_config(S.settings).enabled)
+    except Exception:  # load_config doesn't raise; a phone line problem must never stop ATLAS starting
+        return False
+
+
+def _phone_task() -> asyncio.Task | None:
+    """The latest phone line (re)start, if it belongs to this event loop. (Tests run the app on more than one loop: a
+    task left over from an earlier one can never finish and mustn't be waited for.)"""
+    task = S.phone_task
+    if task is not None and task.get_loop() is not asyncio.get_running_loop():
+        return None
+    return task
+
+
+def _restart_phone() -> asyncio.Task:
+    """(Re)start the phone line in the background. A newer restart replaces one still in progress."""
+    previous = _phone_task()
+
+    async def run() -> None:
+        if previous is not None and not previous.done():
+            previous.cancel()
+            await asyncio.wait({previous}, timeout=PHONE_STOP_TIMEOUT)
+        try:
+            # S.ctx is called again for every phone turn, so later settings changes reach the line without a restart.
+            await phone.start(S.settings, S.llm, S.ctx)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # start() reports its own problems in status(); this is only a last resort
+            log.warning("The phone line couldn't start (%s).", exc.__class__.__name__)
+
+    S.phone_task = asyncio.create_task(run(), name="atlas-phone-line")
+    return S.phone_task
+
+
+async def _stop_phone() -> None:
+    task, S.phone_task = _phone_task(), None
+    if task is not None and not task.done():
+        task.cancel()
+        await asyncio.wait({task}, timeout=PHONE_STOP_TIMEOUT)
+    try:
+        await phone.stop()
+    except Exception as exc:
+        log.warning("The phone line didn't stop cleanly (%s).", exc.__class__.__name__)
+
+
+def _phone_state() -> dict:
+    """phone.status(), but while a restart is still queued behind the old line, where it's heading instead."""
+    st = dict(phone.status())
+    task = _phone_task()
+    if task is not None and not task.done() and st.get("status") != "starting":
+        enabled = _phone_wanted()
+        st.update(enabled=enabled, status="starting" if enabled else "off", public_url=None, error=None)
+    return st
 
 
 @app.middleware("http")
@@ -160,6 +233,7 @@ async def state():
         # Every other editable setting: plain values for normal keys, only a "configured" flag for secrets.
         "extra": _extra_settings(),
         "secrets_configured": {k: bool(_raw_setting(k)) for k in sorted(SECRET_KEYS)},
+        "phone": _phone_state(),
     }
 
 
@@ -174,6 +248,8 @@ _STATE_KEYS = {
     "CALENDAR_PROVIDER", "CALENDAR_DAY_HOURS", "TWILIO_ACCOUNT_SID", "TWILIO_FROM_NUMBER",
     "DEFAULT_COUNTRY_CODE", "HOME_ASSISTANT_URL", "HOME_ASSISTANT_CONFIRM_DOMAINS", "MARKET_WATCHLIST",
     "FINANCE_REGION", "FINANCE_USER_AGENT", "SEC_CONTACT_EMAIL", "SPORTS_TIMEZONE", "SPORTS_PANEL_LEAGUES",
+    "PHONE_ENABLED", "PHONE_NUMBER", "PHONE_ALLOWED_NUMBERS", "PHONE_PUBLIC_URL", "PHONE_TUNNEL", "PHONE_VOICE",
+    "PHONE_LANGUAGE", "PHONE_PORT",  # PHONE_PIN is a secret: only "configured" is reported
 }
 
 
@@ -216,6 +292,8 @@ async def setup(body: SetupBody):
     if updates:
         update_env_file(updates)
     S.reload()
+    if any(k.startswith(PHONE_RESTART_PREFIXES) or k in PHONE_RESTART_KEYS for k in updates):
+        _restart_phone()  # also stops the line when it was just switched off
     return {"ok": True, "updated": sorted(updates)}
 
 
@@ -234,12 +312,21 @@ async def models():
 # ------------------------------------------------------------------ chat
 class ChatBody(BaseModel):
     messages: list[dict]
+    channel: str | None = None  # "voice" from the HUD's voice-only mode; absent means "desktop"
+
+
+# The HUD speaks for the desktop only; "phone" and "sms" turns come from the phone line, never from here.
+CHAT_CHANNELS = ("desktop", "voice")
 
 
 @app.post("/api/chat")
 async def chat(body: ChatBody, request: Request):
+    channel = (body.channel or "desktop").strip().lower()
+    if channel not in CHAT_CHANNELS:
+        raise HTTPException(400, "channel must be 'desktop' or 'voice'.")
+
     async def events():
-        turn = run_turn(body.messages, S.settings, S.llm, S.broker, S.ctx())
+        turn = run_turn(body.messages, S.settings, S.llm, S.broker, S.ctx(), channel=channel)
         try:
             async for ev in turn:
                 yield f"data: {json.dumps(ev, ensure_ascii=False, default=str)}\n\n"

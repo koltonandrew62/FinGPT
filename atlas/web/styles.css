@@ -2164,3 +2164,198 @@ body.is-streaming .chip:not(.chip-fill) { opacity: 0.55; }
   .panel, .btn, .chip, .cmdbar, .confirm, .toast { border: 1px solid CanvasText; }
   .mk-seg-b[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -3px; }
 }
+
+/* ================================================================== voice-only HUD
+ * No transcript, quick actions or command bar (Settings → Voice → Show text chat brings them back): the core
+ * fills the centre, with a status line and two fading captions under it. A waiting approval card is shown over
+ * the core. */
+.voice-hud, .voice-card { display: none; }
+body.voice-only .transcript-wrap,
+body.voice-only .chips,
+body.voice-only .cmdbar,
+body.voice-only .jump-latest { display: none !important; }
+body.voice-only .voice-hud { display: flex; }
+body.voice-only .voice-card:not([hidden]) { display: flex; }
+body.voice-only .col-center { position: relative; gap: 0; }
+body.voice-only .core-wrap,
+body.voice-only.has-convo .core-wrap,
+body.voice-only.has-convo.has-pending .core-wrap { flex: 1 1 auto; height: auto; min-height: 200px; }
+
+.voice-hud {
+  flex: none;
+  flex-direction: column; align-items: center;
+  gap: 7px;
+  min-height: 178px;
+  padding: 4px 18px 16px;
+  text-align: center;
+}
+.vh-status {
+  display: inline-flex; align-items: center; gap: 11px;
+  margin: 0;
+  font: 500 16px/1.25 var(--font-display);
+  letter-spacing: 0.13em; text-transform: uppercase;
+  color: var(--ink-bright);
+  text-shadow: 0 0 18px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.vh-dot {
+  flex: none; width: 7px; height: 7px;
+  transform: rotate(45deg);
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+}
+.voice-hud[data-state="listening"] .vh-dot { animation: vh-pulse 0.9s ease-in-out infinite; }
+.voice-hud[data-state="thinking"] .vh-dot { animation: vh-spin 1.2s linear infinite; }
+.voice-hud[data-state="speaking"] .vh-dot { animation: vh-pulse 0.55s ease-in-out infinite; }
+.voice-hud[data-state="error"] .vh-status { color: var(--red-ink); }
+.vh-hint {
+  min-height: 15px; margin: 0;
+  font: 400 11px/15px var(--font-mono); letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+.vh-caps {
+  display: grid; gap: 8px;
+  width: min(100%, 780px);
+  margin-top: 8px;
+  min-height: 108px;
+  align-content: start;
+}
+body.no-captions .vh-caps { display: none; }
+body.no-captions .voice-hud { min-height: 0; }
+.cap {
+  margin: 0;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+  overflow: hidden;
+  font: 400 17px/1.45 var(--font-read);
+  text-wrap: balance;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.6s var(--ease), transform 0.6s var(--ease);
+}
+.cap.show { opacity: 1; transform: none; }
+.cap-k {
+  margin-right: 10px;
+  font: 500 10.5px/1 var(--font-mono); letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--ink-3);
+  vertical-align: 2px;
+}
+.cap-u .cap-t { color: var(--ink-2); }
+.cap-u .cap-t::before { content: "“"; color: var(--accent); }
+.cap-u .cap-t::after { content: "”"; color: var(--accent); }
+.cap-u.live .cap-t { color: var(--cyan-ink); }
+.cap-u.live .cap-t::after { content: "▍"; margin-left: 2px; color: var(--accent); animation: blink 1s steps(2, start) infinite; }
+.cap-a .cap-t { color: var(--ink-bright); font-size: 18px; }
+.cap-a .cap-k { color: var(--accent); }
+.cap.err .cap-t { color: var(--red-ink); }
+@keyframes vh-pulse { 0%, 100% { opacity: 1; transform: rotate(45deg) scale(1); } 50% { opacity: 0.45; transform: rotate(45deg) scale(0.7); } }
+@keyframes vh-spin { to { transform: rotate(405deg); } }
+
+/* ---- an approval card over the core */
+.voice-card {
+  position: absolute; inset: 0; z-index: 6;
+  align-items: center; justify-content: center;
+  padding: 14px 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: radial-gradient(closest-side, rgba(2, 6, 11, 0.78), rgba(2, 6, 11, 0.6) 72%, rgba(2, 6, 11, 0.15));
+  animation: msg-in 0.35s var(--ease) both;
+}
+.voice-card .confirm {
+  --fill: linear-gradient(180deg, rgba(38, 27, 9, 0.97), rgba(9, 13, 19, 0.98) 55%);
+  width: min(100%, 600px);
+  margin: auto;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 181, 71, 0.08);
+}
+.voice-card .confirm-title { font-size: 19px; }
+body.card-on-core .core canvas { opacity: 0.3; transition: opacity 0.4s; }
+body.card-on-core .core-label, body.card-on-core .core-co { opacity: 0.15; }
+body.voice-only.card-on-core .vh-caps { visibility: hidden; }
+
+/* ---- phone line settings */
+.toggle-sub { margin-left: 50px; margin-top: -4px; font-size: 13.5px; }
+.toggle-sub i { width: 32px; height: 17px; }
+.toggle-sub i::after { width: 9px; height: 9px; }
+.toggle-sub input:checked + i::after { transform: translateX(15px); }
+.field-help kbd { font-size: 10.5px; }
+.phone-status {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 11px; row-gap: 3px; align-items: center;
+  margin: 2px 0 14px; padding: 10px 12px;
+  border: 1px solid var(--line-2);
+  background: rgba(95, 225, 255, 0.04);
+}
+.ps-dot { grid-row: 1 / span 3; align-self: start; margin-top: 4px; width: 9px; height: 9px; border-radius: 50%; background: var(--ink-3); }
+.ps-main { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; min-width: 0; }
+.ps-label { font: 600 12px/1.3 var(--font-mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-2); }
+.ps-num { font: 500 15px/1.3 var(--font-mono); color: var(--ink-bright); font-variant-numeric: tabular-nums; }
+.ps-url { font: 400 11.5px/1.4 var(--font-mono); color: var(--cyan-ink); overflow-wrap: anywhere; }
+.ps-err { font-size: 12.5px; line-height: 1.45; color: var(--ink-3); }
+.ps-url:empty, .ps-num:empty, .ps-err:empty { display: none; }
+.phone-status[data-status="online"] { border-color: rgba(69, 239, 173, 0.45); background: rgba(69, 239, 173, 0.05); }
+.phone-status[data-status="online"] .ps-dot { background: var(--green); box-shadow: 0 0 9px var(--green); }
+.phone-status[data-status="online"] .ps-label { color: var(--green); }
+.phone-status[data-status="starting"] { border-color: rgba(255, 181, 71, 0.45); }
+.phone-status[data-status="starting"] .ps-dot { background: var(--amber); box-shadow: 0 0 9px var(--amber); animation: blink 1s steps(2, start) infinite; }
+.phone-status[data-status="starting"] .ps-label { color: var(--amber-ink); }
+.phone-status[data-status="error"] { border-color: rgba(255, 93, 108, 0.5); background: rgba(255, 93, 108, 0.05); }
+.phone-status[data-status="error"] .ps-dot { background: var(--red); box-shadow: 0 0 9px var(--red); }
+.phone-status[data-status="error"] .ps-label, .phone-status[data-status="error"] .ps-err { color: var(--red-ink); }
+
+/* short desktop windows: captions keep one line each */
+@media (min-width: 761px) and (max-height: 760px) {
+  .voice-hud { min-height: 132px; padding-bottom: 10px; gap: 5px; }
+  .vh-caps { min-height: 66px; gap: 4px; margin-top: 4px; }
+  .cap { -webkit-line-clamp: 1; line-clamp: 1; font-size: 16px; }
+  .cap-a .cap-t { font-size: 16.5px; }
+}
+@media (min-width: 2200px) {
+  .vh-status { font-size: 19px; }
+  .vh-hint { font-size: 12.5px; }
+  .cap { font-size: 20px; }
+  .cap-a .cap-t { font-size: 21px; }
+  .vh-caps { width: min(100%, 980px); min-height: 128px; }
+}
+/* tablet: the pinned centre column is the core */
+@media (min-width: 761px) and (max-width: 1199px) {
+  body.voice-only .core-wrap { min-height: 260px; }
+}
+/* phone: no command bar in the dock; the core and captions share the Core view */
+@media (max-width: 760px) {
+  body.voice-only { --dock-h: calc(62px + env(safe-area-inset-bottom, 0px)); }
+  body.voice-only[data-view="core"] .layout { overflow: hidden; padding-bottom: calc(var(--dock-h) + 4px); }
+  body.voice-only[data-view="core"] .col-center { height: 100%; }
+  body.voice-only .core-wrap { min-height: 180px; }
+  .voice-hud { min-height: 150px; padding: 2px 6px 8px; gap: 6px; }
+  .vh-status { font-size: 14.5px; letter-spacing: 0.11em; gap: 9px; }
+  .vh-hint { display: none; }
+  .vh-caps { min-height: 96px; margin-top: 6px; }
+  .cap { font-size: 15.5px; }
+  .cap-a .cap-t { font-size: 16px; }
+  body.voice-only .voice-card {
+    position: fixed; z-index: 34;
+    left: 0; right: 0;
+    top: calc(var(--topbar-h) + var(--ticker-h));
+    bottom: var(--dock-h);
+    padding: 12px 10px;
+    align-items: flex-end;
+    background: linear-gradient(180deg, rgba(2, 6, 11, 0.55), rgba(2, 6, 11, 0.92) 40%);
+  }
+  .voice-card .confirm { width: 100%; margin: auto 0 0; }
+  .toggle-sub { margin-left: 26px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .voice-card { animation: none; }
+}
+/* The core takes keys all the time in voice-only mode (Space, Esc): its focus mark is the dashed ring round
+   the name rather than a frame round the whole instrument. */
+body.voice-only .core:focus-visible { outline: none; }
+body.voice-only .core:focus-visible .core-label::before { border-width: 2px; border-color: var(--cyan-ink); }
+/* Nothing in the top bar may widen the page: the one grid column can't grow past the viewport, and the
+   status pill ("STANDBY · WAKE") and a long assistant name give way first. */
+body { grid-template-columns: minmax(0, 1fr); }
+.brand { min-width: 0; }
+.brand-text { min-width: 0; }
+.brand-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 760px) {
+  .topbar { gap: 8px; }
+  .status-pill { min-width: 0; flex-shrink: 1; }
+  .status-pill .status-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}

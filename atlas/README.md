@@ -2,13 +2,14 @@
 
 **A voice-driven personal AI assistant that runs on your own computer.**
 
-ATLAS lives in a browser tab as a heads-up display. You talk to it (or type), and it can brief you on the
+ATLAS lives in a browser tab as a heads-up display. You talk to it, and it talks back. It can brief you on the
 news, look things up on the live web, dig into live market, company, crypto, economic and sports data, check
 the weather, read and send your email, book restaurant
 tables and fill in websites in its own browser window, read your calendar and keep a to-do list, send texts and
 start calls, control your smart home, plan errands and trips, keep notes and reminders, remember things about
 you, and operate your PC: opening apps, controlling media, finding files, running commands. Anything risky
-waits for your approval first.
+waits for your approval first. It can also have a phone number of its own, so you can call or text it from
+anywhere.
 
 The thinking is done by the AI model you choose through [OpenRouter](https://openrouter.ai). The server,
 your settings and your personal data all stay on your machine.
@@ -16,7 +17,8 @@ your settings and your personal data all stay on your machine.
 **Contents:** [Features](#what-atlas-can-do) · [Quick start](#quick-start) · [First run](#first-run) ·
 [Things to say](#things-to-say) · [Live data](#live-data-sources) · [Email](#email-setup) · [Your details](#your-details-phone--addresses) ·
 [Reservations & web tasks](#reservations--web-tasks) · [Calendar & to-dos](#calendar--to-dos) ·
-[Texts & calls](#texts--calls) · [Smart home](#smart-home-home-assistant) · [Errands](#errands--travel) ·
+[Texts & calls](#texts--calls) · [Phone line](#phone-line-call-your-assistant) ·
+[Smart home](#smart-home-home-assistant) · [Errands](#errands--travel) ·
 [Approvals](#how-approvals-work) · [Configuration](#configuration-reference) ·
 [Models & cost](#choosing-a-model--cost) · [Privacy](#privacy--security) · [Voice](#voice-tips) ·
 [Troubleshooting](#troubleshooting) · [Layout](#project-layout)
@@ -46,14 +48,16 @@ your settings and your personal data all stay on your machine.
 | **Notes & contacts** | A notebook you can add to and search. Contacts with email and phone, so you can say "email Mom" or "text Mom" | Stored locally in `data/` |
 | **Reminders** | Timers and reminders, announced aloud with a chime and a desktop notification | Stored locally in `data/` |
 | **Long-term memory** | Remembers preferences and facts you share, and uses them to personalise answers. You can review or delete them in Settings | Stored locally in `data/` |
-| **Voice** | Speak instead of typing, with an optional wake word (the assistant's name). Replies are read aloud sentence by sentence as they arrive | Your browser's speech engine |
+| **Voice** | Voice-first: say the assistant's name (or tap the core) and ask. Short spoken replies, a follow-up window so you can carry on without the name, "stop" to cut it off, and live captions. A text chat is there for troubleshooting | Your browser's speech engine |
+| **Phone line** | The assistant's own phone number: call it or text it from your mobile, wherever you are. By phone it looks things up and adds reminders, to-dos and notes; anything riskier waits for the desktop | Twilio, plus a Cloudflare tunnel or your own |
 | **Utilities** | Exact math (percentages, compound growth, etc.) and a world clock | Built in |
 
 The HUD also has live panels: weather, system telemetry (CPU, memory, disk, battery), upcoming reminders,
 a news feed with category tabs, a scrolling market ticker, and a running count of this session's tokens and cost.
 One-tap chips cover the everyday requests: **Daily briefing**, **Headlines**, **Markets**, **Inbox** and **System check**.
 
-Email, the calendar, texting and smart home are optional: each one switches on once you add its settings.
+Email, the calendar, texting, the phone line and smart home are optional: each one switches on once you add its
+settings.
 The live market, economic and sports data needs no setup. See [Live data sources](#live-data-sources).
 
 ---
@@ -167,7 +171,8 @@ python run.py
 3. **Say hello.** Then open **Settings** (the gear icon) and fill in how ATLAS should address you, your
    units and news region, your model and voice, and your email if you want it.
 4. **Optional extras.** Add [your phone and addresses](#your-details-phone--addresses), then whichever of
-   [calendar](#calendar--to-dos), [texting](#texts--calls) and [smart home](#smart-home-home-assistant) you want.
+   [calendar](#calendar--to-dos), [texting](#texts--calls), [the phone line](#phone-line-call-your-assistant) and
+   [smart home](#smart-home-home-assistant) you want.
 
 ---
 
@@ -256,6 +261,11 @@ python run.py
 - "Remind me tomorrow at 9 to call the dentist."
 - "Make a note: gift ideas, a book for Dad and a scarf for Maya."
 - "Remember that I prefer metric units." · "What do you know about me?"
+
+**By phone** (on the [phone line](#phone-line-call-your-assistant))
+- "What's on my calendar this afternoon?" · "Am I free at four?"
+- "Add 'call the plumber' to my to-do list." · "Remind me at six to pick up the dry cleaning."
+- "How did the markets close?" · "What's the score in the Arsenal game?"
 
 ---
 
@@ -496,8 +506,9 @@ Without Twilio, Windows and Linux can't send texts.
 
 *"Call the dentist"* opens your computer's calling app with the number filled in: **Phone Link**, Teams or
 Skype on Windows, **FaceTime through your iPhone** on a Mac, or your desktop's phone-link handler on Linux.
-You press Call and talk on your own device. **ATLAS can't speak or listen on calls.** Calls also show an
-approval card first.
+You press Call and talk on your own device. **ATLAS can't speak or listen on calls it starts this way.** Calls
+also show an approval card first. To talk to the assistant itself by phone, give it a
+[phone line](#phone-line-call-your-assistant).
 
 ### Numbers and contacts
 
@@ -505,6 +516,153 @@ approval card first.
 - Numbers without a leading `+` are read as numbers in `DEFAULT_COUNTRY_CODE` (default `+1`, US/Canada).
   Set it to `+44`, `+61` and so on if you're elsewhere.
 - **Emergency and other short service numbers are refused.** Dial those yourself, directly from your phone.
+
+---
+
+## Phone line (call your assistant)
+
+Give the assistant a phone number of its own. Call it from your mobile and talk, or text it, wherever you are:
+*"What's on my calendar this afternoon?"*, *"Remind me at six to pick up the dry cleaning"*, *"How did the
+markets close?"*. It answers with the name you've given it (`ASSISTANT_NAME`), in a phone voice you can
+choose (`PHONE_VOICE`).
+
+The line runs inside ATLAS on your computer, so **the computer has to be on with ATLAS running** to answer.
+[Twilio](https://www.twilio.com) provides the number and carries the calls and texts. A tunnel gives Twilio a
+public https address that reaches your computer: a free Cloudflare quick tunnel, or one you already have.
+
+### What it costs
+
+- **A Twilio number is about $1–2 a month**, plus usage: a per-minute charge for each call, speech recognition
+  while you talk, and a small charge per text. Prices vary by country and change over time, so check Twilio's
+  pricing pages.
+- **New Twilio accounts get trial credit**, enough to try the line. On a trial account Twilio only connects
+  numbers you've verified in the Console (your own mobile usually is, from sign-up), every call starts with a
+  short Twilio trial message, and trial texts start with a notice. Upgrading removes these limits.
+- The **model** is billed through OpenRouter as usual. Phone turns are shorter than desktop ones, but each
+  question is still a full model call (see [Choosing a model & cost](#choosing-a-model--cost)).
+- The Cloudflare quick tunnel is free and needs no account.
+
+### Phone line setup
+
+1. **Create a Twilio account** at [twilio.com/try-twilio](https://www.twilio.com/try-twilio).
+2. **Buy a number with Voice** (and SMS, if you want to text it) in the Twilio Console: *Phone Numbers →
+   Manage → Buy a number*. Leave its Voice and Messaging settings alone: ATLAS fills them in. If the number is
+   connected to a TwiML App or SIP trunk, disconnect it.
+3. **Copy your Account SID and Auth Token** from the Twilio Console home page into **Settings → Texting &
+   calls** (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`).
+4. **Give the line a public address.** The easy way is to install Cloudflare's free `cloudflared`:
+   - Windows: `winget install Cloudflare.cloudflared`
+   - macOS: `brew install cloudflared`
+   - Linux: the package from
+     [Cloudflare's downloads page](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
+
+   ATLAS then starts a quick tunnel each time the line starts. If you already run your own tunnel or reverse
+   proxy, point an https address at `http://127.0.0.1:8790` (or your `PHONE_PORT`), put it in `PHONE_PUBLIC_URL`
+   and set `PHONE_TUNNEL` to `none`.
+5. **Open Settings → Phone line.** Enter the Twilio number as the assistant's number (`PHONE_NUMBER`, e.g.
+   `+15555550123`) and, under *Who may call or text*, your own mobile number (blank uses `USER_PHONE` from
+   **You**). Turn on **Answer calls and texts** and save.
+6. **Wait for "Online".** The status in Settings goes from *Starting…* to *Online*, usually within half a
+   minute, while ATLAS opens the tunnel and points the number at it. If it shows *Error*, the message says
+   what to fix (see [Phone line troubleshooting](#phone-line-troubleshooting)).
+7. **Call it.** It answers with a greeting. Ask what you like, and say *"goodbye"* or *"that's all"* when
+   you're done.
+8. **Strongly recommended: set a PIN.** Add `PHONE_PIN=` and 6 or more digits to `atlas/.env` and restart
+   ATLAS. Every call then has to enter the PIN on the keypad, followed by #, before the assistant says anything.
+   See [Phone line security](#phone-line-security) for why.
+
+Saving any phone or Twilio setting in Settings restarts the line. After editing `.env` by hand, restart ATLAS.
+
+### On a call
+
+- You can talk over the greeting. Speak normally and pause when you've finished.
+- If an answer takes more than a few seconds, you'll hear *"One moment"* while it works. After about a minute
+  it gives up and says so.
+- Answers are short and spoken: no lists, links or symbols. Ask for more detail if you want it.
+- It remembers the conversation for 30 minutes, so a call or text soon after picks up where you left off.
+- *"Goodbye"*, *"that's all"*, *"hang up"* and similar end the call. So do two silences in a row, and any call
+  that reaches 20 minutes.
+
+### By text
+
+- Text the number like you'd text a person. The answer comes back as a text, at most two SMS segments long
+  (about 300 characters); ask for more if you need it.
+- Pictures and other attachments aren't read. If Twilio delivers the same message twice, it's answered once.
+- **STOP, HELP and the other opt-out keywords go to Twilio**, which handles them itself. If you text STOP, the
+  number stops texting you until you text START.
+- **US numbers: texting needs A2P 10DLC registration.** US carriers block texts from unregistered 10-digit
+  numbers. Register in the Twilio Console under *Messaging → Regulatory compliance*; approval can take a few
+  days or more, and there are registration fees. Toll-free numbers need toll-free verification instead.
+  **Calls work without registration**, so you can use the line by voice while it's pending.
+
+### Phone line security
+
+The phone line is the one part of ATLAS that the internet can reach, so it's locked down:
+
+- **Only the phone line is exposed.** It's a separate small server on its own port (`PHONE_PORT`, 127.0.0.1
+  only) that handles nothing but Twilio's call and text requests. The HUD, its API and its access token are
+  never reachable through the tunnel.
+- **Every request must be signed by Twilio** with your Auth Token, for the exact public address. Unsigned,
+  forged or altered requests are refused, and a replayed request can't resume a call that has ended.
+- **Only allowed numbers get through** (`PHONE_ALLOWED_NUMBERS`, or `USER_PHONE` if that's blank). Anyone else
+  who calls hears *"Sorry, this number can't take your call"*, and their texts get no reply.
+- **Caller ID can be faked.** Someone who knows your number could make a call or text appear to come from it.
+  So by phone the assistant can only **look things up** (news, the web, markets, sports, weather, your calendar,
+  to-dos, reminders and notes) and **add reminders, to-dos and notes**. It can't send email, texts or calls,
+  open or read files, run commands, use its browser or your screen, control the smart home, or change what it
+  remembers about you. Anything that would show an approval card on the desktop is declined, and
+  `AUTO_APPROVE` doesn't apply. Ask for one of those and it tells you to do it at the desktop. Texts also can't
+  fetch web pages by address.
+- **Set `PHONE_PIN`.** Without a PIN, someone faking your caller ID could hear your calendar, to-dos, notes,
+  reminders and the personal details ATLAS knows (name, addresses, memories). With one, nothing is said until
+  the PIN is entered. Each call gets 3 tries, and 5 wrong PINs within an hour lock all calls out for up to an
+  hour (restarting the line doesn't reset that). A PIN only protects calls: a faked text can still look
+  things up (the reply goes to your real phone, not to the faker) and add reminders, to-dos or notes.
+- **Calls that fail the carrier's caller-ID check** (STIR/SHAKEN, mainly US calls) are turned away.
+- **Limits:** 30 questions per number per 10 minutes and 200 a day; 15 added reminders, to-dos or notes per 10
+  minutes; 8 model rounds per question; calls end after 20 minutes. Phone conversations are kept in memory
+  only (the last 20 messages per number) and forgotten after 30 minutes without use. Secrets are never spoken
+  or texted.
+
+**What leaves your computer:** Twilio carries the call audio and texts, turns your speech into text and reads
+the answers aloud, and keeps its usual call and message logs. With the quick tunnel, Twilio's requests to your
+computer pass through Cloudflare. The model provider sees the conversation, as it does on the desktop.
+
+**The quick tunnel's address changes every time the line starts.** ATLAS updates the Twilio number each time,
+replacing whatever Voice and Messaging webhooks it had. While ATLAS is closed, callers hear Twilio's
+"application error" message and texts go unanswered.
+
+### Phone line troubleshooting
+
+The status in **Settings → Phone line** shows the reason when the line can't start. The common ones:
+
+- **"needs a public address" / cloudflared isn't installed.** Install it (step 4 of
+  [Phone line setup](#phone-line-setup)) and restart ATLAS, or set `PHONE_PUBLIC_URL`. If cloudflared is
+  installed but *"didn't report a tunnel address"*, check the internet connection and that a firewall or VPN
+  isn't blocking it.
+- **"Twilio rejected the credentials".** Copy the Account SID and Auth Token again from the Twilio Console home
+  page. If you reset the Auth Token in Twilio, update it in ATLAS too.
+- **"isn't a phone number on this Twilio account".** `PHONE_NUMBER` must be a number you bought on this
+  account, in international format (`+15555550123`).
+- **"connected to a TwiML App or SIP trunk".** In the Console, open *Phone Numbers → Active numbers →* the
+  number *→ Configure*, switch Voice and Messaging back to webhooks, and save the Phone line settings again.
+- **"Nobody is allowed to call the line yet".** Set your mobile number under *Who may call or text* or in
+  **You → Phone** (`USER_PHONE`).
+- **PHONE_PORT or PHONE_PIN problems.** `PHONE_PORT` must be a free port other than ATLAS's own (default
+  8790). `PHONE_PIN` must be 4 to 12 digits; until it is, the line stays off rather than running without it.
+
+When it's *Online* but calls misbehave:
+
+- **"Sorry, this number can't take your call".** The number you called from isn't on the allowed list (check
+  it's written with the country code, like `+447700900123`), or your carrier marked the caller ID as failed.
+- **Twilio says "an application error has occurred".** ATLAS isn't running, or the tunnel dropped. If the
+  status says *Error*, save the Phone line settings (or restart ATLAS) to restart the line.
+- **It keeps mishearing you.** Set `PHONE_LANGUAGE` to your accent's language code, such as `en-US`,
+  `en-GB`, `en-AU` or `en-IN`.
+- **"I can't do that over the phone".** That's by design: see [Phone line security](#phone-line-security).
+  Ask at the desktop.
+- **Texts go unanswered.** On a US number, finish A2P 10DLC registration. On a trial account, the number you
+  text from must be verified. If you ever texted STOP to the number, text START.
 
 ---
 
@@ -586,10 +744,13 @@ Some actions are hard to undo, so ATLAS **always shows an Approve / Deny card fi
 An approval covers that exact button or device action. If the page changes, or ATLAS picks a different
 element, it asks again. If it can't inspect the action in time, it asks rather than guessing.
 
-- Click **Approve** or **Deny**, or say *"yes / approve / confirm / send it / do it / go ahead"* or
-  *"no / deny / cancel / stop"* while a card is waiting.
+- Click **Approve** or **Deny**, or press **Y** / **N**. Cards for messages, calls, commands, files,
+  keystrokes, website clicks and the smart home need that click or key press. Other cards also take a spoken
+  or typed *"yes / approve / confirm / send it / do it / go ahead"* or *"no / deny / cancel / stop"*.
 - If you don't answer within **5 minutes**, the action is automatically denied.
 - When you deny something, ATLAS won't retry it unless you ask.
+- On the [phone line](#phone-line-call-your-assistant) there are no cards: anything that needs one is declined,
+  and the assistant tells you to do it at the desktop.
 
 Everything else runs without a card, because it only reads information or is easy to reverse. That covers
 opening apps, sites and files, media and volume, the clipboard, screenshots and "look at my screen", reading
@@ -704,6 +865,21 @@ For true/false keys, `1`, `true`, `yes` and `on` mean true, and anything else me
 | `TWILIO_FROM_NUMBER` † | *(blank)* | Your Twilio number, e.g. `+15555550123`, or a Messaging Service SID (`MG…`). |
 | `DEFAULT_COUNTRY_CODE` † | `+1` | Country for numbers written without a leading `+`. |
 
+**Phone line** (see [Phone line](#phone-line-call-your-assistant); read when the line starts, and saving any of
+these, `USER_PHONE`, `DEFAULT_COUNTRY_CODE` or a Twilio key in Settings restarts it)
+
+| Key | Default | What it does |
+|---|---|---|
+| `PHONE_ENABLED` | `false` | `true` answers calls and texts to `PHONE_NUMBER` while ATLAS is running. Needs `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN`. |
+| `PHONE_NUMBER` | *(blank)* | The assistant's Twilio number, in international format such as `+15555550123`. It must be on your Twilio account. |
+| `PHONE_ALLOWED_NUMBERS` | *(your `USER_PHONE`)* | Comma-separated numbers allowed to call or text, e.g. `+15555550123,+447700900123`. Everyone else is turned away. The line's own number is never allowed. |
+| `PHONE_PUBLIC_URL` | *(quick tunnel)* | Your own https address that forwards to `127.0.0.1:PHONE_PORT`, e.g. `https://atlas.example.com`. Blank starts a Cloudflare quick tunnel. |
+| `PHONE_TUNNEL` | `cloudflared` | `cloudflared` starts a quick tunnel when `PHONE_PUBLIC_URL` is blank (needs cloudflared installed). `none` never starts one, so `PHONE_PUBLIC_URL` must be set. |
+| `PHONE_VOICE` | `Polly.Brian-Neural` | The Twilio voice that speaks on calls, such as `Polly.Amy-Neural` or `Polly.Matthew-Neural`. |
+| `PHONE_LANGUAGE` | `en-GB` | Speech-recognition language for calls: `en-US`, `en-AU`, `en-IN`… |
+| `PHONE_PORT` | `8790` | Local port of the phone line's webhook server (127.0.0.1 only). Must differ from `ATLAS_PORT`. |
+| `PHONE_PIN` (secret) | *(blank)* | 4–12 digits a caller must enter on the keypad before the assistant says anything. Recommended, because caller ID can be faked. If it isn't 4–12 digits, the line stays off. |
+
 **Smart home** (see [Smart home](#smart-home-home-assistant))
 
 | Key | Default | What it does |
@@ -770,13 +946,17 @@ search model's tokens. See OpenRouter's pricing for current rates. Track spendin
 **What stays on your computer**
 - The server listens on **127.0.0.1 only**, so other devices on your network can't reach it, whatever
   `ATLAS_HOST` says.
+- The optional [phone line](#phone-line-call-your-assistant) is the one exception, by design: a separate small
+  server that answers only Twilio's signed call and text requests from allowed numbers, through a tunnel. It
+  never exposes the HUD or its API. See [Phone line security](#phone-line-security).
 - Each launch creates a **random access token** that's embedded in the page. Every API call must carry it,
   so other websites you visit can't make ATLAS do anything.
 - ATLAS checks the **Host header** and only answers to `localhost` / `127.0.0.1`. This blocks DNS-rebinding
   attacks. The page also refuses to be embedded in other sites.
-- Your **secrets** (OpenRouter key, email password, Twilio auth token, Home Assistant token, secret
-  calendar links and the optional CoinGecko and FRED keys) live in `atlas/.env`. When ATLAS saves that file, it makes it readable only by your user on
-  macOS/Linux. **Secrets are never sent back to the browser page:** the Settings screen only learns whether
+- Your **secrets** (OpenRouter key, email password, Twilio auth token, phone line PIN, Home Assistant token,
+  secret calendar links and the optional CoinGecko and FRED keys) live in `atlas/.env`. When ATLAS saves that
+  file, it makes it readable only by your user on macOS/Linux.
+  **Secrets are never sent back to the browser page:** the Settings screen only learns whether
   each one is set (plus the first and last few characters of the OpenRouter key), and leaving a secret field
   blank keeps the current value. Secret calendar links are also blanked out of error messages before anything
   reaches the AI model.
@@ -810,7 +990,11 @@ search model's tokens. See OpenRouter's pricing for current rates. Track spendin
   to Apple through Messages. Home Assistant requests go to the address you set, usually on your own network.
   Addresses and place searches go to OpenStreetMap's Nominatim and routing servers. Maps, Uber, Lyft, delivery
   and carrier pages open in your browser with the details filled in.
-- **Voice recognition** in Chrome and Edge is normally done by Google's or Microsoft's online speech service.
+- **Voice recognition** in Chrome and Edge is done by the browser maker's online speech service (Google's
+  or Microsoft's), so what you say near the microphone while it's listening goes to them. Replies are spoken
+  by your computer's own voices, or by the browser's online voices if you pick one.
+- **On the phone line:** Twilio carries the call audio and texts, transcribes your speech and speaks the
+  answers. With the quick tunnel, Twilio's requests to your computer pass through Cloudflare.
 
 **Untrusted content.** ATLAS treats web pages, news, emails, calendar events, messages, files, screen text and
 command output as *data*, never as instructions. Anyone can send you a calendar invite or write a web page.
@@ -826,20 +1010,48 @@ links: revoke or reset them where you created them.
 
 ## Voice tips
 
-- **Use Chrome or Edge** for speech recognition. Firefox doesn't support it. Safari's support is limited.
-  You can always type.
-- **The mic button** toggles listening, and so does **Ctrl+Space**. Your words appear in the command bar
-  as you speak and are sent when you pause.
-- **Wake-word mode** (in Settings) keeps listening for the assistant's name. Say *"ATLAS, what's the
-  weather?"*, or just *"ATLAS"*. It chimes, and then you speak your request. Renaming the assistant changes the
-  wake word, and a distinctive name works best. Listening pauses while ATLAS is speaking.
-- **To stop ATLAS talking**, press **Esc** or click the central core.
-- **Choosing a voice.** In Settings, pick a voice and adjust rate and pitch, or turn "speak replies" off.
-  By default ATLAS looks for an English (UK) male voice and falls back to any English voice.
-  - **Edge** has very natural "Online (Natural)" voices.
+ATLAS is **voice-first**. The HUD shows the core in the middle with a status line under it (*Say "ATLAS" or
+tap the core*, *Listening…*, *Thinking…*, *Speaking…*) and two fading captions: what you just said and the
+sentence being spoken. There's no text chat by default.
+
+- **Use Chrome or Edge.** Firefox has no speech recognition and Safari's is limited. In a browser without it,
+  ATLAS shows the text chat instead.
+- **Speech recognition is an online service.** Chrome sends what the microphone hears to Google's speech
+  service, and Edge to Microsoft's. It needs an internet connection.
+- **Starting a request:**
+  - **Say the assistant's name first:** *"ATLAS, what's on today?"*, or *"Hey ATLAS"* and then your request. The
+    name only counts at the start of what you say (after a *hey*, *ok* or *good morning* is fine), so mentioning
+    it mid-sentence, or on TV, doesn't set it off. Renaming the assistant (`ASSISTANT_NAME`) changes the wake
+    word; a distinctive name works best.
+  - **Or tap the core**, or **hold Space** while you talk and let go to send.
+  - Pause when you've finished. After about a second of quiet the request is sent, once.
+- **Follow-up window.** After a reply ATLAS keeps listening for about 8 seconds, so you can carry on without
+  the name. The dashed ring round the core counts down. Say *"no thanks"* or *"that's all"* to close it.
+- **Stopping it.** Say *"stop"*, *"cancel"* or *"never mind"* while it's thinking or speaking, press **Esc**,
+  or tap the core. Saying its name while it speaks interrupts it and takes your new request.
+- **Replies are short and spoken once.** In voice mode the assistant answers in a sentence or three, without
+  lists or links, and you only hear its final answer, never the "on it" before it uses a tool.
+- **Approvals** appear over the core with *"Awaiting your approval on screen."* Cards for messages, calls,
+  commands, files, keystrokes, website clicks and the smart home ignore spoken answers: click **Approve** or
+  press **Y** (**N** to deny).
+- **Settings → Voice:**
+  - **Hands-free** (on by default) keeps listening for the name. Turn it off to talk only by tapping the core
+    or holding Space; the microphone is then off while ATLAS thinks and speaks.
+  - **Wake word required**: turn it off and anything said near the microphone is taken as a request. Best in a
+    quiet room.
+  - **Conversation follow-up** and **Captions** switch those off.
+  - **Show text chat (troubleshooting)** brings back the transcript, quick-action chips and command bar, for
+    typing or checking what was heard.
+- **Choosing a voice.** In **Settings → Assistant & speech**, pick a voice and adjust rate and pitch, or turn
+  **Speak replies aloud** off. Automatic picks the most natural British English male voice the computer has.
+  - **Edge's "Online (Natural)" voices are the best**: on Windows, *Microsoft Ryan* or *Thomas* (Natural) are
+    picked automatically when Edge is the browser.
   - **Windows:** add more voices in Settings → Time & language → Speech.
   - **macOS:** System Settings → Accessibility → Spoken Content → System voice → Manage Voices.
   - **Linux:** browsers usually offer only basic speech-dispatcher/eSpeak voices.
+- **One known limit:** a pause of more than about a second in the middle of a sentence sends the first half.
+  Say the rest as a follow-up, or hold Space while you talk.
+- **Away from the computer?** Call or text the assistant on its [phone line](#phone-line-call-your-assistant).
 
 ---
 
@@ -877,6 +1089,14 @@ pause. If SEC EDGAR *"refused the request"*, set `SEC_CONTACT_EMAIL`. Crypto lim
 - Check the operating system's setting too. On Windows: Settings → Privacy & security → Microphone. On macOS:
   System Settings → Privacy & Security → Microphone, for your browser.
 - Speech recognition needs an internet connection in most browsers.
+- To see what was heard, turn on **Settings → Voice → Show text chat (troubleshooting)**. You can type there
+  too.
+
+**It answers half my question.** A pause of more than about a second mid-sentence sends what you'd said so far.
+Keep going in one breath, hold **Space** while you talk, or add the rest as a follow-up.
+
+**The phone line won't start, or calls and texts don't work.** See
+[Phone line troubleshooting](#phone-line-troubleshooting).
 
 **Reminders didn't go off.** The ATLAS page announces reminders, so keep the tab open (it can be in the
 background). Reminders that came due while it was closed are announced the next time you open it.
@@ -934,8 +1154,8 @@ Opening files uses `xdg-open`. Locking uses `loginctl` or `xdg-screensaver`.
 back to `gnome-screenshot` (GNOME), `grim` (Sway, Hyprland) or `spectacle` (KDE), so install the one for your
 desktop. Alternatively, log in to an "Xorg"/X11 session.
 
-**"I've reached my limit of actions for one request".** ATLAS stops after 30 rounds of tool use per request.
-Say "continue".
+**"I've reached my limit of actions for one request".** ATLAS stops after 30 rounds of tool use per request
+(8 on the phone line). Say "continue".
 
 **An approval card stopped responding.** Cards expire after 5 minutes and count as denied. Ask again.
 
@@ -961,6 +1181,7 @@ atlas/
 │   ├── server.py           Local web server and API (127.0.0.1 only, token + host checks)
 │   ├── agent.py            Persona, conversation handling, the tool-use loop and approvals
 │   ├── llm.py              OpenRouter client: model discovery and streaming chat
+│   ├── phone.py            The phone line: Twilio call and text webhooks, tunnel, caller checks
 │   ├── config.py           Settings, defaults, model preferences, approval list
 │   ├── util.py             Shared helpers
 │   └── tools/

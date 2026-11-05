@@ -180,16 +180,28 @@
     });
     return out;
   }
+  /* Voice settings live in this browser. v2 (voice-only HUD): hands-free wake word on, a slightly slower and
+   * lower delivery, captions and the follow-up window on, text chat hidden. A v1 object is upgraded once: its
+   * wake flag and untouched 1.0 rate/pitch were the old defaults, not choices; edited values are kept. */
+  var VOICE_RATE = 0.98, VOICE_PITCH = 0.95;
   function cleanVoice(v) {
-    var d = { voiceURI: '', rate: 1, pitch: 1, speak: true, wake: false };
+    var d = { v: 2, voiceURI: '', rate: VOICE_RATE, pitch: VOICE_PITCH, speak: true, wake: true, wakeRequired: true, followUp: true, captions: true, showChat: false };
     if (!isObj(v)) return d;
     var rate = Number(v.rate), pitch = Number(v.pitch);
+    var v1 = v.v !== 2;
+    if (v1 && rate === 1 && pitch === 1) { rate = VOICE_RATE; pitch = VOICE_PITCH; }
+    function flag(k) { return typeof v[k] === 'boolean' ? v[k] : d[k]; }
     return {
+      v: 2,
       voiceURI: typeof v.voiceURI === 'string' ? v.voiceURI.slice(0, 300) : '',
-      rate: isFinite(rate) && rate >= 0.5 && rate <= 2 ? rate : 1,
-      pitch: isFinite(pitch) && pitch >= 0 && pitch <= 2 ? pitch : 1,
+      rate: isFinite(rate) && rate >= 0.5 && rate <= 2 ? rate : VOICE_RATE,
+      pitch: isFinite(pitch) && pitch >= 0 && pitch <= 2 ? pitch : VOICE_PITCH,
       speak: typeof v.speak === 'boolean' ? v.speak : true,
-      wake: v.wake === true
+      wake: v1 ? true : v.wake === true,
+      wakeRequired: flag('wakeRequired'),
+      followUp: flag('followUp'),
+      captions: flag('captions'),
+      showChat: v.showChat === true
     };
   }
   function cleanCat(c) { return typeof c === 'string' && /^[a-z][a-z0-9_-]{0,23}$/i.test(c) ? c : 'top'; }
@@ -204,8 +216,13 @@
     toolsRunning: 0,
     pendingConfirm: null,
     errorUntil: 0,
-    listening: null,
-    armed: false,
+    errorText: '',
+    listening: null,     // the recogniser's phase: null | 'wake' | 'open' | 'busy'
+    open: null,          // a listening window: {via: 'voice'|'wake'|'follow'|'answer', until, hold, barge}
+    ready: false,        // engaged and past the boot screen: the microphone may run
+    followPending: false, // a voice turn finished: open the follow-up window once speech ends
+    queued: null,        // a request said over a turn that was being stopped (barge-in)
+    lastVoice: null,     // {text, at} the last spoken request sent (no duplicates)
     speaking: false,
     lastVia: 'text',
     expired: false,
@@ -423,123 +440,390 @@
   var mic = new V.MicMeter(HUD.BARS);
   speaker.enabled = !!S.voice.speak;
   speaker.voiceURI = S.voice.voiceURI || '';
-  speaker.rate = num(S.voice.rate) || 1;
-  speaker.pitch = num(S.voice.pitch) || 1;
+  speaker.rate = num(S.voice.rate) || VOICE_RATE;
+  speaker.pitch = num(S.voice.pitch) || VOICE_PITCH;
 
+  // ------------------------------------------------------------------ voice-only mode
+  /* Voice first: unless "Show text chat" is on, the transcript, quick actions and command bar are hidden and the
+   * core is the centrepiece, with a status line and live captions under it. Requests then go out on the "voice"
+   * channel, so the model answers in a few spoken sentences and only its final answer is streamed. */
+  // A browser without speech recognition can't take a spoken request: it gets the text chat instead.
+  function voiceOnly() { return !S.voice.showChat && listener.supported; }
+  function applyVoiceMode() {
+    var vo = voiceOnly();
+    document.body.classList.toggle('voice-only', vo);
+    document.body.classList.toggle('no-captions', !S.voice.captions);
+    // the skip link leads to the command bar, or to the core when the command bar is hidden
+    var skip = $('.skip-link');
+    if (skip) { skip.setAttribute('href', vo ? '#core' : '#cmd-input'); skip.textContent = vo ? 'Skip to the voice core' : 'Skip to command bar'; }
+    if (vo && S.pendingConfirm && livePending()) placeCard(S.pendingConfirm);
+    else if (!vo) restoreCards();
+    if (core) requestAnimationFrame(function () { core.resize(); });
+    if (!vo) scrollToEnd(true);
+    refreshState();
+  }
+
+  // ---- captions: the last thing you said and the sentence being spoken (not a log; they fade)
+  var capEls = { u: $('#cap-u'), a: $('#cap-a') };
+  var capTimers = { u: 0, a: 0 };
+  function caption(who, text, opts) {
+    var node = capEls[who];
+    if (!node) return;
+    opts = opts || {};
+    clearTimeout(capTimers[who]);
+    if (!text) {
+      capTimers[who] = setTimeout(function () { node.classList.remove('show', 'live'); }, opts.delay || 0);
+      return;
+    }
+    setText(node.querySelector('.cap-t'), clip(String(text).replace(/\s+/g, ' ').trim(), 260));
+    node.classList.add('show');
+    node.classList.toggle('live', !!opts.live);
+    node.classList.toggle('err', !!opts.err);
+    if (!opts.live) capTimers[who] = setTimeout(function () { node.classList.remove('show'); }, opts.hold || 6000);
+  }
+
+  // ---- listening windows
+  /* Without the wake word the microphone only takes a request inside a window: push-to-talk (tap the core, hold
+   * Space), the moments after the wake word, the follow-up after a reply, or an answer to an approval card. A
+   * window stays open while you are still speaking and closes after a few quiet seconds. */
+  var FOLLOW_MS = 8000, ARM_MS = 8000, PTT_MS = 8000, ANSWER_MS = 15000;
+  var openT = 0;
+  function handsFree() { return !!S.voice.wake && listener.supported && !listener.denied; }
+  function livePending() { var p = S.pendingConfirm; return p && p.result == null && !p.expired ? p : null; }
+  function openWindow(via, ms, opts) {
+    opts = opts || {};
+    ms = ms || PTT_MS;
+    S.open = { id: ++winSeq, via: via, until: Date.now() + ms, ms: ms, hold: !!opts.hold, barge: !!opts.barge, hearing: false };
+    S.followPending = false;
+    document.body.classList.remove('is-hearing');
+    scheduleOpenCheck();
+    refreshState();
+  }
+  var winSeq = 0;
+  /** The core shows the window as a countdown on its dashed ring (full while you speak or hold the key). */
+  function paintWindow(st) {
+    if (!core) return;
+    var o = S.open;
+    core.setWindow(st === 'listening' && o ? { id: o.id, ms: o.ms, hold: o.hold || !!o.released, hearing: o.hearing } : null);
+  }
+  function closeWindow(quiet) {
+    if (!S.open) return;
+    S.open = null;
+    clearTimeout(openT);
+    openT = 0;
+    if (!quiet) refreshState();
+  }
+  function scheduleOpenCheck() {
+    clearTimeout(openT);
+    openT = 0;
+    var o = S.open;
+    if (!o || o.hold) return;
+    openT = setTimeout(function () {
+      openT = 0;
+      if (S.open !== o || o.hold) return;
+      if (listener.hasSpeech()) { o.until = Date.now() + 1500; scheduleOpenCheck(); return; }
+      if (Date.now() < o.until - 20) { scheduleOpenCheck(); return; }
+      closeWindow();
+    }, Math.max(60, o.until - Date.now()));
+  }
+
+  // ---- push-to-talk: tap the core (or the mic button, Ctrl+Space); hold Space
+  function needVoice() {
+    if (listener.supported) return true;
+    toast('Voice input isn’t supported in this browser — try Chrome or Edge.' + (voiceOnly() ? ' Settings → Voice → Show text chat lets you type.' : ' You can still type.'), { tone: 'info', key: 'sr-unsupported' });
+    return false;
+  }
+  function talk() {
+    if (!needVoice()) return;
+    V.unlockAudio();
+    listener.denied = false; // a tap is a fresh permission request
+    if (S.speaking || speaker.busy()) stopSpeaking();
+    openWindow('voice', PTT_MS);
+  }
+  function toggleTalk() {
+    if (S.open && S.listening === 'open') {
+      if (listener.flush()) return; // a second tap sends what was said…
+      if (S.open.via === 'voice') { closeWindow(); return; } // …or closes a microphone you opened
+      // a window that opened by itself (follow-up, after the name, an approval answer): a tap means "let me talk"
+    }
+    talk();
+  }
+  var spaceHeld = false;
+  function holdStart() {
+    if (!needVoice()) return;
+    spaceHeld = true;
+    V.unlockAudio();
+    listener.denied = false;
+    // talking over a reply stops it (an approval card keeps waiting: the answer goes to the card)
+    if (S.streaming && !livePending()) { if (S.turn) S.turn.stopped = true; stopAll(); }
+    else if (S.speaking || speaker.busy()) stopSpeaking();
+    openWindow('voice', PTT_MS, { hold: true, barge: true });
+    listener.hold(true);
+  }
+  function holdEnd() {
+    if (!spaceHeld) return;
+    spaceHeld = false;
+    var o = S.open;
+    if (!o || !o.hold) return;
+    o.hold = false;
+    o.released = true;
+    o.until = Date.now() + 1500;
+    scheduleOpenCheck();
+    listener.hold(false);
+    refreshState();
+  }
+
+  // ---- the recogniser's phase follows the app state
+  function desiredPhase() {
+    if (!S.ready || !listener.supported || S.expired) return null;
+    var o = S.open;
+    if (o && (o.hold || o.barge)) return 'open';
+    var card = livePending();
+    // While speaking only interrupt words and the wake word count, and only with hands-free listening on:
+    // otherwise the microphone is off, so the assistant never hears itself.
+    if (S.speaking) return handsFree() ? 'busy' : null;
+    if (card) return isStrict(card.name) ? (handsFree() ? 'busy' : null) : (handsFree() || o ? 'open' : null);
+    if (S.streaming) return handsFree() ? 'busy' : null;
+    if (o) return 'open';
+    return handsFree() ? 'wake' : null;
+  }
+  function syncListener() {
+    listener.wakeName = assistantName();
+    listener.wakeRequired = S.voice.wakeRequired !== false;
+    listener.setPhase(desiredPhase());
+    S.listening = listener.phase;
+    if (S.listening === 'open') startMic(); else stopMic();
+  }
+
+  // ---- speaker
   speaker.onstate = function (on) {
     S.speaking = on;
-    if (on) listener.pause();
-    else {
-      listener.resume();
-      if (S.awaitVoiceAnswer && S.pendingConfirm && listener.supported) {
-        S.awaitVoiceAnswer = false;
-        setTimeout(function () { if (S.pendingConfirm && !S.listening) startListening(); }, 250);
-      }
-    }
+    if (!on) { caption('a', null, { delay: 3500 }); afterSpeech(); }
     refreshState();
+  };
+  speaker.onutter = function (text) {
+    if (text) caption('a', text, { hold: 15000 });
+    else caption('a', null, { delay: 1500 });
   };
   speaker.onboundary = function () { if (core) core.pulse(0.8); };
   speaker.onvoices = function () { fillVoices(); updateVoiceReadouts(); };
 
-  listener.oninterim = function (txt) { var inp = $('#cmd-input'); inp.value = txt; inp.classList.add('interim'); };
-  listener.onstate = function (mode) {
-    S.listening = mode;
-    if (!mode) { S.armed = false; $('#cmd-input').classList.remove('interim'); }
-    if (mode === 'command') startMic(); else stopMic();
-    refreshState();
+  /** Speech has ended: open the approval-answer or follow-up window if one is due. */
+  function afterSpeech() {
+    if (S.speaking || speaker.busy()) return;
+    var card = livePending();
+    if (card) {
+      if (S.answerPending && !isStrict(card.name) && listener.supported && !handsFree() && !S.open) openWindow('answer', ANSWER_MS);
+      S.answerPending = false;
+      return;
+    }
+    if (S.streaming || !S.followPending) return;
+    S.followPending = false;
+    if (S.voice.followUp && listener.supported && !listener.denied && S.ready) openWindow('follow', FOLLOW_MS);
+  }
+
+  // ---- listener
+  // What the assistant was saying when an utterance began (its own voice must never become a request).
+  listener.echo = function (at) {
+    if (speaker.busy() || at < speaker.endedAt) return speaker.recentText(12000);
+    if (at < speaker.endedAt + 1200) return { text: speaker.recentText(12000), after: true }; // only its tail can still be coming back
+    return '';
   };
-  // The core pulls mic levels inside its own animation frame while the mic is live; nothing runs
-  // when the mic is off, and the core itself sleeps while the tab is hidden.
-  function micLevels() { return mic.on ? mic.levels() : null; }
-  function startMic() { mic.start(); if (core) core.setInputSource(micLevels); }
-  function stopMic() { mic.stop(); if (core) core.setInputSource(null); }
-  listener.onwake = function () {
-    S.armed = true;
+  listener.onstate = function () { refreshState(); };
+  listener.onactivity = function () {
+    if (S.open && !S.open.hold) {
+      S.open.until = Math.max(S.open.until, Date.now() + 1500);
+      if (!S.open.hearing) { S.open.hearing = true; document.body.classList.add('is-hearing'); paintWindow(computeState()); }
+    }
+  };
+  listener.oninterim = function (txt) {
+    // the caption shows the request itself: a leading wake word is dropped, and the last reply line fades
+    if (V.wakeLeads(assistantName(), txt)) txt = txt.slice(V.wakeMatch(assistantName(), txt).end).trim() || txt;
+    if (!S.speaking) caption('a', null, { delay: 0 });
+    caption('u', txt, { live: true });
+    if (!voiceOnly()) { input.value = txt; input.classList.add('interim'); }
+  };
+  listener.onwake = function (phase) {
+    // While an approval card waits, the name is not a barge-in: it would abort the turn (and expire the card)
+    // to start a new request. What follows it is handed to the card (onheard) like any other phrase.
+    if (phase === 'busy' && livePending()) return;
+    // The window opens first, so the recogniser stays in 'open' (keeping the words after the name) while a
+    // barged-in reply is stopped.
+    openWindow('wake', ARM_MS, { barge: phase === 'busy' });
+    if (phase === 'busy') stopAll(); // barge-in: the name while a reply is being prepared or spoken
     V.chime('wake');
     if (core) core.pulse(1);
     refreshState();
-    setTimeout(function () { S.armed = false; refreshState(); }, 8000);
   };
-  listener.onheard = function (text) {
-    if (S.pendingConfirm) {
+  listener.oncontrol = function () {
+    // "stop" / "cancel" / "never mind" while a reply is being prepared or spoken
+    S.followPending = false;
+    if (S.turn) S.turn.stopped = true;
+    var acted = S.streaming || S.speaking || speaker.busy();
+    stopAll();
+    closeWindow(true);
+    if (acted) { V.chime('ok'); caption('u', 'Stop', { hold: 2500 }); }
+    refreshState();
+  };
+  // Said in a follow-up or after the wake word, these close the window instead of becoming a request.
+  var DISMISS_RE = /^(?:no|nope|no thanks|no thank you|nothing|nothing else|that's all|that's it|that will be all|that'll be all|all done|i'm done|i'm good|thanks|thank you|thanks a lot|cheers)$/;
+  listener.onheard = function (text, phase) {
+    if (livePending()) {
       // Every phrase is consumed while a card waits; it never becomes a new request.
+      caption('u', text, { hold: 4000 });
       var ans = approvalFromPhrase(text);
       if (ans === true) return true;
-      if (isStrict(S.pendingConfirm.name)) strictNudge('voice');
+      if (isStrict(S.pendingConfirm.name)) { if (ans === 'strict') strictNudge('voice'); }
       else toast('Say “yes” to approve or “no” to deny.', { tone: 'info', key: 'say-yn', cooldown: 5000 });
       return true;
     }
-    if (S.streaming && /^(stop|cancel|abort|enough|be quiet|silence|never ?mind)\b/i.test(text)) { stopAll(); return true; }
+    if (phase !== 'open') return false;
+    if (V.controlOf(assistantName(), text)) { caption('u', text, { hold: 2500 }); closeWindow(); return true; }
+    if (S.open && (S.open.via === 'follow' || S.open.via === 'wake') && DISMISS_RE.test(V.norm(text))) {
+      caption('u', text, { hold: 3000 });
+      closeWindow();
+      V.chime('ok');
+      return true;
+    }
     return false;
   };
-  listener.onfinal = function (text, via) {
-    var inp = $('#cmd-input');
-    inp.classList.remove('interim');
-    inp.value = '';
-    S.armed = false;
-    sendMessage(text, via);
+  listener.onutterance = function (text, woke) {
+    var o = S.open;
+    var via = woke || (o && o.via === 'wake') ? 'wake' : 'voice';
+    var now = Date.now();
+    var key = V.norm(text);
+    if (S.lastVoice && S.lastVoice.text === key && now - S.lastVoice.at < 4000) return; // never the same request twice
+    caption('u', text, { hold: 7000 });
+    if (!voiceOnly()) { input.value = ''; input.classList.remove('interim'); }
+    closeWindow(true);
+    S.lastVoice = { text: key, at: now };
+    if (S.streaming) { S.queued = { text: text, via: via }; refreshState(); return; } // said over a turn being stopped
+    if (!sendMessage(text, via)) refreshState();
+  };
+  listener.onnothing = function (why) {
+    if (S.open && (why === 'nowake' || why === 'echo') && S.open.via === 'wake') closeWindow();
+    else if (S.open && S.open.released) closeWindow(); // a released talk key with nothing said
+    if (why !== 'name') caption('u', null, { delay: 400 });
+    if (!voiceOnly()) input.classList.remove('interim');
   };
   listener.onerror = function (err) {
     if (err === 'not-allowed' || err === 'service-not-allowed') {
-      toast('Microphone access was blocked. Allow it in the browser to use voice.', { key: 'mic-denied' });
-      if (S.voice.wake) { S.voice.wake = false; saveVoice(); var wt = $('#wake-toggle'); if (wt) wt.checked = false; }
+      toast('Microphone access was blocked. Allow it in the browser’s site settings to talk to ' + assistantName() + '.', { key: 'mic-denied' });
+      closeWindow(true);
     } else if (err === 'network') {
       toast('Speech recognition needs a network connection in this browser.', { tone: 'warn', key: 'sr-net' });
     } else if (err === 'audio-capture') {
       toast('No microphone was found.', { tone: 'warn', key: 'sr-audio' });
     }
+    refreshState();
   };
-
-  function startListening() {
-    if (!listener.supported) {
-      toast('Voice input isn’t supported in this browser — try Chrome or Edge. You can still type.', { tone: 'info', key: 'sr-unsupported' });
-      return;
-    }
-    if (S.speaking || speaker.busy()) stopSpeaking();
-    V.unlockAudio();
-    listener.start('command');
-  }
-  function toggleListening() {
-    if (S.listening === 'command') listener.stop();
-    else startListening();
-  }
+  // The core pulls mic levels inside its own animation frame while the mic is live; nothing runs
+  // when the mic is off, and the core itself sleeps while the tab is hidden.
+  function micLevels() { return mic.on ? mic.levels() : null; }
+  function startMic() { if (!mic.want) mic.start(); if (core) core.setInputSource(micLevels); }
+  function stopMic() { if (mic.want || mic.on) mic.stop(); if (core) core.setInputSource(null); }
 
   // ------------------------------------------------------------------ state display
   var CORE_TEXT = { 'AWAITING AUTH': 'AUTH REQ', 'STANDBY · WAKE': 'WAKE ARMED', 'PROCESSING': 'THINKING' };
   var STATUS_TEXT = { standby: 'STANDBY', listening: 'LISTENING', thinking: 'PROCESSING', speaking: 'SPEAKING', error: 'FAULT' };
   function computeState() {
     if (Date.now() < S.errorUntil) return 'error';
-    if (S.listening === 'command' || S.armed) return 'listening';
+    var o = S.open;
+    if (o && (o.hold || o.barge) && S.listening === 'open') return 'listening';
     if (S.speaking) return 'speaking';
+    if (livePending() && !o) return 'thinking';
+    if (S.listening === 'open') return 'listening';
     if (S.streaming) return 'thinking';
     return 'standby';
   }
+  function voiceStatus(st) {
+    if (!S.ready) return '';
+    var card = livePending();
+    if (card && st !== 'listening') return isStrict(card.name) || !listener.supported ? 'Awaiting your approval on screen' : 'Awaiting your approval — say yes or no';
+    if (st === 'error') return S.errorText || 'Something went wrong';
+    if (st === 'listening') return card ? 'Listening… yes or no?' : 'Listening…';
+    if (st === 'speaking') return 'Speaking…';
+    if (st === 'thinking') return 'Thinking…';
+    if (!listener.supported) return 'Voice input isn’t available in this browser';
+    if (listener.denied) return 'Microphone blocked — allow it in the browser';
+    if (handsFree()) return S.voice.wakeRequired ? 'Say “' + assistantName() + '” or tap the core' : 'Just talk, or tap the core';
+    return isTouch() ? 'Tap the core to talk' : 'Tap the core or hold Space to talk';
+  }
+  function voiceHint(st) {
+    var touch = isTouch();
+    if (!S.ready || !listener.supported) return '';
+    if (st === 'listening') return S.open && S.open.hold ? 'Release Space to send' : 'Sends when you pause';
+    if (st === 'speaking') return handsFree() ? 'Say “stop” to interrupt' + (touch ? ', or tap the core' : ' · Esc') : touch ? 'Tap the core to stop' : 'Tap the core or press Esc to stop';
+    if (st === 'thinking' && !livePending()) return handsFree() ? 'Say “cancel” to stop' : touch ? 'Tap the core to cancel' : 'Esc to cancel';
+    if (st === 'standby') return touch ? '' : 'Hold Space to talk · Esc to stop';
+    return '';
+  }
+  var refreshing = false, refreshAgain = false;
   function refreshState() {
+    if (refreshing) { refreshAgain = true; return; }
+    refreshing = true;
+    try {
+      for (var i = 0; i < 4; i++) {
+        refreshAgain = false;
+        paintState();
+        if (!refreshAgain) break;
+      }
+    } finally { refreshing = false; }
+  }
+  function paintState() {
+    syncListener();
     var st = computeState();
     document.body.dataset.state = st;
     if (core) core.setState(st);
     var label = STATUS_TEXT[st];
-    if (st === 'thinking') label = S.pendingConfirm ? 'AWAITING AUTH' : web.running > 0 ? 'BROWSING' : S.toolsRunning > 0 ? 'EXECUTING' : 'PROCESSING';
+    if (st === 'thinking') label = livePending() ? 'AWAITING AUTH' : web.running > 0 ? 'BROWSING' : S.toolsRunning > 0 ? 'EXECUTING' : 'PROCESSING';
     if (st === 'standby' && S.listening === 'wake') label = 'STANDBY · WAKE';
-    $('#status-text').textContent = label;
+    setText('#status-text', label);
     $('#status-pill').title = 'Status: ' + label.toLowerCase();
-    $('#core-state').textContent = CORE_TEXT[label] || label;
+    setText('#core-state', CORE_TEXT[label] || label);
     var micBtn = $('#mic-btn');
-    var on = S.listening === 'command';
+    var on = S.listening === 'open' && !!S.open;
     micBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
     micBtn.setAttribute('aria-label', on ? 'Stop voice input' : 'Start voice input');
     micBtn.classList.toggle('on', on);
     micBtn.classList.toggle('passive', S.listening === 'wake');
-    document.body.classList.toggle('is-streaming', S.streaming);
-    document.body.classList.toggle('has-pending', !!S.pendingConfirm);
+    var b = document.body;
+    b.classList.toggle('is-streaming', S.streaming);
+    b.classList.toggle('has-pending', !!S.pendingConfirm);
+    b.classList.toggle('is-window', st === 'listening' && !!S.open && !S.open.hold);
+    b.classList.toggle('is-hold', st === 'listening' && !!S.open && !!S.open.hold);
+    if (!S.open) b.classList.remove('is-hearing');
+    paintWindow(st);
     var send = $('#send-btn');
     send.setAttribute('aria-label', S.streaming ? 'Stop response' : 'Send');
     send.classList.toggle('stop', S.streaming);
+    setText('#vh-status', voiceStatus(st));
+    setText('#vh-hint', voiceHint(st));
+    var vh = $('#voice-hud');
+    if (vh) vh.dataset.state = st;
   }
-  function errorFlash() {
+  function errorFlash(text) {
     S.errorUntil = Date.now() + 2600;
+    S.errorText = text || '';
     refreshState();
     setTimeout(refreshState, 2700);
+  }
+  /* Errors are spoken briefly, in plain words; the detail stays in the toast (and the transcript). */
+  function spokenError(text, kind) {
+    var t = String(text || '').toLowerCase();
+    if (kind === 'expired') return 'This session has expired. Please reload the page.';
+    if (kind === 'net') return 'I’m afraid I can’t reach the server at the moment.';
+    if (/credit|\b402\b|payment|balance/.test(t)) return 'I’m afraid the model account is out of credits.';
+    if (/\b401\b|\b403\b|api key|unauthori[sz]ed|invalid key|no key/.test(t)) return 'I’m afraid the model key isn’t working. Please check it in Settings.';
+    if (/\b429\b|rate.?limit|too many requests/.test(t)) return 'The model is busy at the moment. Please try again shortly.';
+    if (/internal error/.test(t)) return 'I’m afraid something went wrong. Please try again.';
+    return 'I’m afraid I can’t reach the model at the moment.';
+  }
+  function sayError(text, kind) {
+    var phrase = spokenError(text, kind);
+    caption('a', phrase, { hold: 6000, err: true });
+    if (S.voice.speak && speaker.supported && !(S.turn && S.turn.muted)) speaker.say(phrase);
+    return phrase.replace(/\.$/, '');
   }
 
   // ------------------------------------------------------------------ names / state
@@ -628,7 +912,7 @@
     if (plot) plot.setAttribute('aria-label', withTok.length ? 'Tokens per turn, last ' + withTok.length + ' turns: ' + withTok.map(function (x) { return fmtTokens(x.tokens); }).join(', ') : 'Tokens per turn: no turns yet');
   }
   function updateVoiceReadouts() {
-    var micTxt = listener.supported ? (S.voice.wake ? 'wake word' : 'push-to-talk') : 'text only';
+    var micTxt = !listener.supported ? 'text only' : !S.voice.wake ? 'push-to-talk' : S.voice.wakeRequired ? 'wake word' : 'open mic';
     document.body.classList.toggle('no-sr', !listener.supported);
     setText('#co-link-s', 'Mic · ' + micTxt);
     var v = speaker.supported ? speaker.currentVoice() : null;
@@ -1063,7 +1347,45 @@
     if (!S.engaged || isDrawerOpen()) return;
     var flag = card.querySelector('.confirm-flag');
     if (isTouch() && flag) { try { flag.focus({ preventScroll: true }); } catch (e) { /* ignore */ } return; }
-    try { $('#cmd-input').focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+    try { (voiceOnly() ? $('#core') : $('#cmd-input')).focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+  }
+
+  // ------------------------------------------------------------------ approval card on the core (voice-only)
+  /* With the transcript hidden, a waiting card is moved onto the core (a placeholder keeps its spot in the
+   * transcript). Once decided it shows its stamp for a moment and goes back. */
+  var stage = $('#voice-card');
+  var stageT = 0;
+  function placeCard(p) {
+    var card = partEls.get(p);
+    if (!card || !stage) return;
+    if (!voiceOnly()) { restoreCards(); return; }
+    if (card.parentNode === stage) return;
+    restoreCards();
+    var slot = el('div', 'confirm-slot');
+    slot.hidden = true;
+    if (card.parentNode) card.parentNode.replaceChild(slot, card);
+    card._slot = slot;
+    stage.appendChild(card);
+    stage.hidden = false;
+    document.body.classList.add('card-on-core');
+  }
+  function restoreCards() {
+    clearTimeout(stageT);
+    stageT = 0;
+    if (!stage) return;
+    $$('.confirm', stage).forEach(function (card) {
+      if (card._slot && card._slot.parentNode) card._slot.parentNode.replaceChild(card, card._slot);
+      else if (card.parentNode) card.parentNode.removeChild(card);
+      card._slot = null;
+    });
+    stage.hidden = true;
+    document.body.classList.remove('card-on-core');
+  }
+  function releaseCard(p) {
+    var card = partEls.get(p);
+    if (!card || !stage || card.parentNode !== stage) return;
+    clearTimeout(stageT);
+    stageT = setTimeout(restoreCards, reduceMotion ? 900 : 1700);
   }
 
   function lockConfirm(p, state) {
@@ -1079,6 +1401,7 @@
       if (card._paint) card._paint();
       refocusAfterCard(card);
       if (state !== 'expired') scrollToEnd(true);
+      releaseCard(p);
     }
     if (S.pendingConfirm === p) S.pendingConfirm = null;
     tickConfirm();
@@ -1228,6 +1551,7 @@
 
   function clearConversation() {
     stopAll();
+    restoreCards();
     S.pendingConfirm = null;
     tickConfirm();
     S.history = [];
@@ -1265,7 +1589,10 @@
     if (S.turn) S.turn.muted = true;
     speaker.stop();
   }
+  /** Stop speaking and abort the turn; no follow-up window opens after a stop. */
   function stopAll() {
+    if (S.turn) S.turn.stopped = true;
+    S.followPending = false;
     stopSpeaking();
     if (S.abort) { try { S.abort.abort(); } catch (e) { /* ignore */ } }
   }
@@ -1285,6 +1612,9 @@
     if (S.st && S.st.has_key === false) { showSetup(); return false; }
 
     speaker.stop();
+    S.followPending = false;
+    S.answerPending = false;
+    closeWindow(true);
     S.lastVia = via || 'text';
     S.stick = true;
     appendEntry({ k: 'u', text: text, ts: Date.now(), via: S.lastVia });
@@ -1306,9 +1636,30 @@
     var gotDone = false;
     var t0 = performance.now();
     var first = true;
-    var turn = { entry: entry, muted: false, historyDone: false, tokens: 0, ttft: null };
+    var turn = { entry: entry, muted: false, stopped: false, historyDone: false, tokens: 0, ttft: null };
 
     function speakOn() { return S.voice.speak && !turn.muted; }
+    /* Only the final answer is spoken. Text is held per model step until ~200 characters have arrived or the
+     * step ends: a step that ends in tool calls was a preamble ("On it.") and is never said, so a reply is never
+     * spoken and then revised. (On the voice channel the server already holds such text back.) */
+    var HOLD_CHARS = 200;
+    var step = { buf: '', live: false };
+    function stepToken(t) {
+      if (!speakOn()) return;
+      if (step.live) { speaker.feed(t); return; }
+      step.buf += t;
+      if (step.buf.length >= HOLD_CHARS) { step.live = true; speaker.feed(step.buf); step.buf = ''; }
+    }
+    /* `broke`: the step broke off (error, lost connection, no 'done'): whole sentences already queued are still
+     * said, but the unfinished one is dropped rather than read out half-way ("…and the dollar"). */
+    function stepEnd(final, broke) {
+      var s = step;
+      step = { buf: '', live: false };
+      if (!speakOn()) return;
+      if (broke) { if (s.live) speaker.discard(); return; }
+      if (final && s.buf) speaker.feed(s.buf);
+      if (final || s.live) speaker.flush(); // a long passage already being read finishes its sentence
+    }
     function partialText() {
       return entry.parts.filter(function (p) { return p.t === 'text'; }).map(function (p) { return p.text; }).join('\n\n').trim();
     }
@@ -1369,17 +1720,18 @@
           }
           cur.text += ev.text;
           scheduleText(cur);
-          if (speakOn()) speaker.feed(ev.text);
+          stepToken(ev.text);
           saveTranscriptSoon();
           break;
         case 'segment_end':
           closeText();
-          if (speakOn()) speaker.flush();
+          stepEnd(false); // text before a tool batch: a preamble
           break;
         case 'tool':
           firstSignal();
           if (ev.state === 'start') {
             closeText();
+            stepEnd(false);
             if (!tools) { tools = { t: 'tools', items: [] }; addPart(entry, tools); }
             var it = { id: str(ev.id, 200) || '', name: str(ev.name, 120) || '', label: str(ev.label, 200) || str(ev.name, 120) || 'Tool', hint: toolHint(ev.args), state: 'run', summary: '' };
             tools.items.push(it);
@@ -1408,6 +1760,7 @@
         case 'confirm':
           firstSignal();
           closeText();
+          stepEnd(false);
           tools = null;
           var cp = {
             t: 'confirm', id: str(ev.id, 200) || '', call_id: str(ev.call_id, 200) || '', name: str(ev.name, 120) || '',
@@ -1419,16 +1772,17 @@
           if (confirmKind(cp.name) === 'web') webAwait(cp);
           startConfirmTimer();
           var strictCard = isStrict(cp.name);
-          // A voice request gets a one-shot listener for the answer, except on cards that ignore spoken answers.
-          S.awaitVoiceAnswer = !strictCard && (S.lastVia !== 'text' || S.voice.wake);
-          if (strictCard && S.listening === 'command') listener.stop();
+          // A spoken request gets a window for a spoken answer once the prompt is said (hands-free listening
+          // hears it anyway), except on cards that ignore spoken answers.
+          S.answerPending = !strictCard && (S.lastVia !== 'text' || voiceOnly());
+          closeWindow(true);
           V.chime('wake');
-          if (speakOn() && speaker.supported) speaker.say(strictCard ? 'Awaiting your approval on screen.' : 'Awaiting your approval.');
-          else if (S.awaitVoiceAnswer && listener.supported) { S.awaitVoiceAnswer = false; setTimeout(function () { if (S.pendingConfirm === cp && !S.listening) startListening(); }, 300); }
-          scrollToEnd(true);
-          wantCard = cardNode;
+          placeCard(cp); // voice-only: the card is shown over the core
+          if (speakOn() && speaker.supported) speaker.say('Awaiting your approval on screen.');
+          if (!voiceOnly()) { scrollToEnd(true); wantCard = cardNode; }
           saveTranscript();
           refreshState();
+          afterSpeech();
           break;
         case 'confirm_result':
           var target = S.pendingConfirm && S.pendingConfirm.id === ev.id ? S.pendingConfirm :
@@ -1439,8 +1793,8 @@
             lockConfirm(target, ev.approved ? 'approved' : timedOut ? 'expired' : 'denied');
             if (confirmKind(target.name) === 'web') webResolved(!!ev.approved);
           }
-          S.awaitVoiceAnswer = false;
-          if (S.listening === 'command') listener.stop();
+          S.answerPending = false;
+          if (S.open && S.open.via === 'answer') closeWindow(true);
           refreshState();
           saveTranscriptSoon();
           break;
@@ -1461,13 +1815,16 @@
           closeText();
           var et = str(ev.text, 2000) || 'Something went wrong.';
           addPart(entry, { t: 'error', text: et });
+          turn.failed = true;
           toast(et);
           V.chime('error');
-          errorFlash();
+          stepEnd(false, true);
+          errorFlash(sayError(et));
           scrollToEnd(false);
           break;
         case 'done':
           gotDone = true;
+          stepEnd(true);
           if (Array.isArray(ev.messages)) {
             ev.messages.forEach(function (m) { if (isObj(m) && ROLES[m.role]) S.history.push(m); });
           }
@@ -1480,7 +1837,9 @@
       }
     }
 
-    var req = api('/api/chat', { method: 'POST', body: { messages: outgoingHistory() }, signal: ctrl ? ctrl.signal : undefined, raw: true });
+    var body = { messages: outgoingHistory() };
+    if (voiceOnly()) body.channel = 'voice'; // short spoken replies, and only the final answer is streamed
+    var req = api('/api/chat', { method: 'POST', body: body, signal: ctrl ? ctrl.signal : undefined, raw: true });
     req.then(function (res) {
       if (!res.body || !res.body.getReader) {
         return res.text().then(function (txt) { drainSSE(txt + '\n\n', onEvent); });
@@ -1505,19 +1864,22 @@
         addPart(entry, { t: 'note', text: 'Interrupted.' });
         return;
       }
+      turn.failed = true;
+      stepEnd(false, true);
       if (e && e.status === 401) {
         addPart(entry, { t: 'error', text: 'Session expired — reload the page.' });
+        sayError('', 'expired');
         return;
       }
       var msg = (e && e.message) || 'Request failed';
       addPart(entry, { t: 'error', text: msg });
       toast(msg);
-      errorFlash();
+      errorFlash(sayError(msg, e && e.network ? 'net' : ''));
     }).then(function () {
       shell.classList.remove('pending');
       shell.removeAttribute('aria-busy');
       closeText();
-      if (speakOn()) speaker.flush();
+      if (!gotDone) stepEnd(false, true); // an unfinished step is never spoken
       pushPartial();
       if (S.pendingConfirm) lockConfirm(S.pendingConfirm, 'expired');
       entry.parts.forEach(function (p) {
@@ -1539,10 +1901,18 @@
       S.streaming = false;
       S.abort = null;
       S.toolsRunning = 0;
+      // A spoken exchange carries on: once the reply has been said, listen ~8 s for a follow-up (no wake word).
+      S.followPending = gotDone && !turn.stopped && !turn.failed && !S.queued && (S.lastVia !== 'text' || voiceOnly());
       webEnd();
       saveTranscript();
       refreshState();
+      afterSpeech();
       scrollToEnd(false);
+      if (S.queued) { // said over the turn that was just stopped
+        var q = S.queued;
+        S.queued = null;
+        setTimeout(function () { if (!S.streaming) sendMessage(q.text, q.via); }, 0);
+      }
       // Screen readers hear the finished reply once (the streaming bubble itself is not announced).
       var said = V.cleanForSpeech(partialText());
       if (!said) {
@@ -1591,11 +1961,12 @@
   $('#send-btn').addEventListener('click', function (e) {
     if (S.streaming && !S.pendingConfirm && !input.value.trim()) { e.preventDefault(); stopAll(); }
   });
-  $('#mic-btn').addEventListener('click', function () { toggleListening(); });
+  $('#mic-btn').addEventListener('click', function () { toggleTalk(); });
+  // The core: tap to talk (a second tap sends at once); while a reply is spoken or prepared, a tap stops it.
   $('#core').addEventListener('click', function () {
-    if (S.speaking || speaker.busy()) { stopSpeaking(); refreshState(); return; }
-    if (S.streaming) { stopAll(); return; }
-    toggleListening();
+    if (S.speaking || speaker.busy()) { stopSpeaking(); S.followPending = false; refreshState(); return; }
+    if (S.streaming && !livePending()) { stopAll(); refreshState(); return; }
+    toggleTalk();
   });
 
   var QUICK = {
@@ -1641,19 +2012,25 @@
     if ((e.ctrlKey || e.metaKey) && (e.code === 'Space' || e.key === ' ')) {
       if (!S.engaged || overlay) return;
       e.preventDefault();
-      toggleListening();
+      if (!e.repeat) toggleTalk();
       return;
     }
     if (e.key === 'Escape') {
       if (isDrawerOpen()) { closeDrawer(); return; }
       var acted = false;
-      if (S.listening === 'command') { listener.stop(true); acted = true; }
-      if (S.speaking || speaker.busy()) { stopSpeaking(); acted = true; }
+      if (S.open) { spaceHeld = false; closeWindow(true); acted = true; }
+      if (S.speaking || speaker.busy()) { stopSpeaking(); S.followPending = false; acted = true; }
       if (S.streaming) { stopAll(); acted = true; }
       if (acted) { e.preventDefault(); refreshState(); }
       return;
     }
     if (e.ctrlKey || e.metaKey || e.altKey || typing || overlay || !S.engaged || isDrawerOpen()) return;
+    // Hold Space to talk (push-to-talk) — unless focus is on a control that Space activates.
+    if ((e.code === 'Space' || e.key === ' ') && spaceTalks(t)) {
+      e.preventDefault();
+      if (!e.repeat && !spaceHeld) holdStart();
+      return;
+    }
     // Y / N answer a pending approval card (never while typing in a field, never auto-repeat).
     // A key press is deliberate input, so this also answers high-risk cards (once their buttons are armed).
     if (S.pendingConfirm && (e.key === 'y' || e.key === 'Y' || e.key === 'n' || e.key === 'N')) {
@@ -1661,8 +2038,16 @@
       if (!e.repeat && e.isTrusted !== false) resolveConfirm(S.pendingConfirm, e.key === 'y' || e.key === 'Y');
       return;
     }
-    if (e.key === '/') { e.preventDefault(); input.focus(); }
+    if (e.key === '/' && !voiceOnly()) { e.preventDefault(); input.focus(); }
   });
+  function spaceTalks(t) {
+    if (!t || t === document.body || t === document.documentElement || t.id === 'core') return true;
+    return !(t.closest && t.closest('button, a[href], summary, label, select, input, textarea, [role="tab"], [role="button"], [tabindex]:not([tabindex="-1"])'));
+  }
+  document.addEventListener('keyup', function (e) {
+    if (spaceHeld && (e.code === 'Space' || e.key === ' ')) { e.preventDefault(); holdEnd(); }
+  });
+  window.addEventListener('blur', function () { if (spaceHeld) holdEnd(); });
 
   // ------------------------------------------------------------------ panels: common
   function panelStatus(id, status, text) {
@@ -2752,7 +3137,10 @@
     NEWS_REGION: 'news_region', NEWS_LANGUAGE: 'news_language', ATLAS_MODEL: 'model', ATLAS_SEARCH_MODEL: 'search_model',
     EMAIL_ADDRESS: 'email_address', SMTP_HOST: 'smtp_host', SMTP_PORT: 'smtp_port', IMAP_HOST: 'imap_host', IMAP_PORT: 'imap_port'
   };
-  var SELECT_DEFAULT = { UNITS: 'imperial', CALENDAR_PROVIDER: 'google' }; // what a blank setting means on the server
+  var SELECT_DEFAULT = { UNITS: 'imperial', CALENDAR_PROVIDER: 'google', PHONE_TUNNEL: 'cloudflared' }; // what a blank setting means on the server
+  // Phone line values the server may only report in /api/state.phone (older builds don't list them in "extra").
+  var PHONE_STATE = { PHONE_ENABLED: 'enabled', PHONE_NUMBER: 'number' };
+  var E164 = '\\+[1-9]\\d{6,14}';
   // Checked only when the field is filled in; blank always means "use the default".
   var FIELD_RULES = {
     SMTP_PORT: [/^\d{1,5}$/, 'Mail server ports are whole numbers, e.g. 465.'],
@@ -2764,7 +3152,12 @@
     SEC_CONTACT_EMAIL: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'The SEC contact should be an email address, e.g. you@example.com.'],
     FINANCE_REGION: [/^[A-Z]{2}$/, 'The finance region is a two-letter code such as US or GB.'],
     SPORTS_TIMEZONE: [/^(UTC|GMT|[A-Za-z][A-Za-z_]*(\/[A-Za-z0-9_+\-]+){1,2})$/, 'The sports time zone should be an IANA name such as America/Chicago.'],
-    SPORTS_PANEL_LEAGUES: [/^[a-z0-9][a-z0-9 .\-]*(,[a-z0-9][a-z0-9 .\-]*){0,7}$/, 'Sports leagues are names such as nfl,nba,epl separated by commas — at most 8.']
+    SPORTS_PANEL_LEAGUES: [/^[a-z0-9][a-z0-9 .\-]*(,[a-z0-9][a-z0-9 .\-]*){0,7}$/, 'Sports leagues are names such as nfl,nba,epl separated by commas — at most 8.'],
+    PHONE_NUMBER: [new RegExp('^' + E164 + '$'), 'The assistant’s number should be in international format, e.g. +15555550123.'],
+    PHONE_ALLOWED_NUMBERS: [new RegExp('^' + E164 + '(,' + E164 + ')*$'), 'Allowed numbers should be in international format, separated by commas, e.g. +15555550123,+447700900123.'],
+    PHONE_PUBLIC_URL: [/^https:\/\/[^\s/?#]+(\/[^\s?#]*)?$/i, 'The public URL should be an https:// address with no query string, e.g. https://atlas.example.com.'],
+    PHONE_VOICE: [/^[A-Za-z0-9][A-Za-z0-9._-]{0,59}$/, 'The phone voice is a Twilio voice name such as Polly.Brian-Neural.'],
+    PHONE_PORT: [/^(6553[0-5]|655[0-2]\d|65[0-4]\d{2}|6[0-4]\d{3}|[1-5]\d{4}|[1-9]\d{0,3})$/, 'The phone line port is a number from 1 to 65535, e.g. 8790.']
   };
   var EYE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg>';
 
@@ -2772,8 +3165,10 @@
   function truthy(v) { return /^(1|true|yes|on)$/i.test(String(v == null ? '' : v).trim()); }
   function settingValue(st, key) {
     var v = STATE_FIELD[key] ? st[STATE_FIELD[key]] : (isObj(st.extra) ? st.extra[key] : null);
+    if (v == null && PHONE_STATE[key] && isObj(st.phone)) v = st.phone[PHONE_STATE[key]];
     return v == null || typeof v === 'object' ? '' : String(v);
   }
+  function phoneNum(s) { return String(s || '').replace(/[\s().\-]/g, '').replace(/^00/, '+'); }
   function settingsFields() { return $$('[name]', setForm).filter(function (f) { return f.name && !f.disabled; }); }
   function fieldValue(f) {
     if (f.type === 'checkbox') return f.checked ? 'true' : 'false';
@@ -2782,6 +3177,9 @@
     if (f.name === 'NEWS_LANGUAGE') return v.toLowerCase();
     if (f.name === 'FINANCE_REGION') return v.toUpperCase();
     if (f.name === 'SPORTS_PANEL_LEAGUES') return v.toLowerCase().split(',').map(function (s) { return s.trim().replace(/\s+/g, ' '); }).filter(Boolean).join(',');
+    if (f.name === 'PHONE_NUMBER') return phoneNum(v);
+    if (f.name === 'PHONE_ALLOWED_NUMBERS') return v.split(/[,;]/).map(phoneNum).filter(Boolean).join(',');
+    if (f.name === 'PHONE_PUBLIC_URL') return v.replace(/\/+$/, '');
     return v;
   }
   function setField(f, value) {
@@ -2823,7 +3221,9 @@
     });
     $('#key-hint').textContent = st.key_hint ? String(st.key_hint) : '';
     $('#email-note').textContent = '';
-    sectionBadge('voice', !speaker.supported ? 'Text only' : !S.voice.speak ? 'Muted' : S.voice.wake ? 'Wake word' : 'Voice on', speaker.supported && S.voice.speak);
+    sectionBadge('voice', !speaker.supported ? 'Text only' : !S.voice.speak ? 'Muted' : 'Voice on', speaker.supported && S.voice.speak);
+    sectionBadge('convo', !listener.supported ? 'Unavailable' : !voiceOnly() ? 'Text chat on' : !S.voice.wake ? 'Push-to-talk' : S.voice.wakeRequired ? 'Wake word' : 'Open mic', listener.supported && voiceOnly(), !listener.supported);
+    paintPhone(st);
     sectionBadge('you', st.user_name ? clip(String(st.user_name), 18) : 'Not set', !!st.user_name);
     sectionBadge('model', st.has_key === false ? 'No key' : shortModel(st.model), st.has_key !== false);
     sectionBadge('email', st.email_configured ? 'Connected' : 'Off', !!st.email_configured);
@@ -2841,6 +3241,55 @@
     sectionBadge('data', sec ? (dk ? 'Ready · ' + dk + (dk === 1 ? ' key' : ' keys') : 'Ready') : 'No SEC email', sec, !sec);
   }
 
+  /* Phone line: live status from /api/state.phone ({enabled, number, status, public_url, error}) when the server
+   * reports it; otherwise only the saved on/off setting. */
+  var PHONE_LABEL = { off: 'Off', starting: 'Starting…', online: 'Online', error: 'Error' };
+  function phoneInfo(st) {
+    var ph = st && isObj(st.phone) ? st.phone : null;
+    if (!ph) return null;
+    var status = PHONE_LABEL[ph.status] ? ph.status : ph.enabled ? 'starting' : 'off';
+    return {
+      status: status, enabled: ph.enabled === true,
+      number: str(ph.number, 40) || '', url: safeUrl(str(ph.public_url, 400) || '') ? str(ph.public_url, 400) : '',
+      error: str(ph.error, 400) || ''
+    };
+  }
+  function paintPhone(st) {
+    var ex = isObj(st.extra) ? st.extra : {};
+    var info = phoneInfo(st);
+    var box = $('#phone-status');
+    if (!info) {
+      var on = truthy(ex.PHONE_ENABLED);
+      sectionBadge('phone', on ? 'On' : 'Off', on);
+      if (box) box.hidden = true;
+      return;
+    }
+    sectionBadge('phone', PHONE_LABEL[info.status], info.status === 'online', info.status === 'error');
+    if (!box) return;
+    box.hidden = false;
+    box.dataset.status = info.status;
+    setText('#ps-label', info.status === 'online' ? 'Online' : info.status === 'starting' ? 'Starting…' : info.status === 'error' ? 'Not working' : 'Off');
+    setText('#ps-num', info.number ? info.number : '');
+    setText('#ps-url', info.status === 'online' && info.url ? info.url : '');
+    setText('#ps-err', info.status === 'error' ? info.error || 'The phone line couldn’t start.' : info.status === 'off' ? 'Turn on “Answer calls and texts” and save.' : info.status === 'starting' ? 'Opening the tunnel and updating the Twilio number…' : 'Call or text the number from an allowed phone.');
+  }
+  // While the drawer is open the phone line's status is re-read, so "Starting…" turns into "Online".
+  var phonePollT = 0;
+  function phonePoll(on) {
+    clearInterval(phonePollT);
+    phonePollT = 0;
+    if (!on || !S.st || !isObj(S.st.phone)) return;
+    phonePollT = setInterval(function () {
+      if (!isDrawerOpen() || document.hidden || S.expired) return;
+      api('/api/state').then(function (st) {
+        if (!st || !S.st) return;
+        S.st.phone = st.phone;
+        if (isObj(st.extra)) S.st.extra = st.extra;
+        paintPhone(S.st);
+      }).catch(function () { /* polled again shortly */ });
+    }, 4000);
+  }
+
   function openDrawer(opts) {
     if (!isObj(opts) || (typeof Event === 'function' && opts instanceof Event)) opts = {};
     if (!isDrawerOpen()) {
@@ -2850,6 +3299,7 @@
       requestAnimationFrame(function () { drawer.classList.add('open'); scrim.classList.add('open'); });
       $('#settings-btn').setAttribute('aria-expanded', 'true');
       populateSettings();
+      phonePoll(true);
     }
     var sec = opts.section ? $('#sec-' + opts.section) : null;
     if (sec) sec.open = true;
@@ -2862,6 +3312,7 @@
     }, sec ? 120 : 60);
   }
   function closeDrawer() {
+    phonePoll(false);
     drawer.classList.remove('open');
     scrim.classList.remove('open');
     $('#settings-btn').setAttribute('aria-expanded', 'false');
@@ -2912,16 +3363,15 @@
     var wl = setForm.querySelector('[name="MARKET_WATCHLIST"]');
     if (wl && Array.isArray(st.watchlist) && st.watchlist.length) wl.placeholder = st.watchlist.slice(0, 12).join(',');
     paintBadges(st);
-    $('#rate-input').value = String(S.voice.rate || 1);
-    $('#pitch-input').value = String(S.voice.pitch || 1);
-    $('#rate-out').textContent = Number(S.voice.rate || 1).toFixed(2);
-    $('#pitch-out').textContent = Number(S.voice.pitch || 1).toFixed(2);
+    $('#rate-input').value = String(S.voice.rate || VOICE_RATE);
+    $('#pitch-input').value = String(S.voice.pitch || VOICE_PITCH);
+    $('#rate-out').textContent = Number(S.voice.rate || VOICE_RATE).toFixed(2);
+    $('#pitch-out').textContent = Number(S.voice.pitch || VOICE_PITCH).toFixed(2);
     $('#speak-toggle').checked = !!S.voice.speak;
-    $('#wake-toggle').checked = !!S.voice.wake;
-    $('#wake-toggle').disabled = !listener.supported;
+    paintVoiceToggles();
     var sup = [];
     if (!speaker.supported) sup.push('Speech output is not available in this browser.');
-    if (!listener.supported) sup.push('Speech recognition is not available here — use Chrome or Edge for voice input and the wake word.');
+    if (!listener.supported) sup.push('Speech recognition is not available here, so the text chat is shown — use Chrome or Edge to talk to ' + assistantName() + '.');
     $('#voice-support').textContent = sup.join(' ');
     $('#voice-support').hidden = !sup.length;
     markDirty();
@@ -3025,10 +3475,34 @@
     setSpeak(!S.voice.speak);
     toast(S.voice.speak ? 'Spoken replies on.' : 'Spoken replies muted.', { tone: 'info', key: 'mute', cooldown: 800, ms: 1800 });
   });
-  $('#wake-toggle').addEventListener('change', function (e) {
-    S.voice.wake = e.target.checked && listener.supported; saveVoice();
-    if (S.engaged) listener.setWake(S.voice.wake);
-    updateVoiceReadouts(); refreshState();
+  // Voice group: applied at once and kept in this browser.
+  var VOICE_TOGGLES = { 'wake-toggle': 'wake', 'wakereq-toggle': 'wakeRequired', 'follow-toggle': 'followUp', 'captions-toggle': 'captions', 'chat-toggle': 'showChat' };
+  function paintVoiceToggles() {
+    Object.keys(VOICE_TOGGLES).forEach(function (id) {
+      var t = document.getElementById(id);
+      if (t) t.checked = !!S.voice[VOICE_TOGGLES[id]];
+    });
+    var sr = listener.supported;
+    ['wake-toggle', 'follow-toggle'].forEach(function (id) { var t = document.getElementById(id); if (t) t.disabled = !sr; });
+    var wr = $('#wakereq-toggle');
+    if (wr) wr.disabled = !sr || !S.voice.wake;
+    var ct = $('#chat-toggle');
+    if (ct && !sr) { ct.checked = true; ct.disabled = true; } // no speech recognition here: the text chat stays on
+    if (S.st) paintBadges(S.st);
+  }
+  Object.keys(VOICE_TOGGLES).forEach(function (id) {
+    var t = document.getElementById(id);
+    if (!t) return;
+    t.addEventListener('change', function () {
+      var k = VOICE_TOGGLES[id];
+      S.voice[k] = !!t.checked && (k === 'captions' || k === 'showChat' || listener.supported);
+      saveVoice();
+      if (k === 'wake' && S.voice.wake) { listener.denied = false; V.unlockAudio(); }
+      if (k === 'wake' || k === 'wakeRequired') { closeWindow(true); updateVoiceReadouts(); }
+      if (k === 'showChat' || k === 'captions') applyVoiceMode();
+      paintVoiceToggles();
+      refreshState();
+    });
   });
   $('#voice-test').addEventListener('click', function () {
     V.unlockAudio();
@@ -3217,8 +3691,9 @@
       if (S.transcript.length) systemLine(g, 'info', assistantName().toUpperCase(), true);
       else paintHero(new Date());
       if (S.voice.speak) speaker.say(g);
-      if (S.voice.wake && listener.supported) setTimeout(function () { listener.setWake(true); refreshState(); }, 400);
-      input.focus({ preventScroll: true });
+      S.ready = true; // the microphone may run from here (hands-free listening starts after the greeting)
+      if (!voiceOnly()) input.focus({ preventScroll: true });
+      else if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
       refreshState();
     }).catch(function (e) {
       // never strand the user behind the overlay
@@ -3226,6 +3701,8 @@
       setInert(false);
       ov.hidden = true;
       if (core) { core.start(); core.powerUp(); }
+      S.ready = true;
+      refreshState();
       if (window.console) console.warn('engage failed', e);
     });
   }
@@ -3247,6 +3724,7 @@
     try { return fn(); } catch (e) { if (window.console) console.warn('ATLAS boot step failed: ' + label, e); return null; }
   }
   safely('transcript', restoreTranscript);
+  safely('voice mode', applyVoiceMode);
   safely('voice readouts', updateVoiceReadouts);
   safely('usage', renderUsage);
   safely('clock', tickClock);
@@ -3292,5 +3770,5 @@
   setTimeout(function () { var b = $('#engage-btn'); if (b && !S.engaged) b.focus({ preventScroll: true }); }, 50);
 
   // Expose a tiny debug hook (no secrets).
-  window.ATLAS_UI = { state: S, core: core, send: sendMessage, setView: setView, parseSSE: drainSSE, refresh: { markets: loadMarkets, pulse: loadPulse, news: loadNews, weather: loadWeather, system: loadSystem, reminders: loadReminders, agenda: loadAgenda }, openSettings: openDrawer };
+  window.ATLAS_UI = { state: S, core: core, send: sendMessage, setView: setView, parseSSE: drainSSE, refresh: { markets: loadMarkets, pulse: loadPulse, news: loadNews, weather: loadWeather, system: loadSystem, reminders: loadReminders, agenda: loadAgenda }, openSettings: openDrawer, voice: { listener: listener, speaker: speaker, talk: toggleTalk } };
 })();

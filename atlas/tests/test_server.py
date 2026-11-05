@@ -18,7 +18,7 @@ STATE_KEYS = {
     "assistant_name", "user_name", "address_as", "has_key", "key_hint", "model", "search_model", "home_city",
     "units", "news_region", "news_language", "watchlist", "email_address", "email_configured", "smtp_host",
     "smtp_port", "imap_host", "imap_port", "os", "capabilities", "news_categories", "tools",
-    "user_phone", "home_address", "work_address", "extra", "secrets_configured",
+    "user_phone", "home_address", "work_address", "extra", "secrets_configured", "phone",
 }
 
 
@@ -277,6 +277,46 @@ def test_chat_with_malformed_history_still_answers(srv, monkeypatch):
     history = [{"role": "assistant", "tool_calls": [{"id": 1, "function": None}]}, {"role": "tool"}, {"role": "user", "content": "hi"}]
     events = sse_events(client.post("/api/chat", json={"messages": history}).text)
     assert events[-1]["type"] == "done"
+
+
+def _preamble_then_answer():
+    return FakeLLM([text("One moment."), tool_calls(("c1", "calculate", '{"expression": "6*7"}'))], [text("It's 42.")])
+
+
+def test_chat_voice_channel_streams_only_the_final_answer(srv, monkeypatch):
+    server, client = srv
+    llm = _preamble_then_answer()
+    monkeypatch.setattr(server.S, "llm", llm)
+    events = sse_events(client.post("/api/chat", json={"messages": [{"role": "user", "content": "6 times 7?"}], "channel": "voice"}).text)
+    assert [e["type"] for e in events] == ["model", "tool", "tool", "token", "done"]
+    assert [e["text"] for e in events if e["type"] == "token"] == ["It's 42."]
+    assert events[-1]["messages"][0]["content"] is None and events[-1]["messages"][-1]["content"] == "It's 42."
+    assert "Channel: voice" in llm.requests[0]["messages"][0]["content"]
+
+
+def test_chat_desktop_channel_keeps_streaming_everything(srv, monkeypatch):
+    server, client = srv
+    for body in ({}, {"channel": "desktop"}, {"channel": None}, {"channel": " Desktop "}):
+        llm = _preamble_then_answer()
+        monkeypatch.setattr(server.S, "llm", llm)
+        events = sse_events(client.post("/api/chat", json={"messages": [{"role": "user", "content": "6 times 7?"}], **body}).text)
+        assert [e["type"] for e in events] == ["model", "token", "segment_end", "tool", "tool", "token", "done"], body
+        assert events[1]["text"] == "One moment." and events[-1]["messages"][0]["content"] == "One moment."
+        assert "Channel:" not in llm.requests[0]["messages"][0]["content"]
+
+
+@pytest.mark.parametrize("channel", ["phone", "sms", "fax", ""])
+def test_chat_accepts_only_desktop_and_voice_channels(srv, monkeypatch, channel):
+    server, client = srv
+    llm = FakeLLM([text("ok")])
+    monkeypatch.setattr(server.S, "llm", llm)
+    r = client.post("/api/chat", json={"messages": [{"role": "user", "content": "hi"}], "channel": channel})
+    if channel == "":  # an empty value means the default
+        assert r.status_code == 200 and sse_events(r.text)[-1]["type"] == "done"
+        return
+    assert r.status_code == 400 and "desktop" in r.json()["detail"] and "voice" in r.json()["detail"]
+    assert llm.requests == []  # nothing reached the model
+    assert client.post("/api/chat", json={"messages": [], "channel": 7}).status_code == 422
 
 
 def test_chat_end_to_end_with_real_openrouter_client(srv, monkeypatch):
@@ -563,7 +603,8 @@ def test_chat_stream_closes_the_turn_when_the_client_goes_away(monkeypatch):
 
     state = {"closed": False, "resumed": False}
 
-    async def fake_turn(history, settings, llm, broker, ctx):
+    async def fake_turn(history, settings, llm, broker, ctx, *, channel="desktop"):
+        state["channel"] = channel
         try:
             yield {"type": "confirm", "id": "abc"}
             state["resumed"] = True
@@ -586,4 +627,4 @@ def test_chat_stream_closes_the_turn_when_the_client_goes_away(monkeypatch):
 
     chunks, seen = run(go())
     assert chunks == ['data: {"type": "confirm", "id": "abc"}\n\n']
-    assert seen == {"closed": True, "resumed": False}
+    assert seen == {"closed": True, "resumed": False, "channel": "desktop"}

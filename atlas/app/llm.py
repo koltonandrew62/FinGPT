@@ -10,6 +10,13 @@ import httpx
 from .config import MODEL_PREFERENCES, SEARCH_MODEL_PREFERENCES, Settings
 
 
+# Sampling temperatures. The chat loop runs cool so answers come out settled and consistent instead of
+# wandering and correcting themselves; one-shot sub-calls (web research, describing a screenshot) default to
+# colder still, because they only report facts. A caller can always pass its own.
+CHAT_TEMPERATURE = 0.3
+FACTUAL_TEMPERATURE = 0.2
+
+
 class LLMError(Exception):
     pass
 
@@ -103,7 +110,7 @@ class OpenRouter:
 
     # -------------------------------------------------------------------- chat
     async def complete(self, messages: list[dict], model: str, **extra: Any) -> dict:
-        payload = {"model": model, "messages": messages, **extra}
+        payload = {"model": model, "messages": messages, "temperature": FACTUAL_TEMPERATURE, **extra}
         r = await self.http.post(
             f"{self.settings.base_url}/chat/completions",
             headers=self._headers(),
@@ -118,14 +125,18 @@ class OpenRouter:
         return data
 
     async def stream_chat(
-        self, messages: list[dict], model: str, tools: list[dict] | None = None
+        self,
+        messages: list[dict],
+        model: str,
+        tools: list[dict] | None = None,
+        temperature: float = CHAT_TEMPERATURE,
     ) -> AsyncIterator[dict]:
         """Yields {"type": "text"|"tool_calls"|"usage"|"finish", ...} events."""
         payload: dict[str, Any] = {
             "model": model,
             "messages": messages,
             "stream": True,
-            "temperature": 0.6,
+            "temperature": temperature,
             "max_tokens": 4096,
             "usage": {"include": True},
         }
