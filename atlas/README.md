@@ -489,7 +489,27 @@ number, how it will be sent and the full message.
 2. From the **Twilio Console home page**, copy the **Account SID** (34 characters, starts with `AC`) and the
    **Auth Token**.
 3. Set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_FROM_NUMBER` (your Twilio number, such as
-   `+15555550123`). You need all three. A Messaging Service SID (`MG…`) also works as the sender.
+   `+15555550123`) in **Settings → Texting & calls**. You need the SID, the number and a credential: the
+   Auth Token, or an API key (step 4). A Messaging Service SID (`MG…`) also works as the sender.
+4. **Optional: an API key instead of the Auth Token.** An API key can be revoked on its own, without
+   touching the rest of your account. In the Twilio Console open *Account → API keys & tokens*, create a
+   **Standard** key, and put its SID (34 characters, starts with `SK`) in `TWILIO_API_KEY_SID` and its secret in
+   `TWILIO_API_KEY_SECRET`. Twilio shows the secret only once. When both are set, every request ATLAS sends to
+   Twilio (texts, and the phone line's own set-up and replies) signs in with the key instead of the Auth Token.
+   The Account SID is still needed, because it names your account in each request. For texting alone, the
+   Auth Token can then stay blank. The [phone line](#phone-line-call-your-assistant) still needs the Auth Token.
+   Twilio signs every call and text it sends to ATLAS with it, and an API key can't check those signatures.
+   To stop using the key, clear the **API Key SID** box and save: ATLAS goes back to the Auth Token. (The
+   secret box can't be cleared from the screen; delete the `TWILIO_API_KEY_SECRET` line from `atlas/.env` if
+   you want it gone.)
+
+The SID boxes check what you paste: an `SK…` value in the Account SID box, or an `AC…` value in the API Key SID
+box, is refused with a note saying which box it belongs in.
+
+**If a Twilio credential was ever pasted somewhere public or into a chat** (an AI chat, a forum post, a
+screenshot, a shared file), treat it as leaked and replace it in the Twilio Console under *Account → API keys &
+tokens*. Delete a leaked API key and create a new one. For a leaked Auth Token, request a secondary token,
+promote it to primary, and the old one stops working. Then save the new value in Settings.
 
 **Trial accounts can only text numbers you've verified.** Add each one in the Twilio Console under
 *Phone Numbers → Manage → Verified Caller IDs*, or upgrade the account. Trial texts also start with a short
@@ -549,7 +569,11 @@ public https address that reaches your computer: a free Cloudflare quick tunnel,
    Manage → Buy a number*. Leave its Voice and Messaging settings alone: ATLAS fills them in. If the number is
    connected to a TwiML App or SIP trunk, disconnect it.
 3. **Copy your Account SID and Auth Token** from the Twilio Console home page into **Settings → Texting &
-   calls** (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`).
+   calls** (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`). **The phone line needs the Auth Token even if you also
+   use an API key.** Twilio signs every call and text it forwards to ATLAS with the Auth Token, and that
+   signature is how ATLAS knows a request really came from Twilio. An API key can't check it. With an API key
+   (`TWILIO_API_KEY_SID`, `TWILIO_API_KEY_SECRET`) set as well, the line uses the key for its own requests to
+   Twilio: finding the number, pointing it at ATLAS, and sending text replies.
 4. **Give the line a public address.** The easy way is to install Cloudflare's free `cloudflared`:
    - Windows: `winget install Cloudflare.cloudflared`
    - macOS: `brew install cloudflared`
@@ -567,9 +591,11 @@ public https address that reaches your computer: a free Cloudflare quick tunnel,
    what to fix (see [Phone line troubleshooting](#phone-line-troubleshooting)).
 7. **Call it.** It answers with a greeting. Ask what you like, and say *"goodbye"* or *"that's all"* when
    you're done.
-8. **Strongly recommended: set a PIN.** Add `PHONE_PIN=` and 6 or more digits to `atlas/.env` and restart
-   ATLAS. Every call then has to enter the PIN on the keypad, followed by #, before the assistant says anything.
-   See [Phone line security](#phone-line-security) for why.
+8. **Strongly recommended: set a PIN.** In **Settings → Phone line**, type 6 or more digits under **Keypad
+   PIN** and save (`PHONE_PIN`, 4 to 12 digits). Every call then has to enter the PIN on the keypad, followed by
+   #, before the assistant says anything. Like the other secrets, it's never shown again and a blank box keeps
+   it. To remove it, delete the `PHONE_PIN` line from `atlas/.env` and restart ATLAS. See
+   [Phone line security](#phone-line-security) for why.
 
 Saving any phone or Twilio setting in Settings restarts the line. After editing `.env` by hand, restart ATLAS.
 
@@ -603,7 +629,8 @@ The phone line is the one part of ATLAS that the internet can reach, so it's loc
   only) that handles nothing but Twilio's call and text requests. The HUD, its API and its access token are
   never reachable through the tunnel.
 - **Every request must be signed by Twilio** with your Auth Token, for the exact public address. Unsigned,
-  forged or altered requests are refused, and a replayed request can't resume a call that has ended.
+  forged or altered requests are refused, and a replayed request can't resume a call that has ended. This is
+  why the line needs the Auth Token even when an API key is set.
 - **Only allowed numbers get through** (`PHONE_ALLOWED_NUMBERS`, or `USER_PHONE` if that's blank). Anyone else
   who calls hears *"Sorry, this number can't take your call"*, and their texts get no reply.
 - **Caller ID can be faked.** Someone who knows your number could make a call or text appear to come from it.
@@ -640,8 +667,15 @@ The status in **Settings → Phone line** shows the reason when the line can't s
   [Phone line setup](#phone-line-setup)) and restart ATLAS, or set `PHONE_PUBLIC_URL`. If cloudflared is
   installed but *"didn't report a tunnel address"*, check the internet connection and that a firewall or VPN
   isn't blocking it.
+- **"needs your Twilio Auth Token to verify incoming calls".** Add `TWILIO_AUTH_TOKEN` in **Settings →
+  Texting & calls**. An API key is enough for texting, but the phone line needs the Auth Token to check that
+  calls and texts really come from Twilio.
 - **"Twilio rejected the credentials".** Copy the Account SID and Auth Token again from the Twilio Console home
-  page. If you reset the Auth Token in Twilio, update it in ATLAS too.
+  page. If you reset the Auth Token in Twilio, update it in ATLAS too. With an API key, check
+  `TWILIO_API_KEY_SID` and `TWILIO_API_KEY_SECRET`, and that the key was made in the same account as the
+  Account SID. A *restricted* key also needs permission for phone numbers and messages. A Standard key has it.
+- **"That looks like an API Key SID".** The Account SID starts with `AC` and goes in *Twilio account SID*. The
+  `SK…` value goes in *API Key SID*.
 - **"isn't a phone number on this Twilio account".** `PHONE_NUMBER` must be a number you bought on this
   account, in international format (`+15555550123`).
 - **"connected to a TwiML App or SIP trunk".** In the Console, open *Phone Numbers → Active numbers →* the
@@ -657,8 +691,8 @@ When it's *Online* but calls misbehave:
   it's written with the country code, like `+447700900123`), or your carrier marked the caller ID as failed.
 - **Twilio says "an application error has occurred".** ATLAS isn't running, or the tunnel dropped. If the
   status says *Error*, save the Phone line settings (or restart ATLAS) to restart the line.
-- **It keeps mishearing you.** Set `PHONE_LANGUAGE` to your accent's language code, such as `en-US`,
-  `en-GB`, `en-AU` or `en-IN`.
+- **It keeps mishearing you.** Pick your accent under **Speech language** in Settings → Phone line
+  (`PHONE_LANGUAGE`): `en-GB`, `en-US`, `en-AU` or `en-IN`, or *Other…* for any language code Twilio supports.
 - **"I can't do that over the phone".** That's by design: see [Phone line security](#phone-line-security).
   Ask at the desktop.
 - **Texts go unanswered.** On a US number, finish A2P 10DLC registration. On a trial account, the number you
@@ -861,7 +895,9 @@ For true/false keys, `1`, `true`, `yes` and `on` mean true, and anything else me
 | Key | Default | What it does |
 |---|---|---|
 | `TWILIO_ACCOUNT_SID` † | *(blank)* | Twilio Account SID (`AC…`). |
-| `TWILIO_AUTH_TOKEN` † (secret) | *(blank)* | Twilio Auth Token. |
+| `TWILIO_AUTH_TOKEN` † (secret) | *(blank)* | Twilio Auth Token. Required for the phone line, which uses it to check that calls and texts come from Twilio. |
+| `TWILIO_API_KEY_SID` † | *(blank)* | Optional Twilio API Key SID (`SK…`). With its secret set, every Twilio request uses the key instead of the Auth Token; `TWILIO_ACCOUNT_SID` is still required. |
+| `TWILIO_API_KEY_SECRET` † (secret) | *(blank)* | The API key's secret, shown once when you create the key. |
 | `TWILIO_FROM_NUMBER` † | *(blank)* | Your Twilio number, e.g. `+15555550123`, or a Messaging Service SID (`MG…`). |
 | `DEFAULT_COUNTRY_CODE` † | `+1` | Country for numbers written without a leading `+`. |
 
@@ -870,7 +906,7 @@ these, `USER_PHONE`, `DEFAULT_COUNTRY_CODE` or a Twilio key in Settings restarts
 
 | Key | Default | What it does |
 |---|---|---|
-| `PHONE_ENABLED` | `false` | `true` answers calls and texts to `PHONE_NUMBER` while ATLAS is running. Needs `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN`. |
+| `PHONE_ENABLED` | `false` | `true` answers calls and texts to `PHONE_NUMBER` while ATLAS is running. Needs `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN` (the Auth Token even when an API key is set). |
 | `PHONE_NUMBER` | *(blank)* | The assistant's Twilio number, in international format such as `+15555550123`. It must be on your Twilio account. |
 | `PHONE_ALLOWED_NUMBERS` | *(your `USER_PHONE`)* | Comma-separated numbers allowed to call or text, e.g. `+15555550123,+447700900123`. Everyone else is turned away. The line's own number is never allowed. |
 | `PHONE_PUBLIC_URL` | *(quick tunnel)* | Your own https address that forwards to `127.0.0.1:PHONE_PORT`, e.g. `https://atlas.example.com`. Blank starts a Cloudflare quick tunnel. |
@@ -1003,8 +1039,9 @@ Because no model is perfect at this, the risky actions still need your approval.
 
 **Your OpenRouter key is a password.** Don't paste it into chats, screenshots or shared files. If it was
 ever shared, even by accident, **delete it at [openrouter.ai/keys](https://openrouter.ai/keys), create a new one,
-and paste the new key in Settings**. The same goes for the Twilio and Home Assistant tokens and calendar
-links: revoke or reset them where you created them.
+and paste the new key in Settings**. The same goes for the Twilio Auth Token and API keys (*Account → API keys
+& tokens* in the Twilio Console), the Home Assistant token and calendar links: revoke or reset them where you
+created them.
 
 ---
 

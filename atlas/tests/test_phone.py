@@ -1146,7 +1146,8 @@ def test_twilio_unreachable_is_reported():
 
 
 @pytest.mark.parametrize("env,expect", [
-    ({"TWILIO_AUTH_TOKEN": ""}, "TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN"),
+    ({"TWILIO_ACCOUNT_SID": ""}, "TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN"),
+    ({"TWILIO_AUTH_TOKEN": ""}, "needs your Twilio Auth Token to verify incoming calls"),
     ({"TWILIO_ACCOUNT_SID": "not-a-sid"}, "starts with 'AC'"),
     ({"PHONE_NUMBER": ""}, "Set PHONE_NUMBER"),
     ({"PHONE_NUMBER": "12"}, "PHONE_NUMBER isn't usable"),

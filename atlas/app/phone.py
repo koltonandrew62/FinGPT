@@ -16,7 +16,9 @@ How it fits together
 
 Security (these routes are on the internet)
 * Every POST must carry a valid X-Twilio-Signature (HMAC-SHA1 of the public URL plus the sorted form fields, keyed
-  with TWILIO_AUTH_TOKEN); anything else gets 403. Bodies over MAX_BODY bytes are refused.
+  with TWILIO_AUTH_TOKEN); anything else gets 403. Bodies over MAX_BODY bytes are refused. Twilio signs webhooks with
+  the Auth Token only, so the line needs it even when an API key (TWILIO_API_KEY_SID / TWILIO_API_KEY_SECRET) is set;
+  the key is then used for the line's REST calls (number lookup, webhook set-up, SMS replies).
 * Only numbers in PHONE_ALLOWED_NUMBERS (default: USER_PHONE) reach the assistant. Caller ID can be spoofed, so a
   phone or text turn runs with PHONE_SAFE_TOOLS only: look-ups plus additions to ATLAS's own lists. No email,
   texts, calls, files, shell, browser, screen, clipboard, smart home, long-term memory or anything that needs an
@@ -35,8 +37,9 @@ Regulatory compliance). Carriers block texts from unregistered numbers; calls wo
 
 Settings (environment or .env): PHONE_ENABLED, PHONE_NUMBER, PHONE_ALLOWED_NUMBERS, PHONE_PUBLIC_URL, PHONE_TUNNEL,
 PHONE_VOICE, PHONE_PORT, PHONE_LANGUAGE (speech recognition locale, default en-GB) and PHONE_PIN (a secret: keep it
-out of logs and the settings UI's plain view), plus TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN. A Settings attribute
-of the same name in lower case (phone_enabled, ...) wins when present.
+out of logs and the settings UI's plain view), plus TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and optionally
+TWILIO_API_KEY_SID + TWILIO_API_KEY_SECRET. A Settings attribute of the same name in lower case (phone_enabled, ...)
+wins when present.
 
 Module API: ``await start(settings, llm, ctx_factory)``, ``await stop()``, ``status()``; ``phone_app`` is the ASGI app.
 """
@@ -152,6 +155,13 @@ CLOUDFLARED_HELP = (
 )
 
 
+AUTH_TOKEN_REQUIRED = (
+    "The phone line needs your Twilio Auth Token to verify incoming calls really come from Twilio (an API Key can't "
+    "do that). Texting and outbound requests can use the API Key. Add TWILIO_AUTH_TOKEN in Settings → Texting & "
+    "calls (it's on the Twilio Console home page)."
+)
+
+
 class PhoneError(Exception):
     """A user-facing reason the phone line can't start. Never contains a secret."""
 
@@ -233,9 +243,20 @@ class PhoneConfig:
     language: str = DEFAULT_LANGUAGE
     port: int = DEFAULT_PORT
     account_sid: str = ""
-    auth_token: str = field(default="", repr=False)
+    auth_token: str = field(default="", repr=False)  # signs Twilio's webhooks: always needed to verify them
+    api_key_sid: str = ""  # optional TWILIO_API_KEY_SID (SK...): used for REST calls instead of the Auth Token
+    api_key_secret: str = field(default="", repr=False)
     pin: str = field(default="", repr=False)  # PHONE_PIN: digits a call must enter first; "" = no PIN
     problems: tuple[str, ...] = ()
+
+
+def rest_auth(cfg: PhoneConfig) -> tuple[str, str]:
+    """Basic-auth credentials for the line's Twilio REST calls: the API key when both halves are set, else the Account
+    SID and Auth Token. Raises PhoneError (never containing a secret) when they can't be used."""
+    try:
+        return comms.twilio_auth(cfg.account_sid, cfg.auth_token, cfg.api_key_sid, cfg.api_key_secret)
+    except ToolError as exc:
+        raise PhoneError(str(exc)) from None
 
 
 def load_config(settings) -> PhoneConfig:
@@ -293,6 +314,8 @@ def load_config(settings) -> PhoneConfig:
         port=port,
         account_sid=comms._setting("TWILIO_ACCOUNT_SID"),
         auth_token=comms._setting("TWILIO_AUTH_TOKEN"),
+        api_key_sid=comms._setting("TWILIO_API_KEY_SID"),
+        api_key_secret=comms._setting("TWILIO_API_KEY_SECRET"),
         pin=pin,
         problems=tuple(problems),
     )
@@ -599,7 +622,9 @@ def redact(text: str, secret_values) -> str:
 
 def _secret_values(settings, cfg: PhoneConfig) -> list[str]:
     # (PHONE_PIN is never given to the model or put in a message, so there's nothing to blank for it.)
-    values = {cfg.auth_token, getattr(settings, "api_key", ""), getattr(settings, "email_password", "")}
+    values = {
+        cfg.auth_token, cfg.api_key_secret, getattr(settings, "api_key", ""), getattr(settings, "email_password", ""),
+    }
     for key in SECRET_KEYS:
         raw = comms._setting(key)
         values.add(raw)
@@ -851,9 +876,10 @@ class CloudflaredTunnel:
 
 
 # ------------------------------------------------------------------ Twilio number configuration
-async def _twilio_request(http, method: str, url: str, sid: str, token: str, **kwargs) -> dict:
+async def _twilio_request(http, method: str, url: str, auth: tuple[str, str], **kwargs) -> dict:
+    """One Twilio REST call. auth: (Account SID, Auth Token) or (API Key SID, API Key Secret)."""
     try:
-        r = await http.request(method, url, auth=(sid, token), timeout=20, **kwargs)
+        r = await http.request(method, url, auth=tuple(auth), timeout=20, **kwargs)
     except httpx.TimeoutException:
         raise PhoneError(
             "Twilio didn't answer in time while the phone line was being set up. Check the internet connection and "
@@ -868,10 +894,11 @@ async def _twilio_request(http, method: str, url: str, sid: str, token: str, **k
     if not isinstance(payload, dict):
         payload = {}
     if r.status_code in (401, 403):
-        raise PhoneError(
-            "Twilio rejected the credentials. Check TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in Settings (both are "
-            "on the Twilio Console home page)."
+        extra = (
+            " A restricted API key also needs permission to read and update phone numbers and send messages."
+            if r.status_code == 403 and comms.uses_api_key(auth) else ""
         )
+        raise PhoneError(f"Twilio rejected the credentials. Check {comms.credential_names(auth)} in Settings.{extra}")
     if r.status_code == 404:
         raise PhoneError("Twilio couldn't find that account or number. Check TWILIO_ACCOUNT_SID and PHONE_NUMBER.")
     if r.status_code >= 400:
@@ -882,10 +909,15 @@ async def _twilio_request(http, method: str, url: str, sid: str, token: str, **k
     return payload
 
 
-async def configure_twilio_number(http, sid: str, token: str, number: str, base_url: str) -> dict:
-    """Point the number's Voice and Messaging webhooks at base_url. Returns {"sid", "voice", "sms"}."""
+async def configure_twilio_number(http, sid: str, auth: tuple[str, str], number: str, base_url: str) -> dict:
+    """Point the number's Voice and Messaging webhooks at base_url. Returns {"sid", "voice", "sms"}. `sid` is the
+    Account SID (in the URL); `auth` the basic-auth pair from rest_auth()."""
+    sid = str(sid or "").strip()
+    problem = comms.account_sid_problem(sid)  # never build a Twilio URL from an unchecked SID
+    if problem:
+        raise PhoneError(problem)
     list_url = f"{TWILIO_API}/Accounts/{sid}/IncomingPhoneNumbers.json"
-    payload = await _twilio_request(http, "GET", list_url, sid, token, params={"PhoneNumber": number})
+    payload = await _twilio_request(http, "GET", list_url, auth, params={"PhoneNumber": number})
     items = payload.get("incoming_phone_numbers")
     match = next(
         (n for n in items if isinstance(n, dict) and n.get("phone_number") == number),
@@ -915,7 +947,7 @@ async def configure_twilio_number(http, sid: str, token: str, number: str, base_
         "SmsMethod": "POST",
     }
     await _twilio_request(
-        http, "POST", f"{TWILIO_API}/Accounts/{sid}/IncomingPhoneNumbers/{pn_sid}.json", sid, token, data=data
+        http, "POST", f"{TWILIO_API}/Accounts/{sid}/IncomingPhoneNumbers/{pn_sid}.json", auth, data=data
     )
     return {"sid": pn_sid, "voice": caps.get("voice", True) is not False, "sms": caps.get("sms", True) is not False}
 
@@ -1007,16 +1039,18 @@ class PhoneLine:
         self.cfg = cfg = load_config(settings)
         if not cfg.enabled:
             return cfg
-        if not cfg.account_sid or not cfg.auth_token:
+        if not cfg.account_sid:
             raise PhoneError(
                 "The phone line needs your Twilio account: add TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in Settings "
                 "(both are on the Twilio Console home page)."
             )
-        if not re.fullmatch(r"AC[0-9a-fA-F]{32}", cfg.account_sid):
-            raise PhoneError(
-                "TWILIO_ACCOUNT_SID should be the 34-character Account SID that starts with 'AC' (Twilio Console home "
-                "page)."
-            )
+        problem = comms.account_sid_problem(cfg.account_sid)
+        if problem:
+            raise PhoneError(problem)
+        if not cfg.auth_token:
+            # Twilio signs its webhooks with the Auth Token; without it no incoming call or text can be verified.
+            raise PhoneError(AUTH_TOKEN_REQUIRED)
+        rest_auth(cfg)  # a malformed API key (both halves set, SID not SK...) is reported now, before anything starts
         if cfg.problems:
             raise PhoneError(cfg.problems[0])
         if not cfg.number:
@@ -1066,7 +1100,7 @@ class PhoneLine:
             http = getattr(ctx, "http", None)
             if http is None:
                 raise PhoneError("The phone line has no HTTP client to reach Twilio with.")
-            await configure_twilio_number(http, cfg.account_sid, cfg.auth_token, cfg.number, self.public_url)
+            await configure_twilio_number(http, cfg.account_sid, rest_auth(cfg), cfg.number, self.public_url)
             self._status = "online"
             log.warning("Phone line online: %s via %s", cfg.number, self.public_url)
         except asyncio.CancelledError:
@@ -1683,11 +1717,15 @@ class PhoneLine:
         if getattr(ctx, "http", None) is None:
             log.warning("Phone line can't send a text: no HTTP client")
             return False
-        backend = {"sid": self.cfg.account_sid, "token": self.cfg.auth_token, "from": self.cfg.number}
+        cfg = self.cfg
         try:
+            backend = comms.twilio_backend(
+                cfg.account_sid, cfg.auth_token, cfg.api_key_sid, cfg.api_key_secret, cfg.number
+            )
             await comms._send_twilio(ctx, backend, to, text)
         except ToolError as exc:
-            log.warning("Phone line text to %s failed: %s", mask_number(to), redact(str(exc), [self.cfg.auth_token]))
+            hidden = [cfg.auth_token, cfg.api_key_secret]
+            log.warning("Phone line text to %s failed: %s", mask_number(to), redact(str(exc), hidden))
             return False
         except Exception as exc:  # never let an odd failure escape a background task with request details
             log.warning("Phone line text to %s failed (%s)", mask_number(to), exc.__class__.__name__)

@@ -405,11 +405,17 @@
             <label class="field-lbl" for="f-TWILIO_AUTH_TOKEN"><span>Twilio auth token</span><em class="field-note"><b class="cfg" data-cfg="TWILIO_AUTH_TOKEN"></b></em></label>
             <div class="secret"><input id="f-TWILIO_AUTH_TOKEN" name="TWILIO_AUTH_TOKEN" type="password" data-secret autocomplete="off" spellcheck="false" aria-describedby="help-twilio" placeholder="blank = keep current"><button class="reveal" type="button" aria-controls="f-TWILIO_AUTH_TOKEN" aria-pressed="false" aria-label="Show the token you typed"></button></div>
           </div>
+          <label class="field"><span>API Key SID <em class="field-note">optional</em></span><input name="TWILIO_API_KEY_SID" type="text" maxlength="64" spellcheck="false" autocomplete="off" aria-describedby="help-twilio-key" placeholder="SK…"></label>
+          <div class="field">
+            <label class="field-lbl" for="f-TWILIO_API_KEY_SECRET"><span>API Key Secret</span><em class="field-note"><b class="cfg" data-cfg="TWILIO_API_KEY_SECRET"></b></em></label>
+            <div class="secret"><input id="f-TWILIO_API_KEY_SECRET" name="TWILIO_API_KEY_SECRET" type="password" data-secret autocomplete="off" spellcheck="false" aria-describedby="help-twilio-key" placeholder="blank = keep current"><button class="reveal" type="button" aria-controls="f-TWILIO_API_KEY_SECRET" aria-pressed="false" aria-label="Show the secret you typed"></button></div>
+          </div>
+          <p class="field-help" id="help-twilio-key">Optional: a revocable API key (Console → Account → API keys &amp; tokens). The Auth Token is still needed for the phone line.</p>
           <div class="field-row">
             <label class="field"><span>Twilio number</span><input name="TWILIO_FROM_NUMBER" type="tel" maxlength="40" spellcheck="false" placeholder="+15555550123"></label>
             <label class="field"><span>Default country code</span><input name="DEFAULT_COUNTRY_CODE" type="text" maxlength="6" inputmode="tel" spellcheck="false" placeholder="+1"></label>
           </div>
-          <p class="field-help" id="help-twilio">All three Twilio values are on the <a href="https://console.twilio.com" target="_blank" rel="noopener noreferrer">Twilio Console</a> home page. Trial accounts can only text numbers you have verified. The country code applies to numbers written without a leading +.</p>
+          <p class="field-help" id="help-twilio">The account SID, auth token and number are on the <a href="https://console.twilio.com" target="_blank" rel="noopener noreferrer">Twilio Console</a> home page. With an API key set, texts use it instead of the auth token. Trial accounts can only text numbers you have verified. The country code applies to numbers written without a leading +.</p>
         </div>
       </details>
 
@@ -430,6 +436,11 @@
           </div>
           <label class="field"><span>Who may call or text <em class="field-note">comma-separated</em></span><input name="PHONE_ALLOWED_NUMBERS" type="text" maxlength="400" spellcheck="false" autocomplete="off" aria-describedby="help-allowed" placeholder="blank = your phone (You → Phone)"></label>
           <p class="field-help" id="help-allowed">Numbers in international format, e.g. <code>+15555550123</code>. Calls and texts from anyone else are turned away.</p>
+          <div class="field">
+            <label class="field-lbl" for="f-PHONE_PIN"><span>Keypad PIN</span><em class="field-note"><b class="cfg" data-cfg="PHONE_PIN"></b></em></label>
+            <div class="secret"><input id="f-PHONE_PIN" name="PHONE_PIN" type="password" data-secret inputmode="numeric" maxlength="16" autocomplete="off" spellcheck="false" aria-describedby="help-pin" placeholder="blank = keep current"><button class="reveal" type="button" aria-controls="f-PHONE_PIN" aria-pressed="false" aria-label="Show the PIN you typed"></button></div>
+          </div>
+          <p class="field-help" id="help-pin">Callers must type it on the keypad, then #, before talking to <span data-name>ATLAS</span>. Strongly recommended, since caller ID can be faked; 6 or more digits is best.</p>
           <div class="field-row">
             <label class="field"><span>Tunnel</span>
               <select name="PHONE_TUNNEL" aria-describedby="help-phone">
@@ -439,12 +450,25 @@
             </label>
             <label class="field"><span>Phone voice <em class="field-note">Twilio</em></span><input name="PHONE_VOICE" type="text" maxlength="60" spellcheck="false" placeholder="Polly.Brian-Neural"></label>
           </div>
+          <div class="field-row">
+            <label class="field"><span>Speech language</span>
+              <select id="phone-lang-pick" data-pick-for="PHONE_LANGUAGE" aria-describedby="help-lang">
+                <option value="en-GB">en-GB — British</option>
+                <option value="en-US">en-US — American</option>
+                <option value="en-AU">en-AU — Australian</option>
+                <option value="en-IN">en-IN — Indian</option>
+                <option value="">Other…</option>
+              </select>
+            </label>
+            <label class="field" data-pick-other="PHONE_LANGUAGE" hidden><span>Language code</span><input name="PHONE_LANGUAGE" type="text" maxlength="20" spellcheck="false" autocomplete="off" aria-describedby="help-lang" placeholder="e.g. fr-FR"></label>
+          </div>
+          <p class="field-help" id="help-lang">What callers speak, so Twilio hears them right. Pick your accent, or Other… for any language code Twilio supports.</p>
           <label class="field"><span>Public URL <em class="field-note">optional</em></span><input name="PHONE_PUBLIC_URL" type="url" maxlength="300" spellcheck="false" aria-describedby="help-phone" placeholder="https://atlas.example.com (blank = quick tunnel)"></label>
           <div class="field-help help-list" id="help-phone">
             <p>What it needs:</p>
             <ul>
               <li>A <a href="https://www.twilio.com/try-twilio" target="_blank" rel="noopener noreferrer">Twilio</a> account and a phone number (Console → Phone Numbers → Buy a number). A trial account works, but only with numbers you have verified.</li>
-              <li>Your Twilio account SID and auth token in <b>Texting &amp; calls</b> above.</li>
+              <li>Your Twilio account SID and auth token in <b>Texting &amp; calls</b> above. The auth token is needed even if you add an API key: it’s how calls and texts are checked to really come from Twilio.</li>
               <li><b>cloudflared</b> installed, so calls can reach this computer — on Windows: <code>winget install Cloudflare.cloudflared</code> — or your own public https URL that forwards to the local port.</li>
             </ul>
             <p>This computer has to be on with <span data-name>ATLAS</span> running to answer.</p>

@@ -78,6 +78,8 @@ EDITABLE_KEYS = {
     # texting / calls
     "TWILIO_ACCOUNT_SID",
     "TWILIO_AUTH_TOKEN",
+    "TWILIO_API_KEY_SID",  # optional API key (SK...): REST calls use it instead of the Auth Token
+    "TWILIO_API_KEY_SECRET",
     "TWILIO_FROM_NUMBER",
     "DEFAULT_COUNTRY_CODE",
     # the assistant's own phone line (app/phone.py): call or text a Twilio number to talk to it
@@ -110,6 +112,7 @@ SECRET_KEYS = {
     "OPENROUTER_API_KEY",
     "EMAIL_PASSWORD",
     "TWILIO_AUTH_TOKEN",
+    "TWILIO_API_KEY_SECRET",
     "PHONE_PIN",
     "HOME_ASSISTANT_TOKEN",
     "CALENDAR_ICS_URLS",

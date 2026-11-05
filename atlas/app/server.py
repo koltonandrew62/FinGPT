@@ -25,7 +25,7 @@ from .agent import ConfirmationBroker, run_turn
 from .config import EDITABLE_KEYS, SECRET_KEYS, WEB_DIR, Settings, load_env_file, update_env_file
 from .llm import LLMError, OpenRouter
 from .tools import ToolContext
-from .tools import data_sources, finance_data
+from .tools import comms, data_sources, finance_data
 from .tools.calendar_tools import agenda_for_panel
 from .tools.markets import watchlist_snapshot
 from .tools.memory import delete_memory, memories, pending_reminders, pop_due_reminders
@@ -245,7 +245,7 @@ def _raw_setting(key: str) -> str:
 
 _STATE_KEYS = {
     "BROWSER_HEADLESS", "BROWSER_CHANNEL", "BROWSER_EXECUTABLE", "BROWSER_VISION_MODEL",
-    "CALENDAR_PROVIDER", "CALENDAR_DAY_HOURS", "TWILIO_ACCOUNT_SID", "TWILIO_FROM_NUMBER",
+    "CALENDAR_PROVIDER", "CALENDAR_DAY_HOURS", "TWILIO_ACCOUNT_SID", "TWILIO_API_KEY_SID", "TWILIO_FROM_NUMBER",
     "DEFAULT_COUNTRY_CODE", "HOME_ASSISTANT_URL", "HOME_ASSISTANT_CONFIRM_DOMAINS", "MARKET_WATCHLIST",
     "FINANCE_REGION", "FINANCE_USER_AGENT", "SEC_CONTACT_EMAIL", "SPORTS_TIMEZONE", "SPORTS_PANEL_LEAGUES",
     "PHONE_ENABLED", "PHONE_NUMBER", "PHONE_ALLOWED_NUMBERS", "PHONE_PUBLIC_URL", "PHONE_TUNNEL", "PHONE_VOICE",
@@ -278,6 +278,15 @@ class SetupBody(BaseModel):
     values: dict[str, str]
 
 
+# Twilio SIDs are easy to paste into the wrong box (an API Key SID in the Account SID one, ...): refused with the
+# reason before anything is saved. Blank values clear the setting and aren't checked. (Other phone line problems,
+# such as a malformed PHONE_PIN, are saved and reported in the line's status, which keeps it off until fixed.)
+SETUP_CHECKS = {
+    "TWILIO_ACCOUNT_SID": comms.account_sid_problem,
+    "TWILIO_API_KEY_SID": comms.api_key_sid_problem,
+}
+
+
 @app.post("/api/setup")
 async def setup(body: SetupBody):
     updates = {}
@@ -288,6 +297,9 @@ async def setup(body: SetupBody):
         # Blank secret fields mean "keep the current value".
         if key in SECRET_KEYS and not value:
             continue
+        problem = SETUP_CHECKS[key](value) if value and key in SETUP_CHECKS else None
+        if problem:
+            raise HTTPException(400, problem)  # never echoes the value: it may be a secret
         updates[key] = _keep_password(value, _raw_setting(key))
     if updates:
         update_env_file(updates)

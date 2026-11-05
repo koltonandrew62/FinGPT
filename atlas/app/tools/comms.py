@@ -9,7 +9,11 @@ Approve/Deny card first, with the resolved number, the backend and the full mess
 refuse to run unless their approval preview was rendered for exactly these arguments (or the user put the tool in
 AUTO_APPROVE), so a missing SENSITIVE_TOOLS entry fails closed instead of texting unasked.
 
-Settings (environment or .env): TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER, DEFAULT_COUNTRY_CODE.
+Settings (environment or .env): TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER, DEFAULT_COUNTRY_CODE, and
+optionally TWILIO_API_KEY_SID + TWILIO_API_KEY_SECRET. Every Twilio REST request authenticates with the API key when
+both halves are set (a revocable credential the user can make in the Twilio Console), else with the Account SID and
+Auth Token. The Account SID is always the account in the URL. (Checking Twilio's webhook signatures, which the phone
+line does, needs the Auth Token: an API key can't do that.)
 """
 from __future__ import annotations
 
@@ -32,12 +36,16 @@ SYSTEM = platform.system()  # "Windows" | "Darwin" | "Linux" (tests patch this)
 
 TWILIO_MESSAGES_URL = "https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json"
 TWILIO_KEYS = ("TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_FROM_NUMBER")
+TWILIO_API_KEY_KEYS = ("TWILIO_API_KEY_SID", "TWILIO_API_KEY_SECRET")  # optional: used instead of the Auth Token
+ACCOUNT_SID_FORMAT = re.compile(r"AC[0-9a-fA-F]{32}")
+API_KEY_SID_FORMAT = re.compile(r"SK[0-9a-fA-F]{32}")
 TWILIO_MAX_BODY = 1600  # Twilio's documented limit for a message body
 
 TEXT_SETUP_HELP = (
     "Texting isn't set up yet. To send texts from this computer, create a Twilio account (twilio.com — a free "
     "trial can text numbers you verify), get a Twilio phone number, then add TWILIO_ACCOUNT_SID, "
     "TWILIO_AUTH_TOKEN (both on the Twilio Console home page) and TWILIO_FROM_NUMBER in ATLAS Settings. "
+    "Instead of the Auth Token you can use an API key (TWILIO_API_KEY_SID and TWILIO_API_KEY_SECRET). "
     "On a Mac, ATLAS can also send iMessages through the Messages app with no setup."
 )
 
@@ -240,21 +248,120 @@ def _clean_message(message) -> str:
     return re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", str(message or "")).strip()
 
 
+# ------------------------------------------------------------------ Twilio credentials
+def account_sid_problem(value: str) -> str | None:
+    """Why `value` can't be TWILIO_ACCOUNT_SID, in words the user can act on, or None when it's fine."""
+    v = str(value or "").strip()
+    if ACCOUNT_SID_FORMAT.fullmatch(v):
+        return None
+    if v[:2].upper() == "SK":
+        return (
+            "That looks like an API Key SID — put it in API Key SID; the Account SID starts with AC. Your Account SID "
+            "is on the Twilio Console home page."
+        )
+    return (
+        "TWILIO_ACCOUNT_SID should be the 34-character Account SID that starts with 'AC' "
+        "(shown on the Twilio Console home page)."
+    )
+
+
+def api_key_sid_problem(value: str) -> str | None:
+    """Why `value` can't be TWILIO_API_KEY_SID, or None when it's fine."""
+    v = str(value or "").strip()
+    if API_KEY_SID_FORMAT.fullmatch(v):
+        return None
+    if v[:2].upper() == "AC":
+        return (
+            "That looks like your Account SID — put it in Account SID; an API Key SID starts with SK. Your API keys "
+            "are under Account → API keys & tokens in the Twilio Console."
+        )
+    return (
+        "TWILIO_API_KEY_SID should be the 34-character API Key SID that starts with 'SK' (Twilio Console → "
+        "Account → API keys & tokens)."
+    )
+
+
+def twilio_auth(
+    account_sid: str, auth_token: str = "", api_key_sid: str = "", api_key_secret: str = ""
+) -> tuple[str, str]:
+    """The (username, password) for basic auth on Twilio's REST API: (API Key SID, API Key Secret) when both are set,
+    else (Account SID, Auth Token). The Account SID is still the account in every request's URL, so it's required
+    either way. Raises ToolError with a fix the user can act on; the message never contains a secret."""
+    account_sid, auth_token = str(account_sid or "").strip(), str(auth_token or "").strip()
+    api_key_sid, api_key_secret = str(api_key_sid or "").strip(), str(api_key_secret or "").strip()
+    if not account_sid:
+        raise ToolError(
+            "Add TWILIO_ACCOUNT_SID in ATLAS Settings: Twilio needs the Account SID (starts with AC, on the Twilio "
+            "Console home page) in every request, even with an API key."
+        )
+    problem = account_sid_problem(account_sid)
+    if problem:
+        raise ToolError(problem)
+    if api_key_sid and api_key_secret:
+        problem = api_key_sid_problem(api_key_sid)
+        if problem:
+            raise ToolError(problem)
+        return api_key_sid, api_key_secret
+    if auth_token:
+        return account_sid, auth_token
+    if api_key_sid:
+        raise ToolError(
+            "TWILIO_API_KEY_SECRET is missing: add the secret Twilio showed when you created the API key (or use "
+            "TWILIO_AUTH_TOKEN instead)."
+        )
+    if api_key_secret:
+        raise ToolError("TWILIO_API_KEY_SID is missing: add the API key's SID (starts with SK) next to its secret.")
+    raise ToolError(
+        "Add TWILIO_AUTH_TOKEN (Twilio Console home page), or an API key (TWILIO_API_KEY_SID and "
+        "TWILIO_API_KEY_SECRET), in ATLAS Settings."
+    )
+
+
+def uses_api_key(auth: tuple[str, str]) -> bool:
+    return str(auth[0]).startswith("SK")
+
+
+def credential_names(auth: tuple[str, str]) -> str:
+    """The settings to check when Twilio rejects these credentials."""
+    if uses_api_key(auth):
+        return "TWILIO_API_KEY_SID and TWILIO_API_KEY_SECRET (the key must belong to the TWILIO_ACCOUNT_SID account)"
+    return "TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN (both on the Twilio Console home page)"
+
+
+def twilio_backend(account_sid: str, auth_token: str, api_key_sid: str, api_key_secret: str, sender: str) -> dict:
+    """A Twilio texting backend for _send_twilio. Raises ToolError when the credentials can't be used."""
+    auth = twilio_auth(account_sid, auth_token, api_key_sid, api_key_secret)
+    return {
+        "name": "twilio",
+        "sid": str(account_sid).strip(),
+        "auth": auth,
+        "from": str(sender or "").strip(),
+        "label": f"Twilio SMS from {str(sender or '').strip()}",
+    }
+
+
 # ------------------------------------------------------------------ texting backends
 def text_backend() -> dict:
     """Which service will carry a text: Twilio when fully configured, else Messages on macOS."""
-    values = {k: _setting(k) for k in TWILIO_KEYS}
-    if all(values.values()):
-        return {
-            "name": "twilio",
-            "sid": values["TWILIO_ACCOUNT_SID"],
-            "token": values["TWILIO_AUTH_TOKEN"],
-            "from": values["TWILIO_FROM_NUMBER"],
-            "label": f"Twilio SMS from {values['TWILIO_FROM_NUMBER']}",
-        }
+    values = {k: _setting(k) for k in TWILIO_KEYS + TWILIO_API_KEY_KEYS}
+    sid, token, sender = (values[k] for k in TWILIO_KEYS)
+    key_sid, key_secret = (values[k] for k in TWILIO_API_KEY_KEYS)
+    if sid and sender and (token or (key_sid and key_secret)):
+        return twilio_backend(sid, token, key_sid, key_secret, sender)
     if any(values.values()):
-        missing = ", ".join(k for k, v in values.items() if not v)
-        raise ToolError(f"Twilio is only partly set up: add {missing} in ATLAS Settings.")
+        missing = [] if sid else ["TWILIO_ACCOUNT_SID"]
+        hint = ""
+        if not token and not (key_sid and key_secret):
+            if key_sid:
+                missing.append("TWILIO_API_KEY_SECRET")
+            elif key_secret:
+                missing.append("TWILIO_API_KEY_SID")
+            else:
+                missing.append("TWILIO_AUTH_TOKEN")
+                hint = " (Or, instead of the Auth Token, an API key: TWILIO_API_KEY_SID and TWILIO_API_KEY_SECRET.)"
+        if not sender:
+            missing.append("TWILIO_FROM_NUMBER")
+        raise ToolError(f"Twilio is only partly set up: add {', '.join(missing)} in ATLAS Settings.{hint}")
     if SYSTEM == "Darwin":
         return {"name": "messages", "label": "Messages app on this Mac (iMessage)"}
     raise ToolError(TEXT_SETUP_HELP)
@@ -274,18 +381,17 @@ def _twilio_sender(value: str) -> tuple[str, str]:
 
 
 async def _send_twilio(ctx, backend: dict, number: str, message: str) -> dict:
-    sid, token = backend["sid"], backend["token"]
-    if not re.fullmatch(r"AC[0-9a-fA-F]{32}", sid):
-        raise ToolError(
-            "TWILIO_ACCOUNT_SID should be the 34-character Account SID that starts with 'AC' "
-            "(shown on the Twilio Console home page)."
-        )
+    """POST one text to Twilio's Messages API. backend: {"sid": Account SID, "auth": (user, password), "from"}."""
+    sid, auth = str(backend.get("sid") or "").strip(), tuple(backend["auth"])
+    problem = account_sid_problem(sid)  # checked here too: the SID goes into the URL
+    if problem:
+        raise ToolError(problem)
     field, sender = _twilio_sender(backend["from"])
     try:
         r = await ctx.http.post(
             TWILIO_MESSAGES_URL.format(sid=sid),
             data={"To": number, field: sender, "Body": message},
-            auth=(sid, token),
+            auth=auth,
             timeout=30,
         )
     except httpx.TimeoutException:
@@ -299,10 +405,7 @@ async def _send_twilio(ctx, backend: dict, number: str, message: str) -> dict:
     if not isinstance(payload, dict):
         payload = {}
     if r.status_code == 401:
-        raise ToolError(
-            "Twilio rejected the credentials (401). Check TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in Settings; "
-            "both are on the Twilio Console home page."
-        )
+        raise ToolError(f"Twilio rejected the credentials (401). Check {credential_names(auth)} in Settings.")
     if r.status_code >= 400:
         try:
             code = int(payload.get("code"))
@@ -310,8 +413,14 @@ async def _send_twilio(ctx, backend: dict, number: str, message: str) -> dict:
             code = None
         if code in TWILIO_ERRORS:
             raise ToolError(TWILIO_ERRORS[code].format(to=pretty_phone(number)) + f" (Twilio error {code})")
+        if r.status_code == 403 and uses_api_key(auth):
+            raise ToolError(
+                "Twilio refused the API key (403). A restricted key needs permission to send messages; a standard "
+                "key works. Check TWILIO_API_KEY_SID and TWILIO_API_KEY_SECRET in Settings."
+            )
         if r.status_code == 404:
-            raise ToolError("Twilio couldn't find that account. Check TWILIO_ACCOUNT_SID in Settings.")
+            also = " (the API key must be one made in that account)" if uses_api_key(auth) else ""
+            raise ToolError(f"Twilio couldn't find that account. Check TWILIO_ACCOUNT_SID in Settings{also}.")
         detail = str(payload.get("message") or r.text or "").strip()[:300]
         tag = f"{r.status_code}, error {code}" if code else str(r.status_code)
         raise ToolError(f"Twilio couldn't send the text ({tag}): {detail or 'no details given'}")

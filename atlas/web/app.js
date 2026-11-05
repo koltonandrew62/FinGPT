@@ -3129,7 +3129,7 @@
   function isDrawerOpen() { return !drawer.hidden; }
 
   // Credentials are never sent to the browser and never prefilled: a blank field keeps the current value.
-  var SECRET_KEYS = ['OPENROUTER_API_KEY', 'EMAIL_PASSWORD', 'TWILIO_AUTH_TOKEN', 'HOME_ASSISTANT_TOKEN', 'CALENDAR_ICS_URLS', 'FRED_API_KEY', 'COINGECKO_API_KEY'];
+  var SECRET_KEYS = ['OPENROUTER_API_KEY', 'EMAIL_PASSWORD', 'TWILIO_AUTH_TOKEN', 'TWILIO_API_KEY_SECRET', 'PHONE_PIN', 'HOME_ASSISTANT_TOKEN', 'CALENDAR_ICS_URLS', 'FRED_API_KEY', 'COINGECKO_API_KEY'];
   // Where a field's current value lives in /api/state; every other key is read from state.extra.
   var STATE_FIELD = {
     ASSISTANT_NAME: 'assistant_name', USER_NAME: 'user_name', USER_ADDRESS_AS: 'address_as', USER_PHONE: 'user_phone',
@@ -3137,18 +3137,31 @@
     NEWS_REGION: 'news_region', NEWS_LANGUAGE: 'news_language', ATLAS_MODEL: 'model', ATLAS_SEARCH_MODEL: 'search_model',
     EMAIL_ADDRESS: 'email_address', SMTP_HOST: 'smtp_host', SMTP_PORT: 'smtp_port', IMAP_HOST: 'imap_host', IMAP_PORT: 'imap_port'
   };
-  var SELECT_DEFAULT = { UNITS: 'imperial', CALENDAR_PROVIDER: 'google', PHONE_TUNNEL: 'cloudflared' }; // what a blank setting means on the server
+  var SELECT_DEFAULT = { UNITS: 'imperial', CALENDAR_PROVIDER: 'google', PHONE_TUNNEL: 'cloudflared', PHONE_LANGUAGE: 'en-GB' }; // what a blank setting means on the server
   // Phone line values the server may only report in /api/state.phone (older builds don't list them in "extra").
   var PHONE_STATE = { PHONE_ENABLED: 'enabled', PHONE_NUMBER: 'number' };
   var E164 = '\\+[1-9]\\d{6,14}';
-  // Checked only when the field is filled in; blank always means "use the default".
+  // Twilio SIDs are easy to paste into the wrong box: say which box they belong in.
+  function accountSidRule(v) {
+    if (/^AC[0-9a-fA-F]{32}$/.test(v)) return null;
+    if (/^SK/i.test(v)) return 'That looks like an API Key SID — put it in API Key SID; the Account SID starts with AC. Your Account SID is on the Twilio Console home page.';
+    return 'A Twilio account SID is 34 characters and starts with AC.';
+  }
+  function apiKeySidRule(v) {
+    if (/^SK[0-9a-fA-F]{32}$/.test(v)) return null;
+    if (/^AC/i.test(v)) return 'That looks like your Account SID — put it in Account SID; an API Key SID starts with SK. Your API keys are under Account → API keys & tokens in the Twilio Console.';
+    return 'A Twilio API Key SID is 34 characters and starts with SK (Console → Account → API keys & tokens).';
+  }
+  // Checked only when the field is filled in; blank always means "use the default". A rule is [pattern, message] or a
+  // function returning a message (or null when the value is fine).
   var FIELD_RULES = {
     SMTP_PORT: [/^\d{1,5}$/, 'Mail server ports are whole numbers, e.g. 465.'],
     IMAP_PORT: [/^\d{1,5}$/, 'Mail server ports are whole numbers, e.g. 993.'],
     CALENDAR_DAY_HOURS: [/^\d{1,2}(:[0-5]\d)?\s*-\s*\d{1,2}(:[0-5]\d)?$/, '“Your day” should look like 08:00-20:00.'],
     DEFAULT_COUNTRY_CODE: [/^(\+|00)?\s*[1-9]\d{0,2}$/, 'The country code should look like +1 or +44.'],
     HOME_ASSISTANT_URL: [/^https?:\/\/[^\s/?#]+[^\s]*$/i, 'The Home Assistant URL should start with http:// or https://.'],
-    TWILIO_ACCOUNT_SID: [/^AC[0-9a-f]{32}$/i, 'A Twilio account SID is 34 characters and starts with AC.'],
+    TWILIO_ACCOUNT_SID: accountSidRule,
+    TWILIO_API_KEY_SID: apiKeySidRule,
     SEC_CONTACT_EMAIL: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'The SEC contact should be an email address, e.g. you@example.com.'],
     FINANCE_REGION: [/^[A-Z]{2}$/, 'The finance region is a two-letter code such as US or GB.'],
     SPORTS_TIMEZONE: [/^(UTC|GMT|[A-Za-z][A-Za-z_]*(\/[A-Za-z0-9_+\-]+){1,2})$/, 'The sports time zone should be an IANA name such as America/Chicago.'],
@@ -3157,8 +3170,11 @@
     PHONE_ALLOWED_NUMBERS: [new RegExp('^' + E164 + '(,' + E164 + ')*$'), 'Allowed numbers should be in international format, separated by commas, e.g. +15555550123,+447700900123.'],
     PHONE_PUBLIC_URL: [/^https:\/\/[^\s/?#]+(\/[^\s?#]*)?$/i, 'The public URL should be an https:// address with no query string, e.g. https://atlas.example.com.'],
     PHONE_VOICE: [/^[A-Za-z0-9][A-Za-z0-9._-]{0,59}$/, 'The phone voice is a Twilio voice name such as Polly.Brian-Neural.'],
-    PHONE_PORT: [/^(6553[0-5]|655[0-2]\d|65[0-4]\d{2}|6[0-4]\d{3}|[1-5]\d{4}|[1-9]\d{0,3})$/, 'The phone line port is a number from 1 to 65535, e.g. 8790.']
+    PHONE_PORT: [/^(6553[0-5]|655[0-2]\d|65[0-4]\d{2}|6[0-4]\d{3}|[1-5]\d{4}|[1-9]\d{0,3})$/, 'The phone line port is a number from 1 to 65535, e.g. 8790.'],
+    PHONE_PIN: [/^\d{4,12}$/, 'The phone PIN should be 4 to 12 digits (6 or more is best), typed on the keypad.'],
+    PHONE_LANGUAGE: [/^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8}){0,2}$/, 'The speech language should be a language code such as en-GB, en-US or fr-FR.']
   };
+  function ruleProblem(rule, v) { return typeof rule === 'function' ? rule(v) : rule[0].test(v) ? null : rule[1]; }
   var EYE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg>';
 
   function isSecretField(f) { return f.hasAttribute('data-secret') || SECRET_KEYS.indexOf(f.name) !== -1; }
@@ -3180,6 +3196,7 @@
     if (f.name === 'PHONE_NUMBER') return phoneNum(v);
     if (f.name === 'PHONE_ALLOWED_NUMBERS') return v.split(/[,;]/).map(phoneNum).filter(Boolean).join(',');
     if (f.name === 'PHONE_PUBLIC_URL') return v.replace(/\/+$/, '');
+    if (f.name === 'PHONE_PIN') return v.replace(/[\s-]/g, '');
     return v;
   }
   function setField(f, value) {
@@ -3228,9 +3245,12 @@
     sectionBadge('model', st.has_key === false ? 'No key' : shortModel(st.model), st.has_key !== false);
     sectionBadge('email', st.email_configured ? 'Connected' : 'Off', !!st.email_configured);
     sectionBadge('calendar', has('CALENDAR_ICS_URLS') ? 'Connected' : 'Not connected', has('CALENDAR_ICS_URLS'));
-    var tw = [!!ex.TWILIO_ACCOUNT_SID, has('TWILIO_AUTH_TOKEN'), !!ex.TWILIO_FROM_NUMBER].filter(Boolean).length;
+    // Texts can authenticate with the auth token or with an API key (SID + secret); either completes the set.
+    var twKey = !!ex.TWILIO_API_KEY_SID && has('TWILIO_API_KEY_SECRET');
+    var tw = [!!ex.TWILIO_ACCOUNT_SID, has('TWILIO_AUTH_TOKEN') || twKey, !!ex.TWILIO_FROM_NUMBER].filter(Boolean).length;
+    var twAny = tw > 0 || !!ex.TWILIO_API_KEY_SID || has('TWILIO_API_KEY_SECRET');
     var mac = /^macos/i.test(String(st.os || ''));
-    sectionBadge('comms', tw === 3 ? 'Twilio' : mac ? 'Messages app' : tw ? 'Incomplete' : 'Off', tw === 3 || mac, tw > 0 && tw < 3 && !mac);
+    sectionBadge('comms', tw === 3 ? (twKey ? 'Twilio · API key' : 'Twilio') : mac ? 'Messages app' : twAny ? 'Incomplete' : 'Off', tw === 3 || mac, twAny && tw < 3 && !mac);
     var ha = [!!ex.HOME_ASSISTANT_URL, has('HOME_ASSISTANT_TOKEN')].filter(Boolean).length;
     sectionBadge('home', ha === 2 ? 'Connected' : ha ? 'Incomplete' : 'Off', ha === 2, ha === 1);
     var ch = { chrome: 'Chrome', msedge: 'Edge', chromium: 'Chromium' }[String(ex.BROWSER_CHANNEL || '').toLowerCase()];
@@ -3345,6 +3365,44 @@
     });
   });
 
+  /* <select data-pick-for="KEY">: common values plus "Other…" (value ""), which shows the KEY text field (wrapped in
+   * [data-pick-other="KEY"]). Only the text field is saved; the select just fills it in. */
+  function pickParts(sel) {
+    var key = sel.getAttribute('data-pick-for');
+    return { input: setForm.querySelector('[name="' + key + '"]'), other: setForm.querySelector('[data-pick-other="' + key + '"]') };
+  }
+  function isPreset(sel, v) { return v !== '' && $$('option', sel).some(function (o) { return o.value === v; }); }
+  function syncPick(sel) {
+    var p = pickParts(sel);
+    if (!p.input) return;
+    var v = fieldValue(p.input);
+    var preset = isPreset(sel, v);
+    sel.value = preset ? v : '';
+    if (p.other) p.other.hidden = preset;
+  }
+  function revealPicked(f) {
+    var wrap = f.closest('[data-pick-other]');
+    if (!wrap || !wrap.hidden) return;
+    var sel = setForm.querySelector('[data-pick-for="' + wrap.getAttribute('data-pick-other') + '"]');
+    if (sel) sel.value = '';
+    wrap.hidden = false;
+  }
+  $$('select[data-pick-for]', setForm).forEach(function (sel) {
+    sel.addEventListener('change', function () {
+      var p = pickParts(sel);
+      if (!p.input) return;
+      if (sel.value) {
+        p.input.value = sel.value;
+        p.input.removeAttribute('aria-invalid');
+        if (p.other) p.other.hidden = true;
+      } else if (p.other) {
+        p.other.hidden = false; // keep what's there: the user edits it into their own code
+        try { p.input.focus(); } catch (e) { /* ignore */ }
+      }
+      markDirty();
+    });
+  });
+
   function populateSettings() {
     var st = S.st || {};
     settingsFields().forEach(function (f) {
@@ -3360,6 +3418,7 @@
       f.removeAttribute('aria-invalid');
     });
     $$('.reveal', setForm).forEach(function (b) { b.setAttribute('aria-pressed', 'false'); });
+    $$('select[data-pick-for]', setForm).forEach(syncPick);
     var wl = setForm.querySelector('[name="MARKET_WATCHLIST"]');
     if (wl && Array.isArray(st.watchlist) && st.watchlist.length) wl.placeholder = st.watchlist.slice(0, 12).join(',');
     paintBadges(st);
@@ -3524,12 +3583,14 @@
       if (!fieldChanged(f)) return; // unchanged fields and blank secrets are never sent
       var v = fieldValue(f);
       var rule = FIELD_RULES[f.name];
-      if (!bad && v && rule && !rule[0].test(v)) bad = { f: f, msg: rule[1] };
+      var problem = !bad && v && rule ? ruleProblem(rule, v) : null;
+      if (problem) bad = { f: f, msg: problem };
       values[f.name] = v;
     });
     if (bad) {
       var sec = bad.f.closest('.set-sec');
       if (sec) sec.open = true;
+      revealPicked(bad.f);
       bad.f.setAttribute('aria-invalid', 'true');
       try { bad.f.focus(); } catch (x) { /* ignore */ }
       toast(bad.msg, { tone: 'warn' });
