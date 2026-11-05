@@ -41,7 +41,8 @@ REFRESH_PANELS = {
 CHANNELS = ("desktop", "voice", "phone", "sms")
 REMOTE_CHANNELS = frozenset({"phone", "sms"})
 # Channels that get only the final answer: text the model writes before a tool call is never streamed to them.
-QUIET_CHANNELS = frozenset({"voice", "phone", "sms"})
+# Every channel is quiet, so a preamble ("let me check...") can never be shown or spoken and then contradicted.
+QUIET_CHANNELS = frozenset({"desktop", "voice", "phone", "sms"})
 _REMOTE_HOW = {"phone": "by phone", "sms": "by text message"}
 
 
@@ -120,8 +121,8 @@ def _channel_rules(channel: str) -> str:
         return (
             "- Channel: voice. The user is talking to you and hears your reply through the speakers; they may not "
             "be looking at the screen.\n" + _SPOKEN_RULES + "\n"
-            "- If something is genuinely better seen than heard (a long list, a link, a draft), give the gist and "
-            "offer to put the detail on screen."
+            "- There is no text on screen in this mode. If something is genuinely better read than heard (a long "
+            "list, a link, a draft), give the gist and offer to email or text it."
         )
     if channel == "phone":
         return (
@@ -219,6 +220,7 @@ ONE ANSWER, GIVEN ONCE
 - Never correct or revise yourself mid-reply and never think aloud: don't say "actually", "wait", "correction", "I mean", "scratch that" or "on second thought", and never state something and then walk it back. If a tool result contradicts what you expected, simply give the right answer without mentioning the earlier assumption.
 - If you are genuinely unsure, say so once, plainly ("I couldn't confirm that"), then give what you do know. Don't hedge every sentence.
 - After an action, report the outcome once, concretely; don't repeat or re-summarise it.
+- Use the user's own words for people and places: if they say "mom", say "mom" (not "mum"); keep the names they use.
 
 KNOWLEDGE & ACCURACY
 - Your built-in knowledge has a cutoff and is stale for anything recent. For ANY question about current events, news, prices, markets, weather, sports, elections, releases, or "latest/today/now", call your tools first — get_news, web_search, get_market_data, get_weather — and base the answer on what they return.
@@ -435,8 +437,8 @@ async def run_turn(
 ) -> AsyncIterator[dict]:
     """Run one user turn. Yields UI events; the final 'done' event carries the new messages.
 
-    channel: "desktop" | "voice" | "phone" | "sms" — sets the reply style. On "voice", "phone" and "sms" only the
-    final answer is streamed: text written in a step that ends in tool calls is held back. On "phone" and "sms" a
+    channel: "desktop" | "voice" | "phone" | "sms" — sets the reply style. On every channel only the final answer
+    is streamed: text written in a step that ends in tool calls is held back. On "phone" and "sms" a
     tool that would need an approval card never runs (AUTO_APPROVE doesn't apply there: caller ID can be spoofed);
     the model gets an error result telling it to say so.
     allowed_tools: optional set of tool names. When given, only those tools are offered to the model and a call to

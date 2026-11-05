@@ -122,12 +122,9 @@
     Ok 'Components installed'
 
     # 5. Assistant name (stored only in your local .env) -------------------------------------------
-    $envFile = Join-Path $InstallDir '.env'
-    $current = $null
-    if (Test-Path $envFile) {
-        $line = Select-String -Path $envFile -Pattern '^\s*ASSISTANT_NAME\s*=\s*(.+)$' | Select-Object -First 1
-        if ($line) { $current = $line.Matches[0].Groups[1].Value.Trim().Trim('"').Trim("'") }
-    }
+    # Settings live in the per-user ATLAS folder (shared by every copy, kept across updates); ask ATLAS where.
+    $current = & $venvPy -c "import sys; sys.path.insert(0, sys.argv[1]); from app.config import ENV_PATH, load_env_file, migrate_legacy_files; migrate_legacy_files(); print(load_env_file(ENV_PATH).get('ASSISTANT_NAME', ''))" $InstallDir
+    if ($LASTEXITCODE -ne 0) { $current = $null } else { $current = "$current".Trim() }
     $name = $env:ATLAS_NAME
     if (-not $name -and -not $current) {
         $name = Read-Host '  What should your assistant be called? (press Enter for ATLAS)'

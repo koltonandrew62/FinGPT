@@ -8,9 +8,29 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-ENV_PATH = ROOT / ".env"
-DATA_DIR = ROOT / "data"
 WEB_DIR = ROOT / "web"
+
+
+def _user_dir() -> Path:
+    """One per-user folder for settings and data, shared by every copy of ATLAS on this computer, so memories
+    and settings survive reinstalls and updates. Override with ATLAS_HOME."""
+    override = os.environ.get("ATLAS_HOME", "").strip()
+    if override:
+        return Path(os.path.expanduser(override))
+    system = platform.system()
+    if system == "Windows":
+        return Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming") / "ATLAS"
+    if system == "Darwin":
+        return Path.home() / "Library" / "Application Support" / "ATLAS"
+    return Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "atlas"
+
+
+USER_DIR = _user_dir()
+ENV_PATH = USER_DIR / ".env"
+DATA_DIR = USER_DIR / "data"
+# Where earlier versions kept them (inside the program folder); migrate_legacy_files() moves them over.
+LEGACY_ENV_PATH = ROOT / ".env"
+LEGACY_DATA_DIR = ROOT / "data"
 
 # Tried in order when ATLAS_MODEL is empty or not offered by OpenRouter.
 MODEL_PREFERENCES = [
@@ -312,3 +332,61 @@ class Settings:
             base_url=(get("OPENROUTER_BASE_URL") or "https://openrouter.ai/api/v1").rstrip("/"),
             open_browser=_bool(get("ATLAS_OPEN_BROWSER"), True),
         )
+
+
+_MERGE_LISTS = {"memory.json": "fact", "contacts.json": "name", "notes.json": "id", "tasks.json": "id", "reminders.json": "id"}
+
+
+def migrate_legacy_files() -> list[str]:
+    """Bring settings and data from an older copy (atlas/.env, atlas/data/) into the per-user folder.
+
+    Never deletes anything. Files missing in the user folder are copied; for list files (memories, contacts,
+    notes, tasks, reminders) entries the user folder doesn't have yet are merged in, so memories saved by two
+    different copies of ATLAS end up together. Returns a short description of what was done.
+    """
+    import json
+    import shutil
+
+    done: list[str] = []
+    try:
+        USER_DIR.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return done
+    try:
+        if LEGACY_ENV_PATH.is_file() and LEGACY_ENV_PATH.resolve() != ENV_PATH.resolve():
+            if not ENV_PATH.exists():
+                shutil.copy2(LEGACY_ENV_PATH, ENV_PATH)
+                done.append("settings")
+            else:  # keep current values; add keys only the old file has
+                old_vals, cur_vals = load_env_file(LEGACY_ENV_PATH), load_env_file(ENV_PATH)
+                missing = {k: v for k, v in old_vals.items() if k not in cur_vals and v}
+                if missing:
+                    update_env_file(missing, ENV_PATH)
+                    done.append(f"{len(missing)} setting(s)")
+    except OSError:
+        pass
+    if not LEGACY_DATA_DIR.is_dir() or LEGACY_DATA_DIR.resolve() == DATA_DIR.resolve():
+        return done
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    for src in LEGACY_DATA_DIR.iterdir():
+        dst = DATA_DIR / src.name
+        try:
+            if src.name in _MERGE_LISTS and src.is_file() and dst.is_file():
+                key = _MERGE_LISTS[src.name]
+                old_items = json.loads(src.read_text(encoding="utf-8")) or []
+                cur_items = json.loads(dst.read_text(encoding="utf-8")) or []
+                if isinstance(old_items, list) and isinstance(cur_items, list):
+                    seen = {str(i.get(key, "")).strip().lower() for i in cur_items if isinstance(i, dict)}
+                    extra = [i for i in old_items if isinstance(i, dict) and str(i.get(key, "")).strip().lower() not in seen]
+                    if extra:
+                        dst.write_text(json.dumps(cur_items + extra, indent=2, ensure_ascii=False), encoding="utf-8")
+                        done.append(f"{len(extra)} {src.stem} entr{'y' if len(extra) == 1 else 'ies'}")
+            elif not dst.exists():
+                if src.is_dir():
+                    shutil.copytree(src, dst)
+                else:
+                    shutil.copy2(src, dst)
+                done.append(src.name)
+        except (OSError, ValueError, shutil.Error):
+            continue
+    return done

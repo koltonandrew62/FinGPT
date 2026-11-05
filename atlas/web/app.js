@@ -447,11 +447,15 @@
   /* Voice first: unless "Show text chat" is on, the transcript, quick actions and command bar are hidden and the
    * core is the centrepiece, with a status line and live captions under it. Requests then go out on the "voice"
    * channel, so the model answers in a few spoken sentences and only its final answer is streamed. */
-  // A browser without speech recognition can't take a spoken request: it gets the text chat instead.
-  function voiceOnly() { return !S.voice.showChat && listener.supported; }
+  // Voice-only stays on even where the browser can't recognise speech: a notice says to open the desktop
+  // shortcut (Edge) or Chrome, with a "Type instead" button, rather than silently bringing the chat back.
+  function voiceOnly() { return !S.voice.showChat; }
   function applyVoiceMode() {
     var vo = voiceOnly();
     document.body.classList.toggle('voice-only', vo);
+    document.body.classList.toggle('no-voice', !listener.supported);
+    var nv = $('#vh-novoice');
+    if (nv) nv.hidden = !(vo && !listener.supported);
     document.body.classList.toggle('no-captions', !S.voice.captions);
     // the skip link leads to the command bar, or to the core when the command bar is hidden
     var skip = $('.skip-link');
@@ -845,7 +849,82 @@
     var host = location.host || '127.0.0.1';
     $('#eg-host').textContent = host;
     $('#eg-token').textContent = TOKEN && TOKEN.indexOf('{{') === -1 ? 'VERIFIED' : 'MISSING';
+    if (S.st.version) {
+      setText($('#engage-ver'), 'v' + S.st.version);
+      setText($('#about-version'), S.st.version);
+    }
+    if (S.st.data_folder) setText($('#about-folder'), S.st.data_folder);
   }
+
+  // ------------------------------------------------------------------ updates
+  var updateToastShown = false;
+  function renderUpdate(u) {
+    var st = $('#update-status'), btn = $('#update-btn');
+    if (!st || !btn || !u) return;
+    var inst = u.install || {};
+    if (inst.status === 'done') {
+      setText(st, inst.message || 'Updated. Close and reopen to finish.');
+      btn.hidden = true;
+      sectionBadge('update', 'Restart', true);
+      return;
+    }
+    if (u.update_available && u.can_update) {
+      setText(st, 'Version ' + u.latest + ' is available.');
+      btn.hidden = false;
+      btn.disabled = false;
+      sectionBadge('update', 'Update ready', false, true);
+      if (!updateToastShown) {
+        updateToastShown = true;
+        toast('An update is ready (v' + u.latest + '). Open Settings → About & updates to install it.', { tone: 'info', key: 'update' });
+      }
+    } else if (u.update_available) {
+      setText(st, 'Version ' + u.latest + ' is available. ' + (u.note || ''));
+      btn.hidden = true;
+      sectionBadge('update', 'Update ready', false, true);
+    } else if (u.error) {
+      setText(st, u.error);
+      btn.hidden = true;
+      sectionBadge('update', '', false);
+    } else {
+      setText(st, 'Up to date.');
+      btn.hidden = true;
+      sectionBadge('update', 'Up to date', true);
+    }
+  }
+  function checkUpdates(force) {
+    return api('/api/update' + (force ? '?force=true' : '')).then(renderUpdate).catch(function (e) {
+      var st = $('#update-status');
+      if (st) setText(st, 'Couldn’t check for updates — ' + errText(e));
+    });
+  }
+  (function wireUpdates() {
+    var btn = $('#update-btn'), chk = $('#update-check');
+    if (chk) chk.addEventListener('click', function () { var st = $('#update-status'); if (st) setText(st, 'Checking…'); checkUpdates(true); });
+    if (btn) btn.addEventListener('click', function () {
+      var st = $('#update-status');
+      btn.disabled = true;
+      if (st) setText(st, 'Downloading and installing… this takes a minute or two.');
+      api('/api/update', { method: 'POST', body: {} }).then(function (r) {
+        var msg = (r && r.message) || 'Updated.';
+        if (st) setText(st, msg + ' Close ' + assistantName() + ' and open it again to finish.');
+        btn.hidden = true;
+        sectionBadge('update', 'Restart', true);
+        toast('Update installed. Close ' + assistantName() + ' and open it again to finish.', { tone: 'info', key: 'update' });
+      }).catch(function (e) {
+        btn.disabled = false;
+        if (st) setText(st, 'Update failed — ' + errText(e));
+      });
+    });
+    var typeBtn = $('#vh-type');
+    if (typeBtn) typeBtn.addEventListener('click', function () {
+      S.voice.showChat = true;
+      saveVoice();
+      applyVoiceMode();
+      paintVoiceToggles();
+      var inp = $('#cmd-input');
+      if (inp) inp.focus();
+    });
+  })();
 
   function loadState() {
     return api('/api/state').then(function (st) {
@@ -3546,7 +3625,7 @@
     var wr = $('#wakereq-toggle');
     if (wr) wr.disabled = !sr || !S.voice.wake;
     var ct = $('#chat-toggle');
-    if (ct && !sr) { ct.checked = true; ct.disabled = true; } // no speech recognition here: the text chat stays on
+    if (ct) ct.disabled = false; // typing stays available for troubleshooting, whatever the browser
     if (S.st) paintBadges(S.st);
   }
   Object.keys(VOICE_TOGGLES).forEach(function (id) {
@@ -3793,7 +3872,7 @@
   safely('state', refreshState);
 
   safely('load', function () {
-    loadState().then(function () { loadNews(); });
+    loadState().then(function () { loadNews(); checkUpdates(false); });
     loadWeather();
     loadSystem();
     loadAgenda();

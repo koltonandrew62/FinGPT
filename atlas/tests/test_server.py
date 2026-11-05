@@ -18,7 +18,7 @@ STATE_KEYS = {
     "assistant_name", "user_name", "address_as", "has_key", "key_hint", "model", "search_model", "home_city",
     "units", "news_region", "news_language", "watchlist", "email_address", "email_configured", "smtp_host",
     "smtp_port", "imap_host", "imap_port", "os", "capabilities", "news_categories", "tools",
-    "user_phone", "home_address", "work_address", "extra", "secrets_configured", "phone",
+    "user_phone", "home_address", "work_address", "extra", "secrets_configured", "phone", "version", "data_folder",
 }
 
 
@@ -294,14 +294,14 @@ def test_chat_voice_channel_streams_only_the_final_answer(srv, monkeypatch):
     assert "Channel: voice" in llm.requests[0]["messages"][0]["content"]
 
 
-def test_chat_desktop_channel_keeps_streaming_everything(srv, monkeypatch):
+def test_chat_desktop_channel_streams_only_the_final_answer(srv, monkeypatch):
     server, client = srv
     for body in ({}, {"channel": "desktop"}, {"channel": None}, {"channel": " Desktop "}):
         llm = _preamble_then_answer()
         monkeypatch.setattr(server.S, "llm", llm)
         events = sse_events(client.post("/api/chat", json={"messages": [{"role": "user", "content": "6 times 7?"}], **body}).text)
-        assert [e["type"] for e in events] == ["model", "token", "segment_end", "tool", "tool", "token", "done"], body
-        assert events[1]["text"] == "One moment." and events[-1]["messages"][0]["content"] == "One moment."
+        assert [e["type"] for e in events] == ["model", "tool", "tool", "token", "done"], body
+        assert all(e.get("text") != "One moment." for e in events)  # the preamble is never sent
         assert "Channel:" not in llm.requests[0]["messages"][0]["content"]
 
 

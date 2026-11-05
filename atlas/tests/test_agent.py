@@ -292,7 +292,8 @@ def test_parallel_tool_calls(temp_tool):
     )
     events = collect(llm)
     types = [e["type"] for e in events]
-    assert types.index("segment_end") < types.index("tool")
+    # The "Checking both." preamble is never streamed (every channel gets only the final answer).
+    assert "segment_end" not in types and [e["text"] for e in of(events, "token")] == ["Both done."]
     starts = [e for e in of(events, "tool") if e["state"] == "start"]
     assert [(s["id"], s["label"], s["args"]) for s in starts] == [("c1", "Label t_slow", {"tag": "A"}), ("c2", "Label t_slow", {"tag": "B"})]
     dones = [e for e in of(events, "tool") if e["state"] != "start"]
@@ -300,7 +301,7 @@ def test_parallel_tool_calls(temp_tool):
     msgs = events[-1]["messages"]
     assert msgs[0] == {
         "role": "assistant",
-        "content": "Checking both.",
+        "content": None,  # the held-back preamble isn't kept in the saved history either
         "tool_calls": [
             {"id": "c1", "type": "function", "function": {"name": "t_slow", "arguments": '{"tag": "A"}'}},
             {"id": "c2", "type": "function", "function": {"name": "t_slow", "arguments": '{"tag": "B"}'}},
@@ -931,8 +932,9 @@ def test_default_channel_is_desktop_and_unchanged(temp_tool):
 
     default, desktop = collect(script()), collect(script(), channel="desktop")
     assert default == desktop
-    assert [e["type"] for e in default] == ["model", "token", "segment_end", "tool", "tool", "token", "token", "done"]
-    assert default[-1]["messages"][0]["content"] == "Checking."  # the preamble stays in the desktop history
+    # Desktop is quiet too now: the preamble before the tool call is held back, only the answer streams.
+    assert [e["type"] for e in default] == ["model", "tool", "tool", "token", "token", "done"]
+    assert "".join(e["text"] for e in of(default, "token")) == "All good."
 
 
 def test_allowed_tools_filters_the_schemas_sent_to_the_model():

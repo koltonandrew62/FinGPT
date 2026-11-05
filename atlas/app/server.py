@@ -9,7 +9,6 @@ import secrets
 import socket
 import threading
 import unicodedata
-import webbrowser
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
@@ -19,10 +18,11 @@ from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import phone
+from . import phone, updater
+from .appwindow import open_window
 from . import tools as tool_registry
 from .agent import ConfirmationBroker, run_turn
-from .config import EDITABLE_KEYS, SECRET_KEYS, WEB_DIR, Settings, load_env_file, update_env_file
+from .config import DATA_DIR, EDITABLE_KEYS, SECRET_KEYS, USER_DIR, WEB_DIR, Settings, load_env_file, update_env_file
 from .llm import LLMError, OpenRouter
 from .tools import ToolContext
 from .tools import comms, data_sources, finance_data
@@ -33,6 +33,7 @@ from .tools.news import CATEGORIES, headlines_for_panel
 from .tools.pc import capabilities, system_snapshot
 from .tools.sports import scores_for_panel
 from .tools.weather import get_weather_data
+from .version import VERSION
 
 tool_registry.load_all()
 log = logging.getLogger("atlas.server")
@@ -186,14 +187,30 @@ async def guard(request: Request, call_next):
     ):
         return JSONResponse({"error": "bad token"}, status_code=401)
     response = await call_next(request)
+    if request.url.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-cache"  # revalidate every time: updates must show at once
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "no-referrer"
     return response
 
 
+_STATIC_REF = re.compile(r'((?:src|href)=")(/static/[A-Za-z0-9_./-]+\.(?:js|css|png|svg|ico|webp|woff2?))(")')
+
+
+def _asset_stamp() -> str:
+    """Changes whenever any web file changes, so the browser fetches fresh copies after an update."""
+    try:
+        newest = max(int(f.stat().st_mtime) for f in WEB_DIR.iterdir() if f.is_file())
+    except (OSError, ValueError):
+        newest = 0
+    return f"{VERSION}-{newest:x}"
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index():
     page = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+    stamp = _asset_stamp()
+    page = _STATIC_REF.sub(lambda m: f"{m.group(1)}{m.group(2)}?v={stamp}{m.group(3)}", page)
     return HTMLResponse(page.replace("{{ATLAS_TOKEN}}", S.token), headers={"Cache-Control": "no-store"})
 
 
@@ -227,6 +244,8 @@ async def state():
         "capabilities": capabilities(),
         "news_categories": CATEGORIES,
         "tools": sorted(tool_registry.TOOLS),
+        "version": VERSION,
+        "data_folder": str(USER_DIR),
         "user_phone": s.user_phone,
         "home_address": s.home_address,
         "work_address": s.work_address,
@@ -478,6 +497,20 @@ async def memory_delete(mem_id: str):
     return {"ok": delete_memory(mem_id)}
 
 
+# ------------------------------------------------------------------ updates
+@app.get("/api/update")
+async def update_check(force: bool = False):
+    return await updater.check(S.http, force=force)
+
+
+@app.post("/api/update")
+async def update_apply():
+    try:
+        return await updater.apply(S.http)
+    except updater.UpdateError as exc:
+        raise HTTPException(409, str(exc))
+
+
 # ------------------------------------------------------------------ entry point
 def _free_port(host: str, start: int) -> int:
     for port in range(start, start + 20):
@@ -529,5 +562,7 @@ def main() -> None:
     if not S.settings.api_key:
         print("  No OpenRouter key yet — the page will ask for it.\n")
     if S.settings.open_browser:
-        threading.Timer(1.2, lambda: webbrowser.open(url)).start()
+        # Its own app window in Edge/Chrome when available: those browsers do the speech recognition that
+        # voice-only mode needs (a default browser such as Firefox doesn't).
+        threading.Timer(1.2, lambda: open_window(url, DATA_DIR / "app-window")).start()
     uvicorn.run(app, host=host, port=port, log_level="warning")

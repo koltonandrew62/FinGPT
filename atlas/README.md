@@ -153,12 +153,35 @@ python run.py
 
 ---
 
+## Updating
+
+Open **Settings → About & updates**. ATLAS checks for a new version when it starts (you'll also get a short
+notice); click **Update now**, then close ATLAS and open it again. Your settings and memories are never touched by
+an update. Running the installer again also updates it. The version number is shown on the start screen and in
+Settings, so you can always tell which version you're running. (Copies that are git checkouts update with
+`git pull` instead.)
+
+## Where your settings and data live
+
+Settings (`.env`), long-term memory, contacts, notes, to-dos, reminders, the booking browser's sign-ins and logs
+live in one folder per user, shared by every copy of ATLAS on the computer and kept across updates:
+
+| System | Folder |
+|---|---|
+| Windows | `%APPDATA%\ATLAS` |
+| macOS | `~/Library/Application Support/ATLAS` |
+| Linux | `~/.config/atlas` |
+
+Set `ATLAS_HOME` to use another folder. Older versions kept these inside the program folder (`atlas/.env`,
+`atlas/data/`); ATLAS moves them over automatically on first start (nothing is deleted, and memories saved by
+different copies are merged). Settings → About & updates shows the exact folder.
+
 ## First run
 
 1. **Click the start button** on the intro screen. Browsers only let a page use the microphone and speak
    after you've clicked on it. ATLAS also asks permission to show notifications, which it uses for reminders.
 2. **Paste your OpenRouter key** on the setup screen. You can also give your name and home city here.
-   ATLAS saves these to `atlas/.env`.
+   ATLAS saves these to your `.env` settings file (see [Where your settings and data live](#where-your-settings-and-data-live)).
 
    If you'd rather do it by hand, copy the example file and edit it **before** starting:
 
@@ -500,7 +523,7 @@ number, how it will be sent and the full message.
    Auth Token can then stay blank. The [phone line](#phone-line-call-your-assistant) still needs the Auth Token.
    Twilio signs every call and text it sends to ATLAS with it, and an API key can't check those signatures.
    To stop using the key, clear the **API Key SID** box and save: ATLAS goes back to the Auth Token. (The
-   secret box can't be cleared from the screen; delete the `TWILIO_API_KEY_SECRET` line from `atlas/.env` if
+   secret box can't be cleared from the screen; delete the `TWILIO_API_KEY_SECRET` line from your `.env` settings file if
    you want it gone.)
 
 The SID boxes check what you paste: an `SK…` value in the Account SID box, or an `AC…` value in the API Key SID
@@ -594,7 +617,7 @@ public https address that reaches your computer: a free Cloudflare quick tunnel,
 8. **Strongly recommended: set a PIN.** In **Settings → Phone line**, type 6 or more digits under **Keypad
    PIN** and save (`PHONE_PIN`, 4 to 12 digits). Every call then has to enter the PIN on the keypad, followed by
    #, before the assistant says anything. Like the other secrets, it's never shown again and a blank box keeps
-   it. To remove it, delete the `PHONE_PIN` line from `atlas/.env` and restart ATLAS. See
+   it. To remove it, delete the `PHONE_PIN` line from your `.env` settings file and restart ATLAS. See
    [Phone line security](#phone-line-security) for why.
 
 Saving any phone or Twilio setting in Settings restarts the line. After editing `.env` by hand, restart ATLAS.
@@ -809,7 +832,7 @@ To turn shell commands off completely, set `ALLOW_SHELL=false`.
 
 ## Configuration reference
 
-Settings live in `atlas/.env`. [`.env.example`](.env.example) lists every key with a comment. The
+Settings live in your `.env` settings file. [`.env.example`](.env.example) lists every key with a comment. The
 **Settings** drawer covers the everyday keys (names, city, units, news region, models, email, API key). It
 writes them to `.env` and they take effect immediately. Put every other key in `.env` (the Settings screen can
 save those too, where it has a field for them).
@@ -990,7 +1013,7 @@ search model's tokens. See OpenRouter's pricing for current rates. Track spendin
 - ATLAS checks the **Host header** and only answers to `localhost` / `127.0.0.1`. This blocks DNS-rebinding
   attacks. The page also refuses to be embedded in other sites.
 - Your **secrets** (OpenRouter key, email password, Twilio auth token, phone line PIN, Home Assistant token,
-  secret calendar links and the optional CoinGecko and FRED keys) live in `atlas/.env`. When ATLAS saves that
+  secret calendar links and the optional CoinGecko and FRED keys) live in your `.env` settings file. When ATLAS saves that
   file, it makes it readable only by your user on macOS/Linux.
   **Secrets are never sent back to the browser page:** the Settings screen only learns whether
   each one is set (plus the first and last few characters of the OpenRouter key), and leaving a secret field

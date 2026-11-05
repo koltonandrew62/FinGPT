@@ -28,7 +28,11 @@ import webbrowser
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-DATA = ROOT / "data"
+sys.path.insert(0, str(ROOT))
+from app.appwindow import find_browser as _find_browser, open_window as _open_window  # noqa: E402
+from app.config import DATA_DIR  # noqa: E402  (the shared per-user folder, not the program folder)
+
+DATA = DATA_DIR
 STATE = DATA / "launcher.json"
 LOG = DATA / "atlas.log"
 SYSTEM = platform.system()
@@ -156,55 +160,11 @@ def stop_server(proc: subprocess.Popen) -> None:
 
 
 def find_browser() -> str | None:
-    """A Chromium-based browser that supports --app windows."""
-    override = os.environ.get("ATLAS_APP_BROWSER", "")
-    if override and Path(override).exists():
-        return override
-    if SYSTEM == "Windows":
-        rel = [
-            r"Microsoft\Edge\Application\msedge.exe",
-            r"Google\Chrome\Application\chrome.exe",
-            r"BraveSoftware\Brave-Browser\Application\brave.exe",
-        ]
-        for base in (os.environ.get("PROGRAMFILES(X86)"), os.environ.get("PROGRAMFILES"), os.environ.get("LOCALAPPDATA")):
-            for r in rel:
-                if base and (Path(base) / r).exists():
-                    return str(Path(base) / r)
-        return shutil.which("msedge") or shutil.which("chrome")
-    if SYSTEM == "Darwin":
-        for app in ("Google Chrome", "Microsoft Edge", "Brave Browser", "Chromium"):
-            for folder in (Path("/Applications"), Path.home() / "Applications"):
-                exe = folder / f"{app}.app" / "Contents" / "MacOS" / app
-                if exe.exists():
-                    return str(exe)
-        return None
-    for name in ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "microsoft-edge", "brave-browser"):
-        found = shutil.which(name)
-        if found:
-            return found
-    return None
+    return _find_browser()
 
 
 def open_window(url: str) -> subprocess.Popen | None:
-    browser = find_browser()
-    if not browser:
-        webbrowser.open(url)
-        return None
-    profile = DATA / "app-window"  # its own profile, so the window is a separate app (and remembers mic permission)
-    profile.mkdir(parents=True, exist_ok=True)
-    args = [
-        browser,
-        f"--app={url}",
-        f"--user-data-dir={profile}",
-        "--window-size=1440,900",
-        "--no-first-run",
-        "--no-default-browser-check",
-        "--disable-features=Translate",
-    ]
-    kwargs: dict = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
-    if SYSTEM == "Windows":
-        kwargs["creationflags"] = CREATE_NO_WINDOW
-    return subprocess.Popen(args, **kwargs)
+    return _open_window(url, DATA / "app-window")
 
 
 def main() -> int:

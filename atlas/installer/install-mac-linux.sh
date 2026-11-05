@@ -98,7 +98,8 @@ ok "Components installed"
 CURRENT="$("$VENV/bin/python" - "$INSTALL_DIR" <<'PYEOF'
 import sys
 sys.path.insert(0, sys.argv[1])
-from app.config import ENV_PATH, load_env_file
+from app.config import ENV_PATH, load_env_file, migrate_legacy_files
+migrate_legacy_files()
 print(load_env_file(ENV_PATH).get("ASSISTANT_NAME", ""))
 PYEOF
 )"

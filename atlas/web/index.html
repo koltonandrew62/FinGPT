@@ -153,6 +153,10 @@
       <div class="voice-hud" id="voice-hud" data-state="standby">
         <p class="vh-status"><i class="vh-dot" aria-hidden="true"></i><span id="vh-status">Say “<span data-name>ATLAS</span>” or tap the core</span></p>
         <p class="vh-hint" id="vh-hint" aria-hidden="true"></p>
+        <div class="vh-novoice" id="vh-novoice" role="alert" hidden>
+          <p>Voice isn’t available in this browser. Open <span data-name>ATLAS</span> from its desktop shortcut (it uses Microsoft Edge), or use Google Chrome.</p>
+          <button class="btn btn-ghost btn-sm" type="button" id="vh-type">Type instead</button>
+        </div>
         <div class="vh-caps" aria-hidden="true">
           <p class="cap cap-u" id="cap-u"><b class="cap-k">You</b><span class="cap-t"></span></p>
           <p class="cap cap-a" id="cap-a"><b class="cap-k" data-name>ATLAS</b><span class="cap-t"></span></p>
@@ -265,6 +269,18 @@
 
     <form class="drawer-body" id="settings-form" autocomplete="off" novalidate>
       <p class="set-intro">Saved to the <code>.env</code> file on this computer. Secret fields are never shown again: leave one blank to keep its current value.</p>
+
+      <details class="set-sec" id="sec-about" open>
+        <summary><span class="idx">00</span><span class="ss-title">About &amp; updates</span><span class="ss-badge" data-badge="update"></span><i class="ss-chev" aria-hidden="true"></i></summary>
+        <div class="set-body">
+          <p class="field-help about-line">Version <b id="about-version">—</b> · <span id="update-status" role="status">Checking for updates…</span></p>
+          <div class="update-row">
+            <button class="btn btn-primary btn-sm" type="button" id="update-btn" hidden>Update now</button>
+            <button class="btn btn-ghost btn-sm" type="button" id="update-check">Check for updates</button>
+          </div>
+          <p class="field-help">Your settings and memories are kept in <code id="about-folder">—</code>. Every copy of <span data-name>ATLAS</span> on this computer shares them, and updates never touch them.</p>
+        </div>
+      </details>
 
       <details class="set-sec" id="sec-assistant" open>
         <summary><span class="idx">01</span><span class="ss-title">Assistant &amp; speech</span><span class="ss-dirty">Edited</span><span class="ss-badge" data-badge="voice"></span><i class="ss-chev" aria-hidden="true"></i></summary>
@@ -600,6 +616,7 @@
       <div class="engage-core"><canvas id="engage-canvas" aria-hidden="true"></canvas></div>
       <h1 class="engage-name" id="engage-name"><span data-name>ATLAS</span></h1>
       <p class="engage-tag">Personal intelligence system</p>
+      <p class="engage-ver" id="engage-ver"></p>
       <div class="engage-action" id="engage-action">
         <button class="engage-btn" id="engage-btn" type="button">
           <span class="eb-label">Engage</span>
